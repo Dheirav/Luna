@@ -34,6 +34,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -210,7 +212,10 @@ private fun CycleHero(
             .background(Brush.verticalGradient(listOf(top, bottom)))
             // The card already names the phase, which makes it the obvious place to ask what the
             // phase means — better than another button competing with "Log today".
-            .clickable(onClick = onClick),
+            //
+            // The label matters: without it a screen reader announces the card's contents and
+            // gives no hint that tapping does anything at all.
+            .clickable(onClickLabel = "Read about this phase", onClick = onClick),
     ) {
         Cloud(
             color = ornament.copy(alpha = 0.18f),
@@ -317,6 +322,11 @@ private fun NextPeriodCard(window: PeriodWindow) {
             Text(
                 "${window.earliest.format(dayMonth)} – ${window.latest.format(dayMonth)}",
                 style = MaterialTheme.typography.headlineSmall,
+                // "21 Aug – 29 Aug" reads as two dates and a dash out loud.
+                modifier = Modifier.semantics {
+                    contentDescription = "Expected between ${window.earliest.format(dayMonth)} " +
+                        "and ${window.latest.format(dayMonth)}"
+                },
             )
             Text(
                 when (window.basis) {
@@ -393,9 +403,16 @@ private fun WhyCard(basis: PredictionBasis?, accuracy: PredictionAccuracy?, stat
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text("Why these numbers?", style = MaterialTheme.typography.titleSmall)
-                TextButton(onClick = { expanded = !expanded }) {
-                    Text(if (expanded) "Hide" else "Show")
-                }
+                TextButton(
+                    onClick = { expanded = !expanded },
+                    modifier = Modifier.semantics {
+                        contentDescription = if (expanded) {
+                            "Hide the working behind these numbers"
+                        } else {
+                            "Show the working behind these numbers"
+                        }
+                    },
+                ) { Text(if (expanded) "Hide" else "Show") }
             }
 
             // The honest headline, visible without expanding: measured accuracy if it exists,

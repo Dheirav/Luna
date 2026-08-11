@@ -30,7 +30,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.unit.dp
 import com.dheirav.cycletracker.core.WindowWidth
 import com.dheirav.cycletracker.data.Settings
@@ -302,7 +305,11 @@ private fun SettingsCard(title: String, content: @Composable () -> Unit) {
             modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text(
+                title,
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.semantics { heading() },
+            )
             content()
         }
     }
@@ -333,6 +340,7 @@ private fun Stepper(
         Row(verticalAlignment = Alignment.CenterVertically) {
             FilledTonalIconButton(
                 onClick = { onChange(((value ?: default) - 1).coerceIn(range)) },
+                modifier = Modifier.semantics { contentDescription = "Decrease $label" },
             ) { Text("−") }
             Text(
                 value?.let { "$it days" } ?: unset,
@@ -342,6 +350,7 @@ private fun Stepper(
             )
             FilledTonalIconButton(
                 onClick = { onChange(((value ?: default - 1) + 1).coerceIn(range)) },
+                modifier = Modifier.semantics { contentDescription = "Increase $label" },
             ) { Text("+") }
         }
     }

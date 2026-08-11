@@ -27,9 +27,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -120,7 +124,9 @@ private fun MonthLog(
         Text(
             "Logged this month",
             style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.padding(top = 4.dp),
+            modifier = Modifier
+                .padding(top = 4.dp)
+                .semantics { heading() },
         )
 
         if (entries.isEmpty()) {
@@ -144,7 +150,8 @@ private fun LogRow(date: LocalDate, summary: DaySummary, onPickDate: (LocalDate)
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onPickDate(date) },
+            .semantics(mergeDescendants = true) { }
+            .clickable(onClickLabel = "Edit this day") { onPickDate(date) },
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -226,7 +233,10 @@ private fun MonthHeader(month: YearMonth, canGoForward: Boolean, onShift: (Long)
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        TextButton(onClick = { onShift(-1) }) { Text("‹") }
+        TextButton(
+            onClick = { onShift(-1) },
+            modifier = Modifier.semantics { contentDescription = "Previous month" },
+        ) { Text("‹") }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 month.format(DateTimeFormatter.ofPattern("MMMM yyyy")),
@@ -238,7 +248,11 @@ private fun MonthHeader(month: YearMonth, canGoForward: Boolean, onShift: (Long)
                 modifier = Modifier.padding(start = 6.dp),
             )
         }
-        TextButton(onClick = { onShift(1) }, enabled = canGoForward) { Text("›") }
+        TextButton(
+            onClick = { onShift(1) },
+            enabled = canGoForward,
+            modifier = Modifier.semantics { contentDescription = "Next month" },
+        ) { Text("›") }
     }
 }
 
@@ -337,10 +351,27 @@ private fun DayCell(
         else -> scheme.onSurface
     }
 
+    // Everything this cell conveys is visual: a fill, an outline, a wash, a ring, a dot. Spoken
+    // aloud it was just a number. mergeDescendants folds the day number in so the whole cell is
+    // one announcement rather than a digit followed by unexplained decoration.
+    val spoken = buildString {
+        append(date.format(DateTimeFormatter.ofPattern("EEEE d MMMM")))
+        if (isToday) append(", today")
+        when {
+            observedBleed -> append(", bleeding logged")
+            bleeding -> append(", bleeding estimated by backfill")
+            summary != null -> append(", logged")
+            else -> append(", nothing logged")
+        }
+        if (inPredictedWindow) append(", inside the expected period window")
+        if (!enabled) append(", future date")
+    }
+
     Box(
         modifier = Modifier
             .aspectRatio(1f)
             .clip(CircleShape)
+            .semantics(mergeDescendants = true) { contentDescription = spoken }
             .background(fill)
             .then(
                 if (bleeding && summary?.isAssumed == true) {
@@ -352,7 +383,7 @@ private fun DayCell(
             .then(
                 if (isToday) Modifier.border(2.dp, scheme.primary, CircleShape) else Modifier,
             )
-            .clickable(enabled = enabled, onClick = onClick),
+            .clickable(enabled = enabled, onClickLabel = "Log or correct this day", onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -410,6 +441,7 @@ private fun LegendItem(
     ) {
         Box(
             modifier = Modifier
+                .clearAndSetSemantics { }
                 .size(if (dot) 6.dp else 12.dp)
                 .clip(CircleShape)
                 .background(swatch)

@@ -25,6 +25,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -83,6 +85,12 @@ fun LogScreen(viewModel: LogViewModel, onSaved: () -> Unit) {
             FilterChip(
                 selected = entry.isBleeding,
                 onClick = { viewModel.setBleeding(!entry.isBleeding) },
+                // The visible label flips between "Bleeding" and "No"; spoken alone, a chip that
+                // just says "No" tells you nothing about what is being answered.
+                modifier = Modifier.semantics {
+                    contentDescription =
+                        if (entry.isBleeding) "Bleeding today: yes" else "Bleeding today: no"
+                },
                 label = { Text(if (entry.isBleeding) "Bleeding" else "No") },
             )
             FlowLevel.entries.forEach { level ->
@@ -231,6 +239,11 @@ private fun SymptomRow(symptom: Symptom, value: Int?, onSelect: (Int) -> Unit) {
                     selected = value == index,
                     onClick = { onSelect(index) },
                     shape = SegmentedButtonDefaults.itemShape(index, symptom.levels.size),
+                    // The symptom's name is a separate Text above the row, so without this a
+                    // screen reader announces a bare "Depleted" with no idea what it grades.
+                    modifier = Modifier.semantics {
+                        contentDescription = "${symptom.label}: $level"
+                    },
                     label = {
                         Text(
                             level,

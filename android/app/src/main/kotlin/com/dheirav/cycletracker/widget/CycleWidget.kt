@@ -194,9 +194,18 @@ private suspend fun buildViews(context: Context): RemoteViews {
             else -> ""
         },
     )
-    views.setTextViewText(
-        R.id.widget_action,
-        if (dao.logFor(today) != null) "Logged today ✓" else "Tap to log today",
+    val action = if (dao.logFor(today) != null) "Logged today ✓" else "Tap to log today"
+    views.setTextViewText(R.id.widget_action, action)
+
+    // Without this a screen reader reads four disconnected fragments — "DAY 16", "Luteal",
+    // "Next 21 Aug – 29 Aug", "Tap to log today" — with no indication they are one tappable card.
+    views.setContentDescription(
+        R.id.widget_root,
+        "Luna. Day ${state.cycleDay}, ${state.phase?.name?.lowercase() ?: "phase unknown"}. " +
+            (window?.let {
+                "Period expected between ${it.earliest.format(dayMonth)} and " +
+                    "${it.latest.format(dayMonth)}. "
+            } ?: "") + action,
     )
     return views
 }

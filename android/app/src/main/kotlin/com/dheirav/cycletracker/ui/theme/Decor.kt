@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -36,7 +37,15 @@ import androidx.compose.ui.unit.dp
  *
  * Drawn with [Canvas] rather than bundled as PNGs: a handful of vertices instead of kilobytes of
  * bitmap, sharp at any density, and tintable so the same mark works in both schemes.
+ *
+ * **Every composable here hides itself from accessibility services**, via [decorative]. That is
+ * enforced at the source rather than at each call site precisely because it is the kind of thing
+ * that gets forgotten on the twentieth sparkle. Since decoration never carries meaning (see above),
+ * a screen reader announcing it would be pure noise between the facts a user came for.
  */
+
+/** Removes a purely ornamental element from the accessibility tree entirely. */
+private fun Modifier.decorative(): Modifier = clearAndSetSemantics { }
 
 /**
  * A four-point sparkle with concave sides — the shape used throughout the references.
@@ -50,7 +59,7 @@ fun Sparkle(
     modifier: Modifier = Modifier,
     size: Dp = 12.dp,
 ) {
-    Canvas(modifier = modifier.size(size)) {
+    Canvas(modifier = modifier.decorative().size(size)) {
         val cx = this.size.width / 2f
         val cy = this.size.height / 2f
         val r = minOf(cx, cy)
@@ -71,7 +80,7 @@ fun Sparkle(
 /** A plain soft dot. Reads as punctuation next to a [Sparkle] rather than as another shape. */
 @Composable
 fun Dot(color: Color, modifier: Modifier = Modifier, size: Dp = 5.dp) {
-    Canvas(modifier = modifier.size(size)) {
+    Canvas(modifier = modifier.decorative().size(size)) {
         drawCircle(color, radius = this.size.minDimension / 2f, center = Offset(this.size.width / 2f, this.size.height / 2f))
     }
 }
@@ -79,7 +88,7 @@ fun Dot(color: Color, modifier: Modifier = Modifier, size: Dp = 5.dp) {
 /** A soft heart. Two lobes and a point, drawn as one path so it scales cleanly at any size. */
 @Composable
 fun Heart(color: Color, modifier: Modifier = Modifier, size: Dp = 12.dp) {
-    Canvas(modifier = modifier.size(size)) {
+    Canvas(modifier = modifier.decorative().size(size)) {
         val w = this.size.width
         val h = this.size.height
         val path = Path().apply {
@@ -100,7 +109,7 @@ fun Heart(color: Color, modifier: Modifier = Modifier, size: Dp = 12.dp) {
  */
 @Composable
 fun Cloud(color: Color, modifier: Modifier = Modifier, width: Dp = 34.dp) {
-    Canvas(modifier = modifier.size(width, width * 0.62f)) {
+    Canvas(modifier = modifier.decorative().size(width, width * 0.62f)) {
         val w = this.size.width
         val h = this.size.height
         drawCircle(color, radius = h * 0.42f, center = Offset(w * 0.30f, h * 0.55f))
@@ -142,7 +151,7 @@ fun MascotCloud(
     modifier: Modifier = Modifier,
     width: Dp = 78.dp,
 ) {
-    Canvas(modifier = modifier.size(width, width * 0.72f)) {
+    Canvas(modifier = modifier.decorative().size(width, width * 0.72f)) {
         val w = size.width
         val h = size.height
 
@@ -263,7 +272,7 @@ fun SparkleCluster(
     color: Color,
     modifier: Modifier = Modifier,
 ) {
-    Box(modifier = modifier.size(46.dp)) {
+    Box(modifier = modifier.decorative().size(46.dp)) {
         Sparkle(color = color, size = 15.dp, modifier = Modifier.offset(x = 22.dp, y = 2.dp))
         Sparkle(color = color.copy(alpha = 0.65f), size = 9.dp, modifier = Modifier.offset(x = 6.dp, y = 15.dp))
         Dot(color = color.copy(alpha = 0.5f), size = 5.dp, modifier = Modifier.offset(x = 33.dp, y = 26.dp))

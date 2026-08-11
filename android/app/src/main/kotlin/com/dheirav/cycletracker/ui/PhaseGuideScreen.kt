@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -24,8 +25,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dheirav.cycletracker.core.Guidance
@@ -139,21 +143,27 @@ private fun GuideHero(phase: Phase, summary: String) {
     }
 }
 
-/** Reading ahead is the point — knowing luteal is coming is more useful than being told you are
- *  in it. */
+/**
+ * Reading ahead is the point — knowing luteal is coming is more useful than being told you are in
+ * it.
+ *
+ * The row scrolls rather than truncating. An earlier version clipped each label to five characters
+ * to fit four chips across, which rendered "Menst", "Folli", "Ovula" and "Lutea" — unreadable on
+ * screen and, spoken by a screen reader, meaningless. Scrolling also survives a large font scale,
+ * which a fixed four-across row does not.
+ */
 @Composable
 private fun PhasePicker(selected: Phase, onSelect: (Phase) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
         Phase.entries.forEach { phase ->
+            val name = phase.name.lowercase().replaceFirstChar { it.uppercase() }
             FilterChip(
                 selected = phase == selected,
                 onClick = { onSelect(phase) },
-                label = {
-                    Text(
-                        phase.name.lowercase().replaceFirstChar { it.uppercase() }.take(5),
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                },
+                label = { Text(name, style = MaterialTheme.typography.labelSmall) },
             )
         }
     }
@@ -179,7 +189,11 @@ private fun YoursCard(summaries: List<PhaseSymptomSummary>, loggedDays: Int, pha
             modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text("Yours", style = MaterialTheme.typography.titleSmall)
+            Text(
+                "Yours",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.semantics { heading() },
+            )
 
             if (summaries.isEmpty()) {
                 Text(
@@ -196,7 +210,10 @@ private fun YoursCard(summaries: List<PhaseSymptomSummary>, loggedDays: Int, pha
             summaries.forEach { summary ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
+                        // Colour is the only thing this dot carries, and the line beside it
+                        // already says "worse than your other phases" in words.
                         modifier = Modifier
+                            .clearAndSetSemantics { }
                             .size(7.dp)
                             .clip(CircleShape)
                             .background(
@@ -257,6 +274,7 @@ private fun Section(title: String, body: String) {
                 title,
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.semantics { heading() },
             )
             Text(
                 body,
@@ -274,7 +292,11 @@ private fun TipsCard(title: String, items: List<String>) {
             modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text(
+                title,
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.semantics { heading() },
+            )
             items.forEach { item ->
                 Row {
                     Text(
