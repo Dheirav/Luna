@@ -12,17 +12,31 @@ object CycleStats {
      * Median rather than mean: one anomalous cycle (illness, a missed period, an error that
      * survived the plausibility filter) moves a mean badly and a median barely at all.
      *
-     * Assumed cycles are included here. Seeding the length estimate is the entire point of backfill.
+     * Assumed cycles still seed the estimate — that is the point of backfill — but they now rank
+     * **below** anything the user states about their own body. The old order asked only whether
+     * three cycles existed, which meant a backfill of eleven synthetic 28-day cycles silently
+     * outvoted a user who said "mine are 31". The app was inventing cycles, then citing them back
+     * as though it had measured something, and overruling the one person who actually knew.
+     *
+     * Precedence, most to least authoritative:
+     *  1. the median of **observed** cycles — a measurement of this body
+     *  2. what the user says is typical — their own knowledge, imperfect but real
+     *  3. the median including **assumed** cycles — the app's own extrapolation
+     *  4. [CycleConfig.defaultCycleLength] — a population figure that describes nobody
+     *
+     * A user who states nothing sees exactly the previous behaviour, so no existing fixture moves.
      */
     fun expectedCycleLength(
         cycles: List<Cycle>,
         userTypicalCycleLength: Int? = null,
         config: CycleConfig = CycleConfig.Default,
     ): Int {
-        val sample = lengthSample(cycles, config)
+        val observed = lengthSample(cycles, config, observedOnly = true)
+        val all = lengthSample(cycles, config)
         return when {
-            sample.size >= 3 -> roundHalfUp(median(sample))
+            observed.size >= 3 -> roundHalfUp(median(observed))
             userTypicalCycleLength != null -> userTypicalCycleLength
+            all.size >= 3 -> roundHalfUp(median(all))
             else -> config.defaultCycleLength
         }
     }
@@ -77,8 +91,13 @@ object CycleStats {
 
     // -- internals --------------------------------------------------------
 
-    private fun lengthSample(cycles: List<Cycle>, config: CycleConfig): List<Int> =
-        cycles.mapNotNull { it.length }
+    private fun lengthSample(
+        cycles: List<Cycle>,
+        config: CycleConfig,
+        observedOnly: Boolean = false,
+    ): List<Int> =
+        cycles.filter { !observedOnly || it.source == Source.OBSERVED }
+            .mapNotNull { it.length }
             .filter { it in config.plausibleCycleRange }
             .takeLast(config.cycleLengthSampleSize)
 

@@ -28,7 +28,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dheirav.cycletracker.core.PeriodWindow
 import com.dheirav.cycletracker.data.DaySummary
+import com.dheirav.cycletracker.ui.theme.Sparkle
+import com.dheirav.cycletracker.ui.theme.cycleColors
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
@@ -70,6 +73,7 @@ fun HistoryScreen(viewModel: HistoryViewModel, onPickDate: (LocalDate) -> Unit) 
         MonthGrid(
             month = ui.month,
             days = ui.days,
+            window = ui.window,
             onPickDate = onPickDate,
         )
 
@@ -92,10 +96,17 @@ private fun MonthHeader(month: YearMonth, canGoForward: Boolean, onShift: (Long)
         verticalAlignment = Alignment.CenterVertically,
     ) {
         TextButton(onClick = { onShift(-1) }) { Text("‹") }
-        Text(
-            month.format(DateTimeFormatter.ofPattern("MMMM yyyy")),
-            style = MaterialTheme.typography.titleLarge,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                month.format(DateTimeFormatter.ofPattern("MMMM yyyy")),
+                style = MaterialTheme.typography.titleLarge,
+            )
+            Sparkle(
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                size = 11.dp,
+                modifier = Modifier.padding(start = 6.dp),
+            )
+        }
         TextButton(onClick = { onShift(1) }, enabled = canGoForward) { Text("›") }
     }
 }
@@ -126,6 +137,7 @@ private fun WeekdayLabels() {
 private fun MonthGrid(
     month: YearMonth,
     days: Map<LocalDate, DaySummary>,
+    window: PeriodWindow?,
     onPickDate: (LocalDate) -> Unit,
 ) {
     val today = LocalDate.now()
@@ -150,6 +162,7 @@ private fun MonthGrid(
                                 date = date,
                                 summary = days[date],
                                 isToday = date == today,
+                                inPredictedWindow = window != null && date in window,
                                 // The log form refuses future dates; the calendar should not
                                 // offer them either, rather than opening a screen that says no.
                                 enabled = !date.isAfter(today),
@@ -168,20 +181,27 @@ private fun DayCell(
     date: LocalDate,
     summary: DaySummary?,
     isToday: Boolean,
+    inPredictedWindow: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
+    val cycle = MaterialTheme.cycleColors
     val bleeding = summary?.isBleeding == true
+    val observedBleed = bleeding && summary?.isAssumed == false
 
     // Assumed bleeding is drawn as an outline, observed bleeding as a fill. The difference has to
     // survive a glance: it is the difference between data and a guess.
+    //
+    // A predicted day gets a wash at a fraction of the opacity, and always loses to a real one —
+    // a forecast must never be as loud as an observation, and the two must never be mistakable.
     val fill = when {
-        bleeding && summary?.isAssumed == false -> scheme.error
+        observedBleed -> cycle.bleeding
+        inPredictedWindow -> cycle.predicted.copy(alpha = 0.30f)
         else -> Color.Transparent
     }
     val content = when {
-        bleeding && summary?.isAssumed == false -> scheme.onError
+        observedBleed -> cycle.onBleeding
         !enabled -> scheme.onSurfaceVariant.copy(alpha = 0.3f)
         else -> scheme.onSurface
     }
@@ -193,7 +213,7 @@ private fun DayCell(
             .background(fill)
             .then(
                 if (bleeding && summary?.isAssumed == true) {
-                    Modifier.border(1.5.dp, scheme.error, CircleShape)
+                    Modifier.border(1.5.dp, cycle.estimated, CircleShape)
                 } else {
                     Modifier
                 },
@@ -218,7 +238,7 @@ private fun DayCell(
                     modifier = Modifier
                         .size(4.dp)
                         .clip(CircleShape)
-                        .background(scheme.primary),
+                        .background(cycle.logged),
                 )
             }
         }
@@ -233,13 +253,26 @@ private fun Legend() {
     ) {
         LegendItem("Bleeding", filled = true)
         LegendItem("Estimated", filled = false)
+        LegendItem("Expected", predicted = true)
         LegendItem("Logged", dot = true)
     }
 }
 
 @Composable
-private fun LegendItem(label: String, filled: Boolean = false, dot: Boolean = false) {
+private fun LegendItem(
+    label: String,
+    filled: Boolean = false,
+    dot: Boolean = false,
+    predicted: Boolean = false,
+) {
     val scheme = MaterialTheme.colorScheme
+    val cycle = MaterialTheme.cycleColors
+    val swatch = when {
+        dot -> cycle.logged
+        filled -> cycle.bleeding
+        predicted -> cycle.predicted.copy(alpha = 0.30f)
+        else -> Color.Transparent
+    }
     Row(
         horizontalArrangement = Arrangement.spacedBy(5.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -248,8 +281,14 @@ private fun LegendItem(label: String, filled: Boolean = false, dot: Boolean = fa
             modifier = Modifier
                 .size(if (dot) 6.dp else 12.dp)
                 .clip(CircleShape)
-                .background(if (filled || dot) (if (dot) scheme.primary else scheme.error) else Color.Transparent)
-                .then(if (!filled && !dot) Modifier.border(1.5.dp, scheme.error, CircleShape) else Modifier),
+                .background(swatch)
+                .then(
+                    if (!filled && !dot && !predicted) {
+                        Modifier.border(1.5.dp, cycle.estimated, CircleShape)
+                    } else {
+                        Modifier
+                    },
+                ),
         )
         Text(label, fontSize = 11.sp, color = scheme.onSurfaceVariant)
     }

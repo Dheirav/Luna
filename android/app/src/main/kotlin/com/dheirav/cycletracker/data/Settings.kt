@@ -1,6 +1,7 @@
 package com.dheirav.cycletracker.data
 
 import android.content.Context
+import com.dheirav.cycletracker.core.WindowWidth
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalTime
@@ -38,9 +39,50 @@ class Settings(context: Context) {
         get() = prefs.getLong(KEY_SCHEDULED_SINCE, 0L).takeIf { it > 0 }?.let(Instant::ofEpochMilli)
         set(value) = prefs.edit().putLong(KEY_SCHEDULED_SINCE, value?.toEpochMilli() ?: 0L).apply()
 
+    /**
+     * What the user says their cycle usually runs to. Null means "not stated".
+     *
+     * Ranks **below** three observed cycles and **above** extrapolated backfill — see
+     * [com.dheirav.cycletracker.core.CycleStats.expectedCycleLength]. So this stops mattering once
+     * the app has measured enough real cycles, which is the correct outcome and needs saying in
+     * the UI, or a user who sets 31 and later sees 29 will think it was ignored.
+     */
     var typicalCycleLength: Int?
         get() = prefs.getInt(KEY_CYCLE_LENGTH, 0).takeIf { it > 0 }
         set(value) = prefs.edit().putInt(KEY_CYCLE_LENGTH, value ?: 0).apply()
+
+    /**
+     * How many days the user's period usually lasts. Null means "not stated".
+     *
+     * Not cosmetic: `spanDays` feeds `ovulationDay` through the `periodLength + 4` floor in §5.1.
+     * Every backfilled period assumed five days, so if the real figure differs, every ovulation
+     * estimate derived from backfill is off by the difference.
+     */
+    var typicalPeriodLength: Int?
+        get() = prefs.getInt(KEY_PERIOD_LENGTH, 0).takeIf { it > 0 }
+        set(value) = prefs.edit().putInt(KEY_PERIOD_LENGTH, value ?: 0).apply()
+
+    /**
+     * Whether the home-screen widget shows the cycle day, phase and window.
+     *
+     * A widget is visible to anyone who glances at the phone, so it leaks precisely what the
+     * launcher icon was deliberately designed not to — the icon is a bloom rather than a droplet
+     * or a calendar for exactly this reason. Off, the widget still works as a one-tap logging
+     * shortcut, which is the point of it.
+     *
+     * Defaults on: the user placed it deliberately, and defaulting to a blank card would look
+     * broken. The trade-off is stated in the settings screen rather than assumed either way.
+     */
+    var widgetShowsDetails: Boolean
+        get() = prefs.getBoolean(KEY_WIDGET_DETAILS, true)
+        set(value) = prefs.edit().putBoolean(KEY_WIDGET_DETAILS, value).apply()
+
+    /** How wide a prediction window to show. A coverage preference, not a data override — the
+     *  width still scales with measured variability. */
+    var windowWidth: WindowWidth
+        get() = runCatching { WindowWidth.valueOf(prefs.getString(KEY_WINDOW_WIDTH, null) ?: "") }
+            .getOrDefault(WindowWidth.BALANCED)
+        set(value) = prefs.edit().putString(KEY_WINDOW_WIDTH, value.name).apply()
 
     /**
      * Require a biometric or device PIN before the app's contents are shown.
@@ -76,6 +118,9 @@ class Settings(context: Context) {
         const val KEY_LAST_FIRED = "reminder_last_fired"
         const val KEY_SCHEDULED_SINCE = "reminder_scheduled_since"
         const val KEY_CYCLE_LENGTH = "typical_cycle_length"
+        const val KEY_PERIOD_LENGTH = "typical_period_length"
+        const val KEY_WINDOW_WIDTH = "window_width"
+        const val KEY_WIDGET_DETAILS = "widget_shows_details"
         const val KEY_APP_LOCK = "app_lock_enabled"
 
         /** 21:00 — late enough that the day is done, early enough not to be asleep. */

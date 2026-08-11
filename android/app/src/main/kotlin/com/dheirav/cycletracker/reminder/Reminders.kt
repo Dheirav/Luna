@@ -26,6 +26,7 @@ import com.dheirav.cycletracker.core.CycleProjector
 import com.dheirav.cycletracker.data.LogDao
 import com.dheirav.cycletracker.data.PredictionLedger
 import com.dheirav.cycletracker.data.Settings
+import com.dheirav.cycletracker.widget.refreshCycleWidgets
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -114,6 +115,11 @@ class ReminderWorker(
         }
 
         recordPrediction(dao)
+
+        // The worker runs daily, which makes it the most reliable clock the app has for rolling
+        // the widget's cycle day over. ACTION_DATE_CHANGED covers midnight; this covers the case
+        // where the ROM swallowed that broadcast too.
+        refreshCycleWidgets(context)
 
         // Chain the next one. Doing this last means a crash above cannot silently end the chain.
         ReminderScheduler.schedule(context)

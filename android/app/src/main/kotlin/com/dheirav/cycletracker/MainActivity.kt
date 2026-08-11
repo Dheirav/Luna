@@ -13,15 +13,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,8 +37,10 @@ import com.dheirav.cycletracker.ui.HistoryScreen
 import com.dheirav.cycletracker.ui.HistoryViewModel
 import com.dheirav.cycletracker.ui.LogScreen
 import com.dheirav.cycletracker.ui.LogViewModel
+import com.dheirav.cycletracker.ui.SettingsScreen
 import com.dheirav.cycletracker.ui.TodayScreen
 import com.dheirav.cycletracker.ui.TodayViewModel
+import com.dheirav.cycletracker.ui.theme.CycleTrackerTheme
 import java.time.LocalDate
 
 class CycleTrackerApp : Application() {
@@ -65,8 +64,9 @@ class CycleTrackerApp : Application() {
     }
 }
 
-/** Three screens is still fewer than a navigation library is worth. Revisit if a fourth lands. */
-private enum class Screen { TODAY, LOG, HISTORY }
+/** Four screens, one back destination, no deep links beyond the reminder's. Still less code than
+ *  wiring a navigation library, and every transition is visible in one `when`. */
+private enum class Screen { TODAY, LOG, HISTORY, SETTINGS }
 
 class MainActivity : ComponentActivity() {
 
@@ -103,6 +103,14 @@ class MainActivity : ComponentActivity() {
             val historyVm: HistoryViewModel = viewModel()
             var screen by rememberSaveable { mutableStateOf(Screen.TODAY) }
 
+            // Where the log form was opened from, so leaving it goes back there.
+            //
+            // Correcting backfill means opening a day from the calendar, editing, and returning
+            // for the next one. Landing on Today after every save — then navigating to History and
+            // paging back several months — made that loop punishing, on the one screen built for
+            // bulk correction.
+            var logOrigin by rememberSaveable { mutableStateOf(Screen.TODAY) }
+
             // Ask once, on first composition. Without it the reminder posts nothing
             // and fails silently — the worst possible failure for the one feature
             // adherence depends on.
@@ -119,14 +127,15 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(openLogOnLaunch) {
                 if (openLogOnLaunch) {
                     logVm.open(LocalDate.now())
+                    logOrigin = Screen.TODAY
                     screen = Screen.LOG
                     openLogOnLaunch = false
                 }
             }
 
-            // Back always returns to Today, including from the log form reached via History.
-            // Stacking History under it would mean two presses to leave, for no gain.
-            BackHandler(enabled = screen != Screen.TODAY) { screen = Screen.TODAY }
+            BackHandler(enabled = screen != Screen.TODAY) {
+                screen = if (screen == Screen.LOG) logOrigin else Screen.TODAY
+            }
 
             Box(Modifier.padding(padding)) {
                 when (screen) {
@@ -134,20 +143,32 @@ class MainActivity : ComponentActivity() {
                         viewModel = todayVm,
                         onLog = {
                             logVm.open(LocalDate.now())
+                            logOrigin = Screen.TODAY
                             screen = Screen.LOG
                         },
-                        onHistory = { screen = Screen.HISTORY },
+                        onHistory = {
+                            // Opening the calendar afresh always lands on this month. Entering
+                            // from Today is a new visit; returning from an edit is not.
+                            historyVm.showCurrentMonth()
+                            screen = Screen.HISTORY
+                        },
+                        onSettings = { screen = Screen.SETTINGS },
                     )
 
                     Screen.LOG -> LogScreen(logVm) {
-                        screen = Screen.TODAY
+                        screen = logOrigin
                         todayVm.reload()
                     }
 
                     Screen.HISTORY -> HistoryScreen(historyVm) { date ->
                         logVm.open(date)
+                        logOrigin = Screen.HISTORY
                         screen = Screen.LOG
                     }
+
+                    // Any settings change alters what the engine computes, so Today is rebuilt on
+                    // the way back rather than only after a restore.
+                    Screen.SETTINGS -> SettingsScreen(onChanged = todayVm::reload)
                 }
             }
         }
@@ -160,13 +181,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/** Material You dynamic colour, available from API 31 — one of the reasons minSdk is 31. */
-@Composable
-fun CycleTrackerTheme(content: @Composable () -> Unit) {
-    val context = LocalContext.current
-    val dark = isSystemInDarkTheme()
-    MaterialTheme(
-        colorScheme = if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context),
-        content = content,
-    )
-}
+// The theme moved to ui/theme/Theme.kt, and dynamic colour went with it. Material You derives
+// everything from the wallpaper, which meant the app looked like whatever happened to be behind
+// the home screen and could not hold a palette of its own.

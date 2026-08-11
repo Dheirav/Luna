@@ -35,6 +35,32 @@ android {
         }
         debug {
             applicationIdSuffix = ".debug"
+
+            // Opt-in shrinking for the debug build: `./gradlew :app:installDebug -PminifyDebug`
+            //
+            // The plain debug APK is ~25 MB and takes one to three minutes to push over wireless
+            // debugging. The Redmi's adb port cycles faster than that, so installs were routinely
+            // dying mid-transfer — the shrunk build lands in seconds instead.
+            //
+            // Screenshots still work: FLAG_SECURE is gated on ApplicationInfo.FLAG_DEBUGGABLE
+            // (see MainActivity), which this build still sets. It is the *release* build that
+            // blocks screencap, not the minified one.
+            //
+            // Off by default because R8 adds a slow pass to every build, and most builds never
+            // reach a phone. Turning it on also exercises the release ProGuard rules earlier,
+            // which is a side benefit rather than the point.
+            // `hasProperty` rather than `providers.gradleProperty(...).isPresent`: a bare
+            // `-PminifyDebug` sets the value to an empty string, which the provider API reports
+            // as absent, so the flag silently did nothing.
+            val shrink = project.hasProperty("minifyDebug")
+            isMinifyEnabled = shrink
+            isShrinkResources = shrink
+            if (shrink) {
+                proguardFiles(
+                    getDefaultProguardFile("proguard-android-optimize.txt"),
+                    "proguard-rules.pro",
+                )
+            }
         }
     }
 

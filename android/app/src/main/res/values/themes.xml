@@ -1,4 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.CycleTracker" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+        Only the window that exists before Compose draws. Setting the background to the same blush
+        the app uses stops the white flash on cold start — which is most visible at 21:00, when the
+        reminder fires and the phone is the only light in the room.
+    -->
+    <style name="Theme.CycleTracker" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
+
+    <!--
+        There is deliberately no widget theme. `android:theme` on a RemoteViews root is not
+        supported and was part of why the widget failed to inflate. Widget colours are set
+        explicitly per view from @color/widget_* instead, which resolves day/night through the
+        normal resource qualifiers without needing a theme at all.
+    -->
 </resources>

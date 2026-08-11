@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The whole widget is one tap target, and the tap goes straight to the log form rather than the
+    app's front door. That is the entire justification for the widget existing: the reminder has
+    never been proven to survive either test phone's ROM, and a widget needs no background
+    execution to stay on screen.
+
+    **Only LinearLayout and TextView here, and that is a hard constraint, not a style choice.**
+    RemoteViews inflates in the launcher's process and accepts only an allow-listed set of view
+    classes — those annotated `@RemoteView`. An earlier version used `Space` to push the action
+    line to the bottom and `android:theme` on the root; neither is permitted, and the launcher
+    reports the failure as a flat "Can't load widget" with no clue as to which line caused it.
+
+    So: no `Space` (a weighted TextView does the same job), no `android:theme`, no custom views.
+    Before adding anything here, check it is annotated `@RemoteView` in the framework.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_vertical"
+    android:background="@drawable/widget_background"
+    android:padding="14dp">
+
+    <TextView
+        android:id="@+id/widget_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="10sp"
+        android:textStyle="bold"
+        android:textColor="@color/widget_muted"
+        android:maxLines="1"
+        android:text="DAY 15" />
+
+    <TextView
+        android:id="@+id/widget_headline"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="1dp"
+        android:textSize="21sp"
+        android:textStyle="bold"
+        android:textColor="@color/widget_text"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:text="Ovulation" />
+
+    <!-- No weight. An earlier version weighted this to pin the action line to the bottom, which
+         on a resized widget stranded the text at the top above a large dead area. The root
+         centres its children vertically instead, so the block stays balanced at any cell size. -->
+    <TextView
+        android:id="@+id/widget_detail"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="3dp"
+        android:textSize="12sp"
+        android:textColor="@color/widget_muted"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:text="Next 21–29 Aug" />
+
+    <TextView
+        android:id="@+id/widget_action"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:textColor="@color/widget_accent"
+        android:maxLines="1"
+        android:text="Tap to log today" />
+</LinearLayout>

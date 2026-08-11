@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches CycleTrackerTheme's dark background (PlumDark). -->
+    <color name="window_background">#1D1620</color>
+
+    <!-- Widget, dark. Slightly lighter than the app background so the widget keeps an edge
+         against a dark wallpaper instead of dissolving into it. -->
+    <color name="widget_background">#2A2131</color>
+    <color name="widget_text">#F2E4EC</color>
+    <color name="widget_muted">#C7B2C0</color>
+    <color name="widget_accent">#F3AFCB</color>
+</resources>

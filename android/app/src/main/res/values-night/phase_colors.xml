@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark phase tints. See values/phase_colors.xml — ovulation is coral, not gold, on purpose. -->
+    <color name="phase_menstruation">#6B2560</color>
+    <color name="phase_follicular">#17655A</color>
+    <color name="phase_ovulation">#B84F5C</color>
+    <color name="phase_luteal">#4A3399</color>
+    <color name="phase_unknown">#2A2131</color>
+</resources>

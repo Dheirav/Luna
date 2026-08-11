@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Adaptive-icon background. Cream rather than white so the icon keeps an edge against a
+         light wallpaper, and stays soft against a dark one. -->
+    <color name="ic_launcher_background">#FDF4E7</color>
+
+    <!-- Matches CycleTrackerTheme's light background (Blush). Overridden in values-night. -->
+    <color name="window_background">#FFF7FA</color>
+
+    <!-- Widget palette. Duplicated from Theme.kt rather than shared: RemoteViews cannot read
+         Compose colours, and a widget is inflated by the launcher's process. Keep in step by
+         hand — these are the light-mode values, with values-night alongside. -->
+    <color name="widget_background">#FFF3F7</color>
+    <color name="widget_text">#43303C</color>
+    <color name="widget_muted">#7A6470</color>
+    <color name="widget_accent">#C2477E</color>
+</resources>

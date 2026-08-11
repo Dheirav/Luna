@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    updatePeriodMillis is 6 hours rather than the 30-minute floor, and it is a **backstop, not the
+    mechanism**. The system clamps anything under 30 minutes, does not wake the device to honour
+    it, and vendor ROMs throttle it further — the same unreliability that made the reminder worth
+    detecting rather than trusting.
+
+    The real updates are pushed: after any log edit, from the daily reminder worker, and on
+    ACTION_DATE_CHANGED so the cycle day rolls over at midnight.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="180dp"
+    android:minHeight="80dp"
+    android:targetCellWidth="3"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="21600000"
+    android:initialLayout="@layout/widget_cycle"
+    android:previewLayout="@layout/widget_cycle"
+    android:description="@string/widget_description"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen" />

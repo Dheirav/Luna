@@ -66,8 +66,12 @@ fun LogScreen(viewModel: LogViewModel, onSaved: () -> Unit) {
 
         if (entry.exists && entry.source == Source.ASSUMED) {
             BackfillBanner(
-                onConfirm = { viewModel.confirmBackfill {} },
-                onDiscard = { viewModel.discardBackfill {} },
+                // Both are terminal decisions about this day, so they leave the form the way a
+                // save does — back to wherever it was opened from. Going through the backfill is
+                // a loop of tap-day, decide, next day; making the user press Back after every
+                // verdict would double the work on the screen built for exactly this.
+                onConfirm = { viewModel.confirmBackfill(onSaved) },
+                onDiscard = { viewModel.discardBackfill(onSaved) },
             )
         }
 

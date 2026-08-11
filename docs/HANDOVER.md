@@ -52,13 +52,8 @@ Governing rules (full list in the plan artifact):
 - **Encrypted export/restore UI** — SAF file picker + passphrase dialog. The codec is tested; the
   Android file plumbing is not.
 - Boot receiver, notification permission prompt.
-- **The backfill banner's two buttons.** *That's right* (`confirmBackfill`) and *Remove*
-  (`discardBackfill`) render on device, but neither has been **pressed** — the phone dropped its
-  connection first. `discardBackfill` reuses the already-verified `deleteDay` path; `confirmBackfill`
-  goes through the new `LogRepository.sourceFor` and is the one genuinely unproven line. Confirm a
-  backfilled day, then check `select source from daily_logs where date='…'` reads `OBSERVED`.
-  `adb shell pm clear com.dheirav.cycletracker.debug` re-seeds from spec on next launch, so this
-  is free to test.
+- Nothing outstanding from the 2026-08-11 batch. The backfill banner's *That's right* /
+  *Remove* buttons were confirmed working by the user on the Redmi.
 
 ### Prediction ledger (Phase 3, started 2026-08-11)
 
@@ -91,9 +86,122 @@ rendered nowhere yet.
 - Predictions ride along in the encrypted backup (`BackupSnapshot.predictions`, defaulted so older
   backups still restore). Restore replaces the ledger wholesale, including with nothing.
 
+### Uncertainty window and receipts (Phase 3, 2026-08-11)
+
+`core/Forecast.kt`, 13 tests. Fixes a contradiction that is **still on screen**: Today prints
+"next period expected 25 Aug" — one exact day — directly above "cycle variability: not enough
+observed cycles". Both cannot be true.
+
+- `Forecast.periodWindow` returns a range, tagged `MEASURED` or `ASSUMED`. With the current seed
+  it is ASSUMED: 21–29 Aug, ±4 days. **The UI must never present an ASSUMED window as measured** —
+  it is a stated default spread (`ForecastConfig.assumedVariabilityDays`), not this user's data.
+- Width comes from observed variability × `sqrt(1 + 1/n)`, the small-sample prediction-interval
+  correction. A Student-t factor was considered and deliberately left out: at n=3 a 90% t-interval
+  spans about three weeks, which is arithmetically right and useless. The band is documented as
+  "most likely", never as a guarantee. Roughly 68% under a normal approximation, and real cycles
+  are right-skewed, so true coverage sits a little below that.
+- `minHalfWidthDays = 1` means a perfectly regular history still never names a single date.
+- `Forecast.basis` is the receipt. The number that matters is the **observed/assumed split**: the
+  seed has 12 completed cycles behind its 28-day estimate and *one* was observed. "From 12 cycles"
+  would be true and badly misleading.
+- `basis()` mirrors the branch structure of `CycleStats.expectedCycleLength`. **If that function
+  gains a branch, this must too** — no test catches that drift.
+
+Both are wired into `TodayUiState` (`window`, `basis`) and **rendered nowhere yet**, by the same
+rule as `accuracy`: the display is the last piece, so there is no temptation to fill space with a
+number that has not been earned.
+
+### Visual design (2026-08-11)
+
+Direction came from five references supplied by the user. The consistent note across them was
+**neat over busy** — praised in two, and the single criticism of a third. Everything below follows
+from that plus rule 4: charm must not cost adherence.
+
+- **`ui/theme/Theme.kt` replaces Material You.** Dynamic colour derived everything from the
+  wallpaper, so the app looked like whatever sat behind the home screen and could not hold the
+  pink-and-cream identity the references asked for. **The cost is real: the app no longer follows
+  system theming.** Light and dark schemes both exist; dark is warm plum, not black, because the
+  21:00 reminder means much of all logging happens in the dark.
+- **`CycleColors` carries domain meaning** — `bleeding`, `estimated`, `predicted`, `logged`.
+  Bleeding was previously drawn in `colorScheme.error`; on a pink palette that was ambiguous as
+  well as wrong. **Do not route cycle state through Material's error role again.**
+- **`ui/theme/Decor.kt`** draws sparkles and dots with `Canvas` rather than shipping bitmaps. Two
+  rules: nothing decorative on the log screen, and decoration never carries meaning.
+- **Settings split out of Today** (`SettingsScreen.kt`). App lock and backup were occupying about
+  a third of the daily screen for things touched twice a year.
+- **The bare "Phase confidence 25%" is gone.** It was never measured — too few observed cycles
+  means a fixed 0.5 regularity — so it presented an assumption as a reading. Replaced by counts of
+  the cycles behind the estimate, with the numeric detail inside "Why these numbers?".
+- **Launcher icon** is an adaptive vector (`drawable/ic_launcher_foreground.xml`), a few hundred
+  bytes rather than five PNG densities. Deliberately a bloom, **not** a droplet or calendar: the
+  home screen is visible to other people, the same reasoning as `FLAG_SECURE` on recents.
+- System typeface throughout. A rounded face would suit better but needs a bundled TTF (50–100 KB);
+  no `INTERNET` permission means downloadable fonts are not an option.
+
+**None of this has been seen on a device** — the Redmi's port cycled before it could be installed.
+Check first: the calendar at 440dpi, the hero card with and without bleeding, and dark mode.
+
+### Settings, and a precedence fix (2026-08-11)
+
+Prompted by the user asking whether the 28-day figure could be changed. It could not — and worse,
+setting it would have had no effect.
+
+**This amends CYCLE_RULES §3.** The spec says assumed cycles seed the length estimate, which is
+right as far as it goes, but it never considered them competing with a figure the *user* supplies.
+The old code asked only "are there three plausible cycles?", and the seed provides six synthetic
+28-day ones — so a user stating "mine are 31" was outvoted by cycles the app invented, which it
+then reported back as though it had measured them.
+
+New precedence in `CycleStats.expectedCycleLength`, most to least authoritative:
+
+1. median of **observed** cycles — a measurement of this body
+2. what the user states — their own knowledge
+3. median **including assumed** cycles — the app's own extrapolation
+4. `CycleConfig.defaultCycleLength` — a population figure describing nobody
+
+A user who states nothing gets the previous behaviour exactly, which is why all 34 golden fixtures
+still pass unchanged. `LengthSource` gained `MEDIAN_OF_OBSERVED` / `MEDIAN_WITH_ESTIMATES` to
+match — **`Forecast.basis` mirrors this branch structure and must be updated alongside it.**
+
+`SettingsScreen` now exposes: cycle length, period length, prediction-window width, reminder
+on/off and reminder time. Three of those existed in `Settings.kt` with no UI at all —
+`typicalCycleLength` had been read by the engine on every refresh and been null since it was
+written. Period length was absent entirely despite feeding `ovulationDay`.
+
+Window width is a **coverage preference, not a data override**: it picks how many standard
+deviations to span, so a narrow setting cannot make an erratic history look regular, and
+`minHalfWidthDays` still floors it.
+
+### Home-screen widget (Phase 5, 2026-08-11)
+
+`widget/CycleWidget.kt`. Shows cycle day, phase and the predicted window; the whole card is one
+tap target that opens the **log form** directly. Verified rendering on the Redmi's home screen.
+
+It exists because the daily reminder has never been proven to survive either phone's ROM, and a
+widget needs **no background execution to stay on screen** — it works precisely where the reminder
+fails. Adherence is the binding constraint (rule 4), so that matters more than it sounds.
+
+- **`RemoteViews` only inflates `@RemoteView`-annotated view classes.** `Space` is not one, and
+  neither `android:theme` nor custom views are permitted on the root. Using them produced a flat
+  **"Can't load widget"** from the launcher with nothing in logcat identifying the cause. Only
+  `LinearLayout` and `TextView` are used; check the annotation before adding anything.
+- Do not weight a child to pin content to the bottom — on a resized widget it strands the text
+  above a large dead area. The root centres its children vertically instead.
+- The phase tint is applied with `setColorStateList(..., "setBackgroundTintList", ...)` (API 31).
+  A background *colour* would replace the shape drawable and lose the rounded corners.
+- `@color/phase_*` in `values/` and `values-night/` **duplicates `CycleColors.phase` in
+  Theme.kt** — RemoteViews cannot read Compose colours. Keep the two in step by hand.
+- `updatePeriodMillis` is a 6-hour **backstop only**; the system clamps it and vendor ROMs
+  throttle it. Real updates are pushed from three places: after a log edit, from the reminder
+  worker, and on `ACTION_DATE_CHANGED` for midnight rollover.
+- **Discreet mode** (`Settings.widgetShowsDetails`) blanks the cycle details while keeping the
+  one-tap shortcut. A home screen is seen by other people, and a widget reading
+  "Day 15 · Ovulation" undoes the reason the launcher icon is a bloom rather than a droplet.
+
 ### Not started
 
-- Phase 3's user-facing half (receipts, explain-this-prediction, uncertainty cone), Phases 4–6.
+- Phases 4 and 6, and the rest of Phase 5 (fertility window, health flags) — both of which
+  depend on Phase 4's luteal-length work first.
 
 ### Decided against — SQLCipher (2026-08-11)
 
@@ -168,9 +276,22 @@ work with Studio's bundled JDK). If a build suddenly fails on Java version, chec
 ```bash
 cd android
 ./gradlew :core:test            # engine + backup tests, ~2s warm
-./gradlew :app:installDebug
+./gradlew :app:assembleDebug -PminifyDebug   # 7.6 MB instead of 25 MB — see below
 ./gradlew :app:assembleRelease
 ```
+
+**Use `-PminifyDebug` for anything going to a phone.** The plain debug APK is ~25 MB and takes
+one to three minutes over wireless debugging, which is longer than the Redmi's adb port usually
+survives — installs were dying mid-transfer more often than they completed. R8 brings it to
+7.6 MB. Screenshots still work: `FLAG_SECURE` keys off `ApplicationInfo.FLAG_DEBUGGABLE`, which
+this build still sets, so it is the *release* build that blocks `screencap`, not the minified one.
+
+Two traps in that flag, both already paid for:
+
+- A bare `-PminifyDebug` sets the property to an **empty string**, which
+  `providers.gradleProperty(...).isPresent` reports as *absent*. Use `project.hasProperty`.
+- After enabling it, `ls` the APK **by timestamp**. An up-to-date build does not rewrite the file,
+  so a stale 25 MB APK sat there looking like the flag had done nothing.
 
 ---
 
@@ -189,6 +310,15 @@ as a question on *this* phone.
   and the phone on AC. Ask the user for the current one; do not burn time guessing.
 - Debug APK is ~25 MB and installs over wifi in 1–3 minutes. `adb install` returning an **empty
   error message** means it was interrupted, not rejected — retry rather than debugging MIUI.
+- **`adb shell input` is blocked intermittently**: `SecurityException: Injecting input events
+  requires ... INJECT_EVENTS`. It worked earlier in the same session, so it is state-dependent
+  rather than absent — most likely the screen lock. `screencap`, `uiautomator dump` and `am start`
+  keep working when it fails, so drive the app by hand and use those to read state.
+- The connection often dies **within a minute** of a launch or install. Batch every command that
+  needs the device into one invocation; do not plan on a second round trip.
+- **For visual review, ask the user to screenshot the phone and send the image.** It is one action
+  for them and removes this entire flaky channel from the loop. Reserve `adb` for installing,
+  reading the database, and crash checks — the things they cannot do by hand.
 - If `adb install` ever fails with `INSTALL_FAILED_USER_RESTRICTED`, that is Xiaomi's *Install via
   USB* toggle, which wants a signed-in Mi account. It has not been needed so far.
 
@@ -321,8 +451,8 @@ database pulled off the device for debugging, which is real health data.
   period *start* dates came from them. Correcting spans matters because
   `spanDays` feeds `ovulationDay` via the `periodLength + 4` floor.
 
-  **The user can now answer this themselves** rather than it needing a decision here: the history
-  calendar shows every estimated day, and each one offers *That's right* or *Remove*. Note the
+  **The user can now answer this themselves**, two ways: Settings has a "usual period length"
+  stepper, and the history calendar shows every estimated day with *That's right* or *Remove*. Note the
   promotion rule in `LogRepository.sourceFor` — editing an assumed day does **not** silently make
   it observed, because that would let a uniform synthetic backfill leak into
   `cycleLengthVariability` and fake high confidence (§3.2). Only changing the bleeding flag or

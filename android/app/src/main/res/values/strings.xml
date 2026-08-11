@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Cycle</string>
+    <!-- Shown in the launcher's widget picker. Deliberately vague about what it tracks — the
+         picker is browsed in public as readily as the home screen is seen. -->
+    <string name="widget_description">Today at a glance, and a one-tap shortcut to log.</string>
 </resources>

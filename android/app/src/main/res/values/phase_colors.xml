@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Phase tints for the widget, applied as a background tint so the rounded shape survives.
+        Mirrors CycleColors.phase in Theme.kt — RemoteViews cannot read Compose colours, so these
+        are duplicated by hand and must be kept in step.
+
+        These are the light-mode values; values-night carries the dark set. Note ovulation is
+        honey here and coral there: a warm hue at the lightness a dark theme can afford reads as
+        brown, which is why the dark palette changes the hue rather than dimming it.
+    -->
+    <color name="phase_menstruation">#FFC6D8</color>
+    <color name="phase_follicular">#C9EADB</color>
+    <color name="phase_ovulation">#FBE3B4</color>
+    <color name="phase_luteal">#DCD1F7</color>
+    <color name="phase_unknown">#FFF3F7</color>
+</resources>
