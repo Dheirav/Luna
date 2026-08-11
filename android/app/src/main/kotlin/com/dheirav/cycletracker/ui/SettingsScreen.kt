@@ -81,6 +81,8 @@ fun SettingsScreen(onChanged: () -> Unit) {
 
         BackupSection(onRestored = onChanged)
 
+        SummarySection()
+
         Text(
             "This app has no internet permission and never will. Nothing here leaves the phone " +
                 "unless you export it yourself.",
@@ -189,6 +191,7 @@ private fun ReminderCard(settings: Settings) {
     val context = LocalContext.current
     var enabled by remember { mutableStateOf(settings.reminderEnabled) }
     var time by remember { mutableStateOf(settings.reminderTime) }
+    var warn by remember { mutableStateOf(settings.periodWarningEnabled) }
     var picking by remember { mutableStateOf(false) }
 
     SettingsCard("Daily reminder") {
@@ -219,9 +222,25 @@ private fun ReminderCard(settings: Settings) {
                 Text(time.format(clock), style = MaterialTheme.typography.titleMedium)
             }
         }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Warn me before it's due", style = MaterialTheme.typography.bodyMedium)
+            Switch(
+                checked = warn,
+                onCheckedChange = {
+                    warn = it
+                    settings.periodWarningEnabled = it
+                },
+            )
+        }
         Text(
             "The reminder skips days you have already logged, so it only fires when it has " +
-                "something to ask for.",
+                "something to ask for. It carries Bleeding / No bleeding buttons, so the usual " +
+                "answer takes one tap without opening the app. The heads-up fires once per " +
+                "cycle, a couple of days before the window opens.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

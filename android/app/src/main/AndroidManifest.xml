@@ -55,6 +55,12 @@
                 android:resource="@xml/widget_info" />
         </receiver>
 
+        <!-- Not exported: only this app's own notification actions target it, and an exported
+             receiver here would let any app write to the cycle log. -->
+        <receiver
+            android:name=".reminder.LogActionReceiver"
+            android:exported="false" />
+
         <receiver
             android:name=".reminder.BootReceiver"
             android:enabled="true"

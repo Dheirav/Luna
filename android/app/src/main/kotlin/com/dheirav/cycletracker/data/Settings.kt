@@ -19,6 +19,28 @@ class Settings(context: Context) {
         get() = LocalTime.ofSecondOfDay(prefs.getLong(KEY_REMINDER_TIME, DEFAULT_REMINDER_SECONDS))
         set(value) = prefs.edit().putLong(KEY_REMINDER_TIME, value.toSecondOfDay().toLong()).apply()
 
+    /**
+     * A heads-up a couple of days before the predicted window opens.
+     *
+     * Separate from the daily log reminder because they answer different questions — one asks for
+     * data, the other gives some back — and someone may reasonably want one without the other.
+     */
+    var periodWarningEnabled: Boolean
+        get() = prefs.getBoolean(KEY_PERIOD_WARNING, true)
+        set(value) = prefs.edit().putBoolean(KEY_PERIOD_WARNING, value).apply()
+
+    /**
+     * Cycle start of the last cycle a heads-up was sent for.
+     *
+     * Keyed by cycle rather than by date so the notification fires **once per cycle**. Without it
+     * the warning would repeat every evening the window stayed open, which is how a useful
+     * notification becomes one that gets switched off.
+     */
+    var lastPeriodWarningFor: java.time.LocalDate?
+        get() = prefs.getString(KEY_PERIOD_WARNING_FOR, null)
+            ?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
+        set(value) = prefs.edit().putString(KEY_PERIOD_WARNING_FOR, value?.toString()).apply()
+
     var reminderEnabled: Boolean
         get() = prefs.getBoolean(KEY_REMINDER_ENABLED, true)
         set(value) = prefs.edit().putBoolean(KEY_REMINDER_ENABLED, value).apply()
@@ -115,6 +137,8 @@ class Settings(context: Context) {
     private companion object {
         const val KEY_REMINDER_TIME = "reminder_time_seconds"
         const val KEY_REMINDER_ENABLED = "reminder_enabled"
+        const val KEY_PERIOD_WARNING = "period_warning_enabled"
+        const val KEY_PERIOD_WARNING_FOR = "period_warning_for"
         const val KEY_LAST_FIRED = "reminder_last_fired"
         const val KEY_SCHEDULED_SINCE = "reminder_scheduled_since"
         const val KEY_CYCLE_LENGTH = "typical_cycle_length"
