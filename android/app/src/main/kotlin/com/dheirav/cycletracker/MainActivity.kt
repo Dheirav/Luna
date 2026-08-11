@@ -36,6 +36,8 @@ import com.dheirav.cycletracker.data.TrackerDatabase
 import com.dheirav.cycletracker.reminder.EXTRA_OPEN_LOG
 import com.dheirav.cycletracker.reminder.ReminderScheduler
 import com.dheirav.cycletracker.ui.AppLockGate
+import com.dheirav.cycletracker.ui.HistoryScreen
+import com.dheirav.cycletracker.ui.HistoryViewModel
 import com.dheirav.cycletracker.ui.LogScreen
 import com.dheirav.cycletracker.ui.LogViewModel
 import com.dheirav.cycletracker.ui.TodayScreen
@@ -50,7 +52,11 @@ class CycleTrackerApp : Application() {
      * that does not apply here. [com.dheirav.cycletracker.ui.AppLock] addresses the one that does.
      */
     val database: TrackerDatabase by lazy {
-        Room.databaseBuilder(this, TrackerDatabase::class.java, "cycle-tracker.db").build()
+        Room.databaseBuilder(this, TrackerDatabase::class.java, "cycle-tracker.db")
+            // No destructive fallback anywhere in this chain, deliberately. A missing migration
+            // should crash loudly in development, not wipe years of health data on a user's phone.
+            .addMigrations(TrackerDatabase.MIGRATION_1_2)
+            .build()
     }
 
     override fun onCreate() {
@@ -58,6 +64,9 @@ class CycleTrackerApp : Application() {
         ReminderScheduler.schedule(this)
     }
 }
+
+/** Three screens is still fewer than a navigation library is worth. Revisit if a fourth lands. */
+private enum class Screen { TODAY, LOG, HISTORY }
 
 class MainActivity : ComponentActivity() {
 
@@ -91,7 +100,8 @@ class MainActivity : ComponentActivity() {
         Scaffold { padding ->
             val todayVm: TodayViewModel = viewModel()
             val logVm: LogViewModel = viewModel()
-            var onLogScreen by rememberSaveable { mutableStateOf(false) }
+            val historyVm: HistoryViewModel = viewModel()
+            var screen by rememberSaveable { mutableStateOf(Screen.TODAY) }
 
             // Ask once, on first composition. Without it the reminder posts nothing
             // and fails silently — the worst possible failure for the one feature
@@ -109,27 +119,35 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(openLogOnLaunch) {
                 if (openLogOnLaunch) {
                     logVm.open(LocalDate.now())
-                    onLogScreen = true
+                    screen = Screen.LOG
                     openLogOnLaunch = false
                 }
             }
 
-            BackHandler(enabled = onLogScreen) { onLogScreen = false }
+            // Back always returns to Today, including from the log form reached via History.
+            // Stacking History under it would mean two presses to leave, for no gain.
+            BackHandler(enabled = screen != Screen.TODAY) { screen = Screen.TODAY }
 
             Box(Modifier.padding(padding)) {
-                if (onLogScreen) {
-                    LogScreen(logVm) {
-                        onLogScreen = false
-                        todayVm.reload()
-                    }
-                } else {
-                    TodayScreen(
+                when (screen) {
+                    Screen.TODAY -> TodayScreen(
                         viewModel = todayVm,
                         onLog = {
                             logVm.open(LocalDate.now())
-                            onLogScreen = true
+                            screen = Screen.LOG
                         },
+                        onHistory = { screen = Screen.HISTORY },
                     )
+
+                    Screen.LOG -> LogScreen(logVm) {
+                        screen = Screen.TODAY
+                        todayVm.reload()
+                    }
+
+                    Screen.HISTORY -> HistoryScreen(historyVm) { date ->
+                        logVm.open(date)
+                        screen = Screen.LOG
+                    }
                 }
             }
         }

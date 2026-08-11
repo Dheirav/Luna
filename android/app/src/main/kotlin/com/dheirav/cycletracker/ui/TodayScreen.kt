@@ -39,7 +39,7 @@ import kotlin.math.roundToInt
  * adherence is the constraint everything else depends on.
  */
 @Composable
-fun TodayScreen(viewModel: TodayViewModel, onLog: () -> Unit) {
+fun TodayScreen(viewModel: TodayViewModel, onLog: () -> Unit, onHistory: () -> Unit) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
 
     if (ui.loading) {
@@ -69,6 +69,11 @@ fun TodayScreen(viewModel: TodayViewModel, onLog: () -> Unit) {
             Button(onClick = onLog, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
                 Text("Log today", style = MaterialTheme.typography.titleMedium)
             }
+            // Reachable with no data on purpose — an empty database is exactly when someone
+            // wants to enter the periods they already remember.
+            TextButton(onClick = onHistory, modifier = Modifier.fillMaxWidth()) {
+                Text("Add past periods")
+            }
             return@Column
         }
 
@@ -94,6 +99,10 @@ fun TodayScreen(viewModel: TodayViewModel, onLog: () -> Unit) {
                 .heightIn(min = 56.dp),
         ) {
             Text("Log today", style = MaterialTheme.typography.titleMedium)
+        }
+
+        TextButton(onClick = onHistory, modifier = Modifier.fillMaxWidth()) {
+            Text("History — view and correct past days")
         }
 
         ConfidenceBar(state.phaseConfidence)

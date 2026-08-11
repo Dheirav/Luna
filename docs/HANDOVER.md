@@ -39,6 +39,9 @@ Governing rules (full list in the plan artifact):
 | Delete path | Emptying a day removes the row entirely |
 | Backfill seed | 13 periods imported, source flags correct (11 assumed / 2 observed) |
 | App lock | On device: cold-start prompt, unlock, 15s grace holds, 70s re-locks, toggle both ways |
+| **Room migration 1→2** | On the Redmi, over a real v1 database — see below |
+| History calendar | On device: month grid, estimated vs observed, day→log form, back to Today |
+| Prediction ledger | First row recorded on device with correct values and a null variability |
 
 ### Built but NOT yet verified on device
 
@@ -49,9 +52,48 @@ Governing rules (full list in the plan artifact):
 - **Encrypted export/restore UI** — SAF file picker + passphrase dialog. The codec is tested; the
   Android file plumbing is not.
 - Boot receiver, notification permission prompt.
+- **The backfill banner's two buttons.** *That's right* (`confirmBackfill`) and *Remove*
+  (`discardBackfill`) render on device, but neither has been **pressed** — the phone dropped its
+  connection first. `discardBackfill` reuses the already-verified `deleteDay` path; `confirmBackfill`
+  goes through the new `LogRepository.sourceFor` and is the one genuinely unproven line. Confirm a
+  backfilled day, then check `select source from daily_logs where date='…'` reads `OBSERVED`.
+  `adb shell pm clear com.dheirav.cycletracker.debug` re-seeds from spec on next launch, so this
+  is free to test.
+
+### Prediction ledger (Phase 3, started 2026-08-11)
+
+`core/Prediction.kt` + `data/PredictionLedger.kt`. **Room is now at version 2** — `predictions` is
+the first table that is not derivable from the daily logs, because a prediction is a function of
+the data *as it stood that day* and cannot be reconstructed once the logs change.
+
+Built before any UI on purpose: the record can only ever be written going forward, so every day
+without it is scoring data lost permanently. `TodayUiState.accuracy` is populated and deliberately
+rendered nowhere yet.
+
+- Written from **two** places: `TodayViewModel.refresh` and `ReminderWorker` — the worker covers
+  days the app is never opened. Its call is wrapped in `runCatching`; bookkeeping must never break
+  the reminder chain.
+- **`accuracy()` returns null until 3 scored cycles exist.** Rule 3 says not to display a
+  confidence figure without a track record — not to display a low one. Expect null for months.
+- Scoring excludes the open cycle and any period marked `ASSUMED`; grading against backfill would
+  measure two estimates agreeing.
+- **Migration 1→2 is hand-written and there is no `fallbackToDestructiveMigration` anywhere.** A
+  missing migration must crash in development rather than wipe a multi-year history. Verify the SQL
+  against `app/schemas/…/2.json` after any entity change — Room throws on first open if it drifts.
+
+  **Verified on the Redmi, 2026-08-11**, against a real v1 database rather than a fresh install —
+  a fresh install creates v2 directly and never exercises the migration at all. The technique, if
+  another migration ever needs testing: `git worktree add <dir> <pre-change-commit>`, write a
+  `local.properties` into it (it is gitignored, so the worktree has none), build that APK, install
+  and launch it to create and seed the old schema, then `install -r` the new build over the top.
+  Result: `user_version` 1→2, `predictions` created, 65 daily_logs and 55 `ASSUMED` flags intact,
+  `integrity_check` ok, no entry in the crash buffer.
+- Predictions ride along in the encrypted backup (`BackupSnapshot.predictions`, defaulted so older
+  backups still restore). Restore replaces the ledger wholesale, including with nothing.
+
 ### Not started
 
-- Phases 3–6.
+- Phase 3's user-facing half (receipts, explain-this-prediction, uncertainty cone), Phases 4–6.
 
 ### Decided against — SQLCipher (2026-08-11)
 
@@ -134,8 +176,28 @@ cd android
 
 ## Device — read this before debugging anything
 
-Test device is a **vivo V2432 (Y19 5G)**: Android 15 / API 35, arm64-v8a, MediaTek MT6835,
-**3.7 GB RAM (~614 MB available)**, Funtouch OS 6.0, no AICore.
+There are **two** test phones. Neither is the real target, which remains a **Galaxy A35**.
+
+### Redmi Note 12 Pro (2209116AG) — preferred
+
+Android 13 / API 33, arm64-v8a, **7.7 GB RAM**, 1080x2400 @ 440dpi, HyperOS (V816.0.33.0).
+Better than the Y19 in every way that matters here, and its 7.7 GB reopens Phase 6's Gemma 3 1B
+as a question on *this* phone.
+
+- **Pairing is already done** for the WSL box and persists. Only `adb connect <ip>:<port>` is
+  needed — but the **port changes constantly**, several times an hour, even with *Stay awake* on
+  and the phone on AC. Ask the user for the current one; do not burn time guessing.
+- Debug APK is ~25 MB and installs over wifi in 1–3 minutes. `adb install` returning an **empty
+  error message** means it was interrupted, not rejected — retry rather than debugging MIUI.
+- If `adb install` ever fails with `INSTALL_FAILED_USER_RESTRICTED`, that is Xiaomi's *Install via
+  USB* toggle, which wants a signed-in Mi account. It has not been needed so far.
+
+### vivo V2432 (Y19 5G)
+
+Android 15 / API 35, arm64-v8a, MediaTek MT6835, **3.7 GB RAM (~614 MB available)**,
+Funtouch OS 6.0, no AICore. Its 4 GB rules out Phase 6 on this handset.
+
+**Developer options have been revoked twice by the ROM**, which is why testing moved to the Redmi.
 
 The real target is a **Galaxy A35** — the Y19 is only for basic testing, so **do not retune the
 plan around it.** One thing does carry over: 4 GB RAM rules out Phase 6's Gemma 3 1B on *this*
@@ -177,6 +239,8 @@ for f in cycle-tracker.db cycle-tracker.db-wal cycle-tracker.db-shm; do
   adb exec-out run-as $PKG cat /data/data/$PKG/databases/$f > $f
 done
 python3 -c "import sqlite3;print(sqlite3.connect('cycle-tracker.db').execute('select * from daily_logs').fetchall())"
+# Is the ledger actually recording? This should gain a row a day.
+python3 -c "import sqlite3;print(sqlite3.connect('cycle-tracker.db').execute('select * from predictions').fetchall())"
 
 # The screen locks constantly; wake and dismiss before screenshots
 adb shell input keyevent KEYCODE_WAKEUP
@@ -231,7 +295,13 @@ background execution.
    the app lock during this: the file picker backgrounds the app, and the 60-second grace in
    `AppLock` is what stops a re-auth prompt landing mid-export. The grace itself is verified;
    what is not is whether a slow browse through the picker exceeds it.
-3. Then Phase 3 (prediction scoring, receipts, explain-this-prediction, uncertainty cone).
+3. **Install once and confirm the migration runs.** The v1→v2 SQL was checked against Room's
+   exported schema and replayed through real SQLite (columns, types, nullability, primary keys all
+   match; existing rows survive), but it has **never opened on the phone with the real database**.
+   That is the one failure here that would be loud and destructive, so it should not sit untested.
+   Then check `select * from predictions` gains a row a day.
+4. Then the rest of Phase 3 — receipts, explain-this-prediction, uncertainty cone — and the UI
+   pass that was deferred (launcher icon; the app still uses the stock Android robot).
 
 ## Version control
 
@@ -250,6 +320,13 @@ database pulled off the device for debugging, which is real health data.
 - Period lengths were assumed to be **5 days** for every backfilled period; only the two most recent
   period *start* dates came from them. Correcting spans matters because
   `spanDays` feeds `ovulationDay` via the `periodLength + 4` floor.
+
+  **The user can now answer this themselves** rather than it needing a decision here: the history
+  calendar shows every estimated day, and each one offers *That's right* or *Remove*. Note the
+  promotion rule in `LogRepository.sourceFor` — editing an assumed day does **not** silently make
+  it observed, because that would let a uniform synthetic backfill leak into
+  `cycleLengthVariability` and fake high confidence (§3.2). Only changing the bleeding flag or
+  tapping *That's right* promotes it.
 - Whether the relationship-advice module stays or goes (it is currently cut).
 
   (An earlier item here claimed `menstrual_tracker.db` was tracked by git and needed

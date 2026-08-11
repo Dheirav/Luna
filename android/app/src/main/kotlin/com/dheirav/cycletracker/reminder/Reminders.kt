@@ -21,6 +21,10 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.dheirav.cycletracker.CycleTrackerApp
 import com.dheirav.cycletracker.MainActivity
+import com.dheirav.cycletracker.core.CycleEngine
+import com.dheirav.cycletracker.core.CycleProjector
+import com.dheirav.cycletracker.data.LogDao
+import com.dheirav.cycletracker.data.PredictionLedger
 import com.dheirav.cycletracker.data.Settings
 import java.time.Duration
 import java.time.Instant
@@ -109,9 +113,35 @@ class ReminderWorker(
             notify(context)
         }
 
+        recordPrediction(dao)
+
         // Chain the next one. Doing this last means a crash above cannot silently end the chain.
         ReminderScheduler.schedule(context)
         return Result.success()
+    }
+
+    /**
+     * Records the day's prediction even when the app is never opened.
+     *
+     * The ledger is otherwise written by [com.dheirav.cycletracker.ui.TodayViewModel], which only
+     * runs when someone looks at the screen. Since the scoring history can only ever be built
+     * going forward, a day nobody opened the app is a gap that cannot be filled in later.
+     *
+     * Failures are swallowed on purpose. This is bookkeeping; it must never be the reason the
+     * reminder chain breaks, and the reminder is what adherence depends on.
+     */
+    private suspend fun recordPrediction(dao: LogDao) {
+        runCatching {
+            val logs = dao.allLogsOnce()
+            val bleeding = logs.filter { it.isBleeding }.map { it.date }
+            val assumed = logs.filter { it.isBleeding && it.source == "ASSUMED" }
+                .map { it.date }.toSet()
+            val projection = CycleProjector.project(bleeding, assumedDays = assumed)
+            val state = CycleEngine().stateFor(
+                LocalDate.now(), projection, bleedingDays = bleeding.toSet(),
+            )
+            PredictionLedger(dao).record(state)
+        }
     }
 
     private fun notify(context: Context) {

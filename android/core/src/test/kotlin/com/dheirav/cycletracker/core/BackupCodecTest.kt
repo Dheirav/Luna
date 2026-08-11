@@ -4,7 +4,9 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -28,7 +30,59 @@ class BackupCodecTest {
             ),
             BackupDay(date = "2026-07-29", isBleeding = true, source = "OBSERVED"),
         ),
+        predictions = listOf(
+            BackupPrediction(
+                madeOn = "2026-07-20",
+                cycleStart = "2024-02-12",
+                predictedNextPeriod = "2024-03-11",
+                expectedCycleLength = 28,
+                variability = 1.5,
+            ),
+        ),
     )
+
+    /**
+     * The ledger has to survive a phone move. It is the one table that cannot be re-entered from
+     * memory — a prediction is a statement made on a day from data that no longer exists.
+     */
+    @Test
+    fun `predictions survive the round trip`() {
+        val passphrase = "correct horse battery staple".toCharArray()
+        val blob = BackupCodec.encrypt(BackupCodec.encode(snapshot), passphrase)
+        val restored = BackupCodec.decode(BackupCodec.decrypt(blob, passphrase))
+
+        assertEquals(snapshot.predictions, restored.predictions)
+        assertEquals(1.5, restored.predictions.single().variability!!, 1e-9)
+    }
+
+    /** Backups written before the ledger existed must still restore, not fail on a missing key. */
+    @Test
+    fun `a backup with no predictions field decodes to an empty ledger`() {
+        val legacy = """
+            {"formatVersion":1,"exportedAt":"2026-08-01T00:00:00Z",
+             "days":[{"date":"2024-03-11","isBleeding":true,"source":"OBSERVED"}]}
+        """.trimIndent().toByteArray(Charsets.UTF_8)
+
+        val restored = BackupCodec.decode(legacy)
+
+        assertEquals(1, restored.days.size)
+        assertTrue(restored.predictions.isEmpty())
+    }
+
+    /** A null variability means "fewer than three observed cycles", which is not a variability of
+     *  zero. Collapsing the two in transit would manufacture certainty. */
+    @Test
+    fun `null variability stays null through the round trip`() {
+        val unknown = snapshot.copy(
+            predictions = listOf(snapshot.predictions.single().copy(variability = null)),
+        )
+        val passphrase = "pass".toCharArray()
+        val restored = BackupCodec.decode(
+            BackupCodec.decrypt(BackupCodec.encrypt(BackupCodec.encode(unknown), passphrase), passphrase),
+        )
+
+        assertNull(restored.predictions.single().variability)
+    }
 
     @Test
     fun `round trips through encrypt and decrypt`() {

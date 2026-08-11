@@ -87,6 +87,29 @@ class LogViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * "Yes, this date is right" — promotes a backfilled guess to an observation.
+     *
+     * Kept separate from [save] on purpose. A confirmation is a statement about the *bleeding*,
+     * and it feeds variability and confidence; it must never be a side effect of adding a note.
+     */
+    fun confirmBackfill(onDone: () -> Unit) {
+        viewModelScope.launch {
+            repo.save(_ui.value.entry, confirmed = true)
+            open(_ui.value.entry.date)
+            onDone()
+        }
+    }
+
+    /** "No, I made that up" — deletes the day so an extrapolated guess stops feeding the engine. */
+    fun discardBackfill(onDone: () -> Unit) {
+        viewModelScope.launch {
+            repo.discard(_ui.value.entry.date)
+            open(_ui.value.entry.date)
+            onDone()
+        }
+    }
+
     private inline fun edit(block: (DayEntry) -> DayEntry) {
         _ui.value = _ui.value.copy(entry = block(_ui.value.entry), saved = false)
     }

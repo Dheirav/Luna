@@ -5,6 +5,7 @@ import android.net.Uri
 import com.dheirav.cycletracker.core.BackupCodec
 import com.dheirav.cycletracker.core.BackupDay
 import com.dheirav.cycletracker.core.BackupException
+import com.dheirav.cycletracker.core.BackupPrediction
 import com.dheirav.cycletracker.core.BackupSnapshot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -36,6 +37,15 @@ class BackupManager(private val dao: LogDao) {
                         source = log.source,
                         symptoms = symptoms[log.date].orEmpty().associate { it.key to it.value },
                         tags = tags[log.date].orEmpty().map { it.tag },
+                    )
+                },
+                predictions = dao.allPredictionsForBackup().map { p ->
+                    BackupPrediction(
+                        madeOn = p.madeOn.toString(),
+                        cycleStart = p.cycleStart.toString(),
+                        predictedNextPeriod = p.predictedNextPeriod.toString(),
+                        expectedCycleLength = p.expectedCycleLength,
+                        variability = p.variability,
                     )
                 },
             )
@@ -72,7 +82,17 @@ class BackupManager(private val dao: LogDao) {
                 day.tags.map { DayTagEntity(LocalDate.parse(day.date), it) }
             }
 
-            dao.replaceAll(logs, symptoms, tags)
+            val predictions = snapshot.predictions.map { p ->
+                PredictionEntity(
+                    madeOn = LocalDate.parse(p.madeOn),
+                    cycleStart = LocalDate.parse(p.cycleStart),
+                    predictedNextPeriod = LocalDate.parse(p.predictedNextPeriod),
+                    expectedCycleLength = p.expectedCycleLength,
+                    variability = p.variability,
+                )
+            }
+
+            dao.replaceAll(logs, symptoms, tags, predictions)
             logs.size
         }
 

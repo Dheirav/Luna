@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -30,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dheirav.cycletracker.core.DayTag
 import com.dheirav.cycletracker.core.FlowLevel
+import com.dheirav.cycletracker.core.Source
 import com.dheirav.cycletracker.core.Symptom
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -60,6 +63,13 @@ fun LogScreen(viewModel: LogViewModel, onSaved: () -> Unit) {
             date = entry.date,
             onShift = viewModel::shiftDay,
         )
+
+        if (entry.exists && entry.source == Source.ASSUMED) {
+            BackfillBanner(
+                onConfirm = { viewModel.confirmBackfill {} },
+                onDiscard = { viewModel.discardBackfill {} },
+            )
+        }
 
         HorizontalDivider()
 
@@ -144,6 +154,44 @@ fun LogScreen(viewModel: LogViewModel, onSaved: () -> Unit) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+/**
+ * Marks a day the backfill invented.
+ *
+ * Eleven of the thirteen seeded periods were extrapolated backwards at a uniform 28 days — nobody
+ * observed them. Without this the user cannot tell those days from ones they actually lived, which
+ * makes "correct your own history" impossible: you cannot fix what you cannot see.
+ */
+@Composable
+private fun BackfillBanner(onConfirm: () -> Unit, onDiscard: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                "Estimated, not observed",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            Text(
+                "Backfill guessed this day by counting back 28 days. It is excluded from your " +
+                    "variability and confidence figures until you say otherwise.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onConfirm) { Text("That's right") }
+                TextButton(onClick = onDiscard) { Text("Remove") }
+            }
+        }
     }
 }
 

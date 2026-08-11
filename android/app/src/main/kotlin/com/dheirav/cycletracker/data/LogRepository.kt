@@ -4,7 +4,10 @@ import com.dheirav.cycletracker.core.CycleProjector
 import com.dheirav.cycletracker.core.DayTag
 import com.dheirav.cycletracker.core.FlowLevel
 import com.dheirav.cycletracker.core.Projection
+import com.dheirav.cycletracker.core.Source
 import com.dheirav.cycletracker.core.Symptom
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 
 /** One day as the UI edits it. Every field nullable — absent is never zero. */
@@ -15,6 +18,21 @@ data class DayEntry(
     val symptoms: Map<Symptom, Int> = emptyMap(),
     val tags: Set<DayTag> = emptySet(),
     val notes: String = "",
+    /**
+     * Where the bleeding claim came from. [Source.ASSUMED] means backfill extrapolated it and
+     * nobody ever observed it — the UI must say so before the user builds on it.
+     */
+    val source: Source = Source.OBSERVED,
+    /** False when this date has no row at all, which is distinct from a row saying "no bleeding". */
+    val exists: Boolean = false,
+)
+
+/** One cell in the history calendar. Cheap enough to hold every logged day in memory. */
+data class DaySummary(
+    val isBleeding: Boolean,
+    val isAssumed: Boolean,
+    val flow: FlowLevel?,
+    val hasNotes: Boolean,
 )
 
 class LogRepository(private val dao: LogDao) {
@@ -34,7 +52,22 @@ class LogRepository(private val dao: LogDao) {
             symptoms = symptoms,
             tags = tags,
             notes = log?.notes.orEmpty(),
+            source = if (log?.source == "ASSUMED") Source.ASSUMED else Source.OBSERVED,
+            exists = log != null,
         )
+    }
+
+    /** Everything logged, for the history calendar. Presence of a row *is* "this day was logged" —
+     *  [save] deletes the row outright when a day is emptied. */
+    fun summaries(): Flow<Map<LocalDate, DaySummary>> = dao.allLogs().map { logs ->
+        logs.associate { log ->
+            log.date to DaySummary(
+                isBleeding = log.isBleeding,
+                isAssumed = log.source == "ASSUMED",
+                flow = log.flow?.let { runCatching { FlowLevel.valueOf(it) }.getOrNull() },
+                hasNotes = log.notes.isNotBlank(),
+            )
+        }
     }
 
     /**
@@ -46,8 +79,11 @@ class LogRepository(private val dao: LogDao) {
      *
      * A day the user has emptied entirely is deleted outright — that keeps "never logged" and
      * "logged as nothing" from collapsing into the same state.
+     *
+     * [confirmed] promotes a backfilled day to [Source.OBSERVED]. It exists because the promotion
+     * must be a deliberate act: see [sourceFor].
      */
-    suspend fun save(entry: DayEntry) {
+    suspend fun save(entry: DayEntry, confirmed: Boolean = false) {
         val isEmpty = !entry.isBleeding &&
             entry.symptoms.isEmpty() &&
             entry.tags.isEmpty() &&
@@ -58,14 +94,13 @@ class LogRepository(private val dao: LogDao) {
             return
         }
 
-        // Anything the user touches by hand is an observation, never a backfill estimate.
         dao.upsertLog(
             DailyLogEntity(
                 date = entry.date,
                 isBleeding = entry.isBleeding,
                 flow = entry.flow?.name,
                 notes = entry.notes,
-                source = "OBSERVED",
+                source = sourceFor(entry, confirmed).name,
             ),
         )
         dao.deleteSymptoms(entry.date)
@@ -73,6 +108,28 @@ class LogRepository(private val dao: LogDao) {
         dao.deleteTags(entry.date)
         dao.upsertTags(entry.tags.map { DayTagEntity(entry.date, it.key) })
     }
+
+    /**
+     * Decides whether a saved day counts as observed.
+     *
+     * The rule that matters: **editing a backfilled day does not, by itself, make it real.** The
+     * 11 extrapolated periods in the seed are guesses at a uniform 28 days. If adding a symptom or
+     * a note to one of those days silently flipped it to [Source.OBSERVED], the guess would start
+     * counting toward `cycleLengthVariability` — and §3.2 excludes assumed data precisely so a
+     * synthetic uniform sequence cannot manufacture zero variability and maximum confidence.
+     *
+     * So an assumed day stays assumed unless the user says something about the bleeding itself:
+     * changing the bleeding flag, or explicitly confirming the date was right.
+     */
+    private suspend fun sourceFor(entry: DayEntry, confirmed: Boolean): Source {
+        if (confirmed) return Source.OBSERVED
+        val existing = dao.logFor(entry.date) ?: return Source.OBSERVED
+        if (existing.source != "ASSUMED") return Source.OBSERVED
+        return if (existing.isBleeding == entry.isBleeding) Source.ASSUMED else Source.OBSERVED
+    }
+
+    /** Throws a backfilled guess away entirely, rather than leaving it to pollute the statistics. */
+    suspend fun discard(date: LocalDate) = dao.deleteDay(date)
 
     /** Rebuilds the full projection from the logs. Cheap, and the reason corrections just work. */
     suspend fun projection(): Pair<Projection, Set<LocalDate>> {

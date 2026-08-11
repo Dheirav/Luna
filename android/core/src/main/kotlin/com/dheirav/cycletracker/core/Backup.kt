@@ -31,11 +31,34 @@ data class BackupDay(
     val tags: List<String> = emptyList(),
 )
 
+/**
+ * A recorded prediction, carried through the backup.
+ *
+ * Included because it is the one thing in the database that **cannot be rebuilt**. Daily logs can
+ * in principle be re-entered from memory; a prediction is a statement the app made on a specific
+ * day from data that no longer exists, and a track record takes months to accumulate. Leaving it
+ * out would mean a new phone silently resets the app's measured accuracy to "unknown".
+ */
+@Serializable
+data class BackupPrediction(
+    val madeOn: String,
+    val cycleStart: String,
+    val predictedNextPeriod: String,
+    val expectedCycleLength: Int,
+    val variability: Double? = null,
+)
+
 @Serializable
 data class BackupSnapshot(
     val formatVersion: Int = BackupCodec.FORMAT_VERSION,
     val exportedAt: String,
     val days: List<BackupDay>,
+    /**
+     * Defaulted, so backups written before the ledger existed still restore. Combined with
+     * [BackupCodec]'s `ignoreUnknownKeys`, the format stays readable in both directions and
+     * [BackupCodec.FORMAT_VERSION] does not need to move for a purely additive field.
+     */
+    val predictions: List<BackupPrediction> = emptyList(),
 )
 
 class BackupException(message: String, cause: Throwable? = null) : Exception(message, cause)
