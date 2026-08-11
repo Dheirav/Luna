@@ -1,0 +1,62 @@
+# Default Cycle Settings
+cycle:
+  default_cycle_length: 28
+  default_period_length: 5
+  min_cycle_length: 21
+  max_cycle_length: 35
+
+# Phase Proportions (as fractions of total cycle)
+phases:
+  menstruation:
+    start_proportion: 0.0
+    end_proportion: 0.15
+    description: "Menstruation phase"
+  
+  follicular:
+    start_proportion: 0.15
+    end_proportion: 0.45
+    description: "Follicular phase (rising hormones)"
+  
+  ovulation:
+    start_proportion: 0.45
+    end_proportion: 0.55
+    description: "Ovulation phase (peak hormones)"
+  
+  luteal:
+    start_proportion: 0.55
+    end_proportion: 1.0
+    description: "Luteal phase (progesterone dominance)"
+
+# Learning Parameters
+learning:
+  recency_half_life_days: 90
+  min_logs_for_pattern: 3
+  confidence_data_threshold: 50  # number of logs for 0.8 confidence
+  trend_window_days: 30
+
+# Confidence Scoring Weights
+confidence:
+  weight_user_data_factor: 0.3
+  weight_phase_pattern_quality: 0.25
+  weight_data_consistency: 0.25
+  weight_recency: 0.2
+  min_confidence_threshold: 0.3
+
+# Prediction Parameters
+predictions:
+  default_forecast_days: 7
+  extended_forecast_days: 14
+  blend_boundary_phases: true  # interpolate between phases at boundaries
+
+# Population Defaults (fallback for new users)
+population_defaults:
+  mood: 3.0
+  energy: 3.0
+  pain: 2.0
+  sleep: 4.0
+  stress: 3.0
+
+# Anomaly Detection
+anomaly:
+  std_dev_threshold: 2.0  # flag if outside 2 std_dev
+  cycle_variance_threshold: 1.0  # flag if ±1 day from average

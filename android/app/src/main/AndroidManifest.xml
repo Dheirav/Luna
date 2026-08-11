@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- No INTERNET permission, deliberately and permanently. The app cannot phone home
+         even if a dependency tries. That is the whole reason to build your own tracker. -->
+
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Required by BiometricPrompt and BiometricManager.canAuthenticate(). Normal permission,
+         granted at install with no runtime prompt. Declared here rather than inherited from
+         androidx.biometric, which this app deliberately does not depend on — the framework API
+         covers minSdk 31 and the AndroidX wrapper costs ~1.4 MB via androidx.fragment. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Requested only via the settings screen, never silently. Vendor ROMs kill background
+         work, and the daily reminder is the entire adherence mechanism. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <application
+        android:name=".CycleTrackerApp"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.CycleTracker">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.CycleTracker">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <receiver
+            android:name=".reminder.BootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

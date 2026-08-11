@@ -1,0 +1,14 @@
+# Android Studio / Gradle
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+.kotlin/
+
+# Keys — never commit
+*.jks
+*.keystore

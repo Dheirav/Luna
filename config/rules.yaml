@@ -1,0 +1,146 @@
+# Relationship Suggestions Rules
+relationship_suggestions:
+  support:
+    menstruation:
+      - "This phase can be challenging; extra support and understanding means a lot"
+      - "Comfort and care are appreciated; small gestures help"
+      - "You might appreciate check-ins without pressure"
+    
+    follicular:
+      - "Rising energy and mood: great time for social connection"
+      - "This phase often brings enthusiasm for new activities"
+      - "Good timing for shared projects or outings"
+    
+    ovulation:
+      - "Peak confidence and social energy; often a great time for connection"
+      - "Intimacy can feel more natural and enjoyable during this phase"
+      - "This is often your most socially engaged phase"
+    
+    luteal:
+      - "You might need more quiet time and rest; that's normal"
+      - "Patience and flexible plans help; energy may fluctuate"
+      - "Emotional sensitivity is higher; supportive communication is valuable"
+  
+  space:
+    menstruation:
+      - "Independent time helps you feel best; respect for boundaries is appreciated"
+      - "Solo activities or low-key time is probably appealing right now"
+      - "Space to recharge is what you need most"
+    
+    follicular:
+      - "Growing social energy; good balance of connection and independence"
+      - "This is naturally a more outward phase; pursue what appeals to you"
+      - "Freedom to engage socially or solo, as you prefer"
+    
+    ovulation:
+      - "Peak confidence; this is your most independent, assertive phase"
+      - "Great time for solo projects and personal achievement"
+      - "Your natural leadership and independence shine now"
+    
+    luteal:
+      - "Honoring your need for space and solitude is essential"
+      - "Less social pressure, more freedom to be introspective"
+      - "Protect your energy; solo time is regenerative"
+
+# Wellness Exercise Suggestions
+wellness_exercise:
+  menstruation:
+    - "Gentle yoga, stretching, or restorative movement"
+    - "Light walks in nature"
+    - "Rest days are appropriate; listen to your body"
+    - "Hydration and warmth are important"
+  
+  follicular:
+    - "Gradually increasing intensity as energy builds"
+    - "Group fitness classes (rising social energy)"
+    - "Building endurance activities work well"
+    - "Strength training with moderate intensity"
+  
+  ovulation:
+    - "High-intensity interval training (HIIT)"
+    - "Competitive sports or intense workouts"
+    - "Peak strength and endurance capacity"
+    - "Push yourself; your body can handle the intensity"
+  
+  luteal:
+    - "Moderate, consistent exercise (avoid new extremes)"
+    - "Cycling, running, or steady cardio"
+    - "Strength training with controlled intensity"
+    - "Prioritize consistency over intensity"
+
+# Wellness Nutrition Suggestions
+wellness_nutrition:
+  menstruation:
+    - "Iron-rich foods (red meat, spinach, legumes) to support blood loss"
+    - "Warm foods and nutrient-dense meals"
+    - "Increase water intake to prevent dehydration"
+    - "Magnesium-rich foods (dark chocolate, nuts, seeds)"
+  
+  follicular:
+    - "Lighter, fresher foods align with rising metabolism"
+    - "Increase vegetables and fruits"
+    - "Moderate protein intake"
+    - "Prepare for higher calorie needs in luteal"
+  
+  ovulation:
+    - "Peak estrogen; lighter meals work best"
+    - "Continue hydration"
+    - "Antioxidant-rich foods (berries, leafy greens)"
+    - "Watch caffeine intake if sensitive"
+  
+  luteal:
+    - "Higher-calorie, nutrient-dense foods"
+    - "Complex carbohydrates support serotonin"
+    - "Increase fiber (whole grains, legumes)"
+    - "Healthy fats (avocado, nuts, fish)"
+    - "Calcium and magnesium support mood"
+
+# Stress Management Suggestions
+stress_management:
+  menstruation:
+    - "Prioritize sleep and rest"
+    - "Journaling or meditation"
+    - "Limit major stressors if possible"
+    - "Comfort activities (warm baths, tea)"
+  
+  follicular:
+    - "Channeling energy into projects"
+    - "Social support and connection"
+    - "Problem-solving and planning"
+    - "Sauna or active stress release"
+  
+  ovulation:
+    - "Mindfulness to manage peak stimulation"
+    - "Physical activity for stress release"
+    - "Structured planning to channel energy"
+    - "Boundaries on overcommitment"
+  
+  luteal:
+    - "Lower expectations and priorities"
+    - "Meditation and breathing exercises"
+    - "Emotional processing (journaling, therapy)"
+    - "Protect time for rest and recovery"
+
+# Activity Suggestions by Energy Level
+activities_by_energy:
+  high_energy:
+    - "High-intensity exercise or sports"
+    - "Social events and group activities"
+    - "New projects or skill-building"
+    - "Competitive activities"
+    - "Travel or adventure planning"
+  
+  moderate_energy:
+    - "Hiking or nature walks"
+    - "Creative hobbies"
+    - "Socializing with good friends"
+    - "Movie, dinner, or casual outings"
+    - "Productive home projects"
+  
+  low_energy:
+    - "Netflix or reading"
+    - "Gentle yoga or stretching"
+    - "Solo creative time"
+    - "Cooking or meal prep"
+    - "Journaling or reflection"
+    - "Light housekeeping"

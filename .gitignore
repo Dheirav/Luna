@@ -1,0 +1,20 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local database — health data, never committed. menstrual_tracker.db is the legacy
+# Python tracker's store; it was never committed to any repo and stays that way.
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite3
+
+# Editors
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,8 @@
+# Developed in WSL, built in Android Studio on Windows. Normalise in the repo,
+# and pin the two files whose line endings actually matter to their platform.
+* text=auto eol=lf
+*.bat  text eol=crlf
+gradlew text eol=lf
+*.jar  binary
+*.png  binary
+*.ttf  binary

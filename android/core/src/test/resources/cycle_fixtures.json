@@ -1,0 +1,426 @@
+{
+  "$comment": "Golden fixture for docs/CYCLE_RULES.md. Hand-authored from the spec, NOT generated from the Python implementation (which is defective). Language-neutral: loadable from Kotlin unit tests and Python alike. All dates ISO-8601. All day indices 1-based inclusive.",
+  "version": 1,
+
+  "config": {
+    "maxIntraPeriodGapDays": 1,
+    "minDaysBetweenCycleStarts": 10,
+    "defaultLutealLength": 14,
+    "defaultCycleLength": 28,
+    "defaultPeriodLength": 5,
+    "plausibleCycleRange": [15, 60],
+    "cycleLengthSampleSize": 6,
+    "confidenceFloorRegularity": 0.4,
+    "variabilityScaleDays": 7.0,
+    "boundarySoftnessDays": 2.0
+  },
+
+  "periodGrouping": [
+    {
+      "id": "PG-1",
+      "name": "consecutive bleeding days form one period",
+      "note": "This is DEFECT 1. Current Python produces three cycles here, one of them one day long.",
+      "given": { "bleedingDays": ["2026-03-01", "2026-03-02", "2026-03-03"] },
+      "expect": {
+        "periods": [
+          { "start": "2026-03-01", "end": "2026-03-03", "spanDays": 3, "bleedingDayCount": 3 }
+        ],
+        "spotting": [],
+        "cycles": [{ "start": "2026-03-01", "end": null, "length": null }]
+      }
+    },
+    {
+      "id": "PG-2",
+      "name": "a single gap day is bridged",
+      "given": { "bleedingDays": ["2026-03-01", "2026-03-02", "2026-03-04", "2026-03-05"] },
+      "expect": {
+        "periods": [
+          { "start": "2026-03-01", "end": "2026-03-05", "spanDays": 5, "bleedingDayCount": 4 }
+        ],
+        "spotting": []
+      }
+    },
+    {
+      "id": "PG-3",
+      "name": "two gap days close the span, and the remainder is spotting",
+      "note": "Second span starts 4 days after the cycle start, below minDaysBetweenCycleStarts.",
+      "given": { "bleedingDays": ["2026-03-01", "2026-03-02", "2026-03-05", "2026-03-06"] },
+      "expect": {
+        "periods": [
+          { "start": "2026-03-01", "end": "2026-03-02", "spanDays": 2, "bleedingDayCount": 2 }
+        ],
+        "spotting": [{ "start": "2026-03-05", "end": "2026-03-06", "spanDays": 2 }],
+        "cycles": [{ "start": "2026-03-01", "end": null, "length": null }]
+      }
+    },
+    {
+      "id": "PG-4",
+      "name": "bleeding well after the cycle start opens a new period and closes the cycle",
+      "given": {
+        "bleedingDays": [
+          "2026-03-01", "2026-03-02", "2026-03-03",
+          "2026-03-29", "2026-03-30", "2026-03-31"
+        ]
+      },
+      "expect": {
+        "periods": [
+          { "start": "2026-03-01", "end": "2026-03-03", "spanDays": 3, "bleedingDayCount": 3 },
+          { "start": "2026-03-29", "end": "2026-03-31", "spanDays": 3, "bleedingDayCount": 3 }
+        ],
+        "spotting": [],
+        "cycles": [
+          { "start": "2026-03-01", "end": "2026-03-28", "length": 28 },
+          { "start": "2026-03-29", "end": null, "length": null }
+        ]
+      }
+    },
+    {
+      "id": "PG-5",
+      "name": "exactly ten days apart is a new cycle, not spotting",
+      "note": "Boundary of minDaysBetweenCycleStarts. The resulting 10-day cycle is outside plausibleCycleRange and so is excluded from length statistics — recorded, but not trusted.",
+      "given": { "bleedingDays": ["2026-03-01", "2026-03-11"] },
+      "expect": {
+        "periods": [
+          { "start": "2026-03-01", "end": "2026-03-01", "spanDays": 1, "bleedingDayCount": 1 },
+          { "start": "2026-03-11", "end": "2026-03-11", "spanDays": 1, "bleedingDayCount": 1 }
+        ],
+        "spotting": [],
+        "cycles": [
+          { "start": "2026-03-01", "end": "2026-03-10", "length": 10 },
+          { "start": "2026-03-11", "end": null, "length": null }
+        ]
+      }
+    },
+    {
+      "id": "PG-6",
+      "name": "nine days apart is spotting",
+      "given": { "bleedingDays": ["2026-03-01", "2026-03-10"] },
+      "expect": {
+        "periods": [
+          { "start": "2026-03-01", "end": "2026-03-01", "spanDays": 1, "bleedingDayCount": 1 }
+        ],
+        "spotting": [{ "start": "2026-03-10", "end": "2026-03-10", "spanDays": 1 }],
+        "cycles": [{ "start": "2026-03-01", "end": null, "length": null }]
+      }
+    }
+  ],
+
+  "cycleDerivation": [
+    {
+      "id": "CD-1",
+      "name": "cycle length is measured start to start",
+      "given": {
+        "periodStarts": ["2026-01-05", "2026-02-02", "2026-03-01"],
+        "periodSpanDays": 3
+      },
+      "expect": {
+        "cycles": [
+          { "start": "2026-01-05", "end": "2026-02-01", "length": 28 },
+          { "start": "2026-02-02", "end": "2026-02-28", "length": 27 },
+          { "start": "2026-03-01", "end": null, "length": null }
+        ]
+      }
+    },
+    {
+      "id": "CD-2",
+      "name": "the open cycle is excluded from length statistics",
+      "given": { "cycleLengths": [28, 27], "openCycle": true, "userTypicalCycleLength": null },
+      "expect": { "completedCount": 2, "expectedCycleLength": 28, "cycleLengthVariability": null },
+      "note": "Only 2 completed cycles, below the 3 needed for a median — falls through to defaultCycleLength."
+    },
+    {
+      "id": "CD-3",
+      "name": "expected length is the median of completed cycles",
+      "given": { "cycleLengths": [28, 27, 30, 26, 29] },
+      "expect": { "expectedCycleLength": 28, "cycleLengthVariability": 1.414 }
+    },
+    {
+      "id": "CD-4",
+      "name": "implausible cycles are excluded before the median",
+      "note": "92 days is a missed period or a logging error, not a cycle.",
+      "given": { "cycleLengths": [28, 27, 92, 29] },
+      "expect": { "expectedCycleLength": 28, "cycleLengthVariability": 0.816 }
+    },
+    {
+      "id": "CD-5",
+      "name": "fewer than three cycles falls back to the user setting",
+      "given": { "cycleLengths": [30, 26], "userTypicalCycleLength": 30 },
+      "expect": { "expectedCycleLength": 30, "cycleLengthVariability": null }
+    },
+    {
+      "id": "CD-6",
+      "name": "no history and no setting falls back to 28",
+      "given": { "cycleLengths": [], "userTypicalCycleLength": null },
+      "expect": { "expectedCycleLength": 28, "cycleLengthVariability": null }
+    },
+    {
+      "id": "CD-7",
+      "name": "only the last six plausible cycles count, and an even median rounds half up",
+      "note": "The two 45s are plausible but fall outside the six-cycle window. Median of [26,27,28,29,30,31] is 28.5.",
+      "given": { "cycleLengths": [45, 45, 26, 27, 28, 29, 30, 31] },
+      "expect": {
+        "sampleUsed": [26, 27, 28, 29, 30, 31],
+        "medianRaw": 28.5,
+        "expectedCycleLength": 29,
+        "cycleLengthVariability": 1.708
+      }
+    },
+    {
+      "id": "CD-8",
+      "name": "assumed cycles seed the length but never the variability",
+      "note": "The real backfill shape: 11 extrapolated cycles plus 1 observed. A uniform synthetic sequence has stdDev 0, which would report maximum confidence from data nobody observed.",
+      "given": {
+        "cycleLengths": [28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28],
+        "cycleSources": [
+          "assumed", "assumed", "assumed", "assumed", "assumed", "assumed",
+          "assumed", "assumed", "assumed", "assumed", "assumed", "observed"
+        ]
+      },
+      "expect": {
+        "expectedCycleLength": 28,
+        "observedCompletedCount": 1,
+        "cycleLengthVariability": null,
+        "regularity": 0.5,
+        "naiveVariabilityWouldBe": 0.0
+      }
+    }
+  ],
+
+  "cycleDay": [
+    {
+      "id": "CY-1",
+      "name": "the period start date is cycle day 1",
+      "note": "DEFECT 2, worst case. Legacy returns 28 — the first day of your period reports as the last day of the cycle, i.e. late luteal.",
+      "given": { "cycleStart": "2026-03-01", "target": "2026-03-01", "expectedCycleLength": 28 },
+      "expect": { "cycleDay": 1, "daysLate": 0, "legacyWouldReturn": 28 }
+    },
+    {
+      "id": "CY-2",
+      "name": "mid-cycle counts forward",
+      "note": "Legacy is off by one everywhere, not only when late — it never adds 1 for the start day.",
+      "given": { "cycleStart": "2026-03-01", "target": "2026-03-20", "expectedCycleLength": 28 },
+      "expect": { "cycleDay": 20, "daysLate": 0, "legacyWouldReturn": 19 }
+    },
+    {
+      "id": "CY-3",
+      "name": "a late cycle does not wrap",
+      "note": "Legacy returns 1, telling a two-days-late user they are on day 1 of a new period.",
+      "given": { "cycleStart": "2026-03-01", "target": "2026-03-30", "expectedCycleLength": 28 },
+      "expect": { "cycleDay": 30, "daysLate": 2, "legacyWouldReturn": 1 }
+    },
+    {
+      "id": "CY-4",
+      "name": "a very late cycle keeps counting",
+      "given": { "cycleStart": "2026-03-01", "target": "2026-04-15", "expectedCycleLength": 28 },
+      "expect": { "cycleDay": 46, "daysLate": 18, "legacyWouldReturn": 17 }
+    }
+  ],
+
+  "phaseAnchoring": [
+    {
+      "id": "PA-1",
+      "name": "28-day cycle, 5-day period",
+      "given": { "expectedCycleLength": 28, "periodLength": 5, "lutealLength": 14 },
+      "expect": {
+        "ovulationDay": 14,
+        "boundaries": {
+          "MENSTRUATION": [1, 5],
+          "FOLLICULAR": [6, 11],
+          "OVULATION": [12, 15],
+          "LUTEAL": [16, null]
+        },
+        "samples": [
+          { "cycleDay": 3, "phase": "MENSTRUATION" },
+          { "cycleDay": 8, "phase": "FOLLICULAR" },
+          { "cycleDay": 13, "phase": "OVULATION" },
+          { "cycleDay": 22, "phase": "LUTEAL" }
+        ]
+      }
+    },
+    {
+      "id": "PA-2",
+      "name": "21-day cycle, 4-day period — the periodLength+4 floor engages",
+      "note": "expectedCycleLength - lutealLength = 7, below the floor of 8, so ovulation is pushed to day 8. Follicular collapses to a single day, which is valid and preferable to an empty phase.",
+      "given": { "expectedCycleLength": 21, "periodLength": 4, "lutealLength": 14 },
+      "expect": {
+        "ovulationDay": 8,
+        "boundaries": {
+          "MENSTRUATION": [1, 4],
+          "FOLLICULAR": [5, 5],
+          "OVULATION": [6, 9],
+          "LUTEAL": [10, null]
+        },
+        "samples": [
+          { "cycleDay": 2, "phase": "MENSTRUATION" },
+          { "cycleDay": 5, "phase": "FOLLICULAR" },
+          { "cycleDay": 7, "phase": "OVULATION" },
+          { "cycleDay": 15, "phase": "LUTEAL" }
+        ]
+      }
+    },
+    {
+      "id": "PA-3",
+      "name": "35-day cycle, 5-day period",
+      "given": { "expectedCycleLength": 35, "periodLength": 5, "lutealLength": 14 },
+      "expect": {
+        "ovulationDay": 21,
+        "boundaries": {
+          "MENSTRUATION": [1, 5],
+          "FOLLICULAR": [6, 18],
+          "OVULATION": [19, 22],
+          "LUTEAL": [23, null]
+        },
+        "samples": [
+          { "cycleDay": 12, "phase": "FOLLICULAR" },
+          { "cycleDay": 18, "phase": "FOLLICULAR", "legacyProportionalWouldSay": "OVULATION" },
+          { "cycleDay": 20, "phase": "OVULATION" },
+          { "cycleDay": 30, "phase": "LUTEAL" }
+        ]
+      }
+    },
+    {
+      "id": "PA-4",
+      "name": "45-day cycle, 6-day period — where the legacy model fails hardest",
+      "note": "DEFECT 3. Proportional scaling places ovulation around day 21-25 here; anchoring from the next period places it at 29-32. Eight days out, and the error grows with cycle length.",
+      "given": { "expectedCycleLength": 45, "periodLength": 6, "lutealLength": 14 },
+      "expect": {
+        "ovulationDay": 31,
+        "boundaries": {
+          "MENSTRUATION": [1, 6],
+          "FOLLICULAR": [7, 28],
+          "OVULATION": [29, 32],
+          "LUTEAL": [33, null]
+        },
+        "samples": [
+          { "cycleDay": 22, "phase": "FOLLICULAR", "legacyProportionalWouldSay": "OVULATION" },
+          { "cycleDay": 30, "phase": "OVULATION", "legacyProportionalWouldSay": "LUTEAL" },
+          { "cycleDay": 40, "phase": "LUTEAL" }
+        ]
+      }
+    },
+    {
+      "id": "PA-5",
+      "name": "observed bleeding overrides the computed phase",
+      "note": "Menstruation is the one phase that is observed rather than inferred.",
+      "given": {
+        "expectedCycleLength": 28, "periodLength": 5, "lutealLength": 14,
+        "cycleDay": 7, "isBleedingOnTargetDate": true
+      },
+      "expect": { "phase": "MENSTRUATION", "phaseConfidence": 1.0, "computedPhaseWouldBe": "FOLLICULAR" }
+    },
+    {
+      "id": "PA-6",
+      "name": "a late cycle stays luteal instead of falling off the end",
+      "given": {
+        "expectedCycleLength": 28, "periodLength": 5, "lutealLength": 14,
+        "cycleDay": 32, "isBleedingOnTargetDate": false
+      },
+      "expect": { "phase": "LUTEAL", "daysLate": 4 }
+    }
+  ],
+
+  "phaseConfidence": [
+    {
+      "id": "PC-1",
+      "name": "two or more days from a boundary gives full positional confidence",
+      "given": { "phaseRange": [6, 11], "cycleDay": 8, "cycleLengthVariability": 1.414, "daysLate": 0 },
+      "expect": { "boundaryDistance": 2, "positional": 1.0, "regularity": 0.798, "phaseConfidence": 0.798 }
+    },
+    {
+      "id": "PC-2",
+      "name": "the boundary day itself is half-confident",
+      "given": { "phaseRange": [6, 11], "cycleDay": 6, "cycleLengthVariability": 1.414, "daysLate": 0 },
+      "expect": { "boundaryDistance": 0, "positional": 0.5, "regularity": 0.798, "phaseConfidence": 0.399 }
+    },
+    {
+      "id": "PC-3",
+      "name": "unknown variability yields honest mid-confidence, never a fabricated number",
+      "given": { "phaseRange": [6, 11], "cycleDay": 8, "cycleLengthVariability": null, "daysLate": 0 },
+      "expect": { "positional": 1.0, "regularity": 0.5, "phaseConfidence": 0.5 }
+    },
+    {
+      "id": "PC-4",
+      "name": "highly irregular cycles floor at 0.4 regularity",
+      "given": { "phaseRange": [6, 11], "cycleDay": 8, "cycleLengthVariability": 9.0, "daysLate": 0 },
+      "expect": { "positional": 1.0, "regularity": 0.4, "phaseConfidence": 0.4 }
+    },
+    {
+      "id": "PC-5",
+      "name": "lateness discounts confidence further",
+      "given": { "phaseRange": [16, null], "cycleDay": 32, "cycleLengthVariability": 1.414, "daysLate": 4 },
+      "expect": { "positional": 1.0, "regularity": 0.798, "lateFactor": 0.714, "phaseConfidence": 0.57 }
+    },
+    {
+      "id": "PC-6",
+      "name": "observed bleeding is certain regardless of everything else",
+      "given": { "isBleedingOnTargetDate": true, "cycleLengthVariability": 9.0, "daysLate": 11 },
+      "expect": { "phase": "MENSTRUATION", "phaseConfidence": 1.0 }
+    }
+  ],
+
+  "edgeCases": [
+    {
+      "id": "EC-1",
+      "name": "no data is not day 14",
+      "note": "orchestrator.py:123 currently invents cycle day 14 and phase Follicular for a user with no logs. That is fabricated data presented as measurement.",
+      "given": { "bleedingDays": [], "userTypicalCycleLength": null },
+      "expect": {
+        "cycleDay": null,
+        "phase": null,
+        "phaseConfidence": 0.0,
+        "expectedCycleLength": 28,
+        "predictionsWithheld": true
+      }
+    },
+    {
+      "id": "EC-2",
+      "name": "one period, no completed cycle — estimate, but say so",
+      "given": {
+        "bleedingDays": ["2026-03-01", "2026-03-02", "2026-03-03", "2026-03-04"],
+        "target": "2026-03-10",
+        "userTypicalCycleLength": null
+      },
+      "expect": {
+        "cycleDay": 10,
+        "expectedCycleLength": 28,
+        "cycleLengthVariability": null,
+        "ovulationDay": 14,
+        "phase": "FOLLICULAR",
+        "phaseConfidence": 0.5
+      }
+    },
+    {
+      "id": "EC-3",
+      "name": "retro-logging a missed day merges two spans and erases the spotting event",
+      "note": "Proof that the projection is recomputed, not mutated. Incremental cycle-record writes cannot produce this.",
+      "given": {
+        "bleedingDaysBefore": ["2026-03-01", "2026-03-02", "2026-03-05", "2026-03-06"],
+        "thenLogBleeding": "2026-03-04"
+      },
+      "expect": {
+        "periods": [
+          { "start": "2026-03-01", "end": "2026-03-06", "spanDays": 6, "bleedingDayCount": 5 }
+        ],
+        "spotting": [],
+        "cycles": [{ "start": "2026-03-01", "end": null, "length": null }]
+      }
+    },
+    {
+      "id": "EC-4",
+      "name": "deleting bleeding days splits one period back into a period plus spotting",
+      "given": {
+        "bleedingDaysBefore": [
+          "2026-03-01", "2026-03-02", "2026-03-03",
+          "2026-03-04", "2026-03-05", "2026-03-06"
+        ],
+        "thenDelete": ["2026-03-03", "2026-03-04"]
+      },
+      "expect": {
+        "periods": [
+          { "start": "2026-03-01", "end": "2026-03-02", "spanDays": 2, "bleedingDayCount": 2 }
+        ],
+        "spotting": [{ "start": "2026-03-05", "end": "2026-03-06", "spanDays": 2 }]
+      }
+    }
+  ]
+}
