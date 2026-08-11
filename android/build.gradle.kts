@@ -25,14 +25,8 @@ val syncFixtures by tasks.registering(Copy::class) {
     into(rootDir.resolve("core/src/test/resources"))
 }
 
-val syncSeed by tasks.registering(Copy::class) {
-    onlyIf { specDir.exists() }
-    from(specDir) { include("seed_periods.json") }
-    into(rootDir.resolve("app/src/main/assets"))
-}
-
 tasks.register("syncSpec") {
     group = "spec"
-    description = "Refreshes the vendored fixture and seed from ../spec."
-    dependsOn(syncFixtures, syncSeed)
+    description = "Refreshes the vendored fixture from ../spec."
+    dependsOn(syncFixtures)
 }

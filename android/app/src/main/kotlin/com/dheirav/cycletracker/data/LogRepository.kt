@@ -7,6 +7,7 @@ import com.dheirav.cycletracker.core.Projection
 import com.dheirav.cycletracker.core.Source
 import com.dheirav.cycletracker.core.Symptom
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 
@@ -27,13 +28,28 @@ data class DayEntry(
     val exists: Boolean = false,
 )
 
-/** One cell in the history calendar. Cheap enough to hold every logged day in memory. */
+/**
+ * One logged day, as the history screen needs it.
+ *
+ * Carries the symptoms and tags as well as the cell state, because logged symptoms had nowhere to
+ * be seen: the calendar showed a dot meaning "something here" and the values themselves went into
+ * the database and never came back out. Logging for weeks with nothing to show for it is how the
+ * habit dies, and adherence is the constraint everything else depends on (rule 4).
+ *
+ * Cheap enough to hold every logged day in memory — a decade of daily logs is a few thousand rows.
+ */
 data class DaySummary(
     val isBleeding: Boolean,
     val isAssumed: Boolean,
     val flow: FlowLevel?,
     val hasNotes: Boolean,
-)
+    val notes: String = "",
+    val symptoms: Map<Symptom, Int> = emptyMap(),
+    val tags: Set<DayTag> = emptySet(),
+) {
+    /** Whether there is anything to show beyond the bleeding state. */
+    val hasDetail: Boolean get() = symptoms.isNotEmpty() || tags.isNotEmpty() || notes.isNotBlank()
+}
 
 class LogRepository(private val dao: LogDao) {
 
@@ -57,18 +73,34 @@ class LogRepository(private val dao: LogDao) {
         )
     }
 
-    /** Everything logged, for the history calendar. Presence of a row *is* "this day was logged" —
-     *  [save] deletes the row outright when a day is emptied. */
-    fun summaries(): Flow<Map<LocalDate, DaySummary>> = dao.allLogs().map { logs ->
-        logs.associate { log ->
-            log.date to DaySummary(
-                isBleeding = log.isBleeding,
-                isAssumed = log.source == "ASSUMED",
-                flow = log.flow?.let { runCatching { FlowLevel.valueOf(it) }.getOrNull() },
-                hasNotes = log.notes.isNotBlank(),
-            )
+    /**
+     * Everything logged, for the history calendar and the log list beneath it.
+     *
+     * Presence of a row *is* "this day was logged" — [save] deletes the row outright when a day is
+     * emptied. Three flows are combined rather than one joined query so that editing a symptom
+     * re-emits without touching the daily-log table.
+     */
+    fun summaries(): Flow<Map<LocalDate, DaySummary>> =
+        combine(dao.allLogs(), dao.allSymptoms(), dao.allDayTags()) { logs, symptoms, tags ->
+            val symptomsByDate = symptoms.groupBy { it.date }
+            val tagsByDate = tags.groupBy { it.date }
+
+            logs.associate { log ->
+                log.date to DaySummary(
+                    isBleeding = log.isBleeding,
+                    isAssumed = log.source == "ASSUMED",
+                    flow = log.flow?.let { runCatching { FlowLevel.valueOf(it) }.getOrNull() },
+                    hasNotes = log.notes.isNotBlank(),
+                    notes = log.notes,
+                    symptoms = symptomsByDate[log.date].orEmpty()
+                        .mapNotNull { row -> Symptom.byKey(row.key)?.let { it to row.value } }
+                        .toMap(),
+                    tags = tagsByDate[log.date].orEmpty()
+                        .mapNotNull { DayTag.byKey(it.tag) }
+                        .toSet(),
+                )
+            }
         }
-    }
 
     /**
      * Writes the whole day atomically.

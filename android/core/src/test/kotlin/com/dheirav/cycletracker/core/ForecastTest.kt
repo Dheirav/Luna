@@ -43,11 +43,11 @@ class ForecastTest {
 
         assertEquals(WindowBasis.ASSUMED, window.basis)
         assertEquals(0, window.observedCycles)
-        assertEquals(date("2026-08-25"), window.center)
+        assertEquals(date("2024-04-08"), window.center)
         // 4.0 assumed days x 1.0 multiplier.
         assertEquals(4, window.halfWidthDays)
-        assertEquals(date("2026-08-21"), window.earliest)
-        assertEquals(date("2026-08-29"), window.latest)
+        assertEquals(date("2024-04-04"), window.earliest)
+        assertEquals(date("2024-04-12"), window.latest)
         assertEquals(9, window.spanDays)
     }
 

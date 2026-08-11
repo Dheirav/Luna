@@ -2,6 +2,7 @@ package com.dheirav.cycletracker.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -80,6 +81,7 @@ fun TodayScreen(
     onLog: () -> Unit,
     onHistory: () -> Unit,
     onSettings: () -> Unit,
+    onPhaseGuide: () -> Unit,
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
 
@@ -115,9 +117,12 @@ fun TodayScreen(
             phase = state.phase,
             isBleeding = state.isBleeding,
             daysLate = state.daysLate,
+            onClick = onPhaseGuide,
         )
 
         ui.window?.let { NextPeriodCard(it) }
+
+        ui.flags.forEach { HealthFlagCard(it) }
 
         Button(
             onClick = onLog,
@@ -179,6 +184,7 @@ private fun CycleHero(
     phase: Phase?,
     isBleeding: Boolean,
     daysLate: Int,
+    onClick: () -> Unit,
 ) {
     val cycle = MaterialTheme.cycleColors
     val effectivePhase = if (isBleeding) Phase.MENSTRUATION else phase
@@ -201,7 +207,10 @@ private fun CycleHero(
         modifier = Modifier
             .fillMaxWidth()
             .clip(ScallopedBottomShape(bumps = 9, topRadius = 30.dp))
-            .background(Brush.verticalGradient(listOf(top, bottom))),
+            .background(Brush.verticalGradient(listOf(top, bottom)))
+            // The card already names the phase, which makes it the obvious place to ask what the
+            // phase means — better than another button competing with "Log today".
+            .clickable(onClick = onClick),
     ) {
         Cloud(
             color = ornament.copy(alpha = 0.18f),
@@ -261,6 +270,12 @@ private fun CycleHero(
                 style = MaterialTheme.typography.bodyMedium,
                 color = ink.copy(alpha = 0.78f),
             )
+            Text(
+                "What this phase is like →",
+                style = MaterialTheme.typography.labelSmall,
+                color = ink.copy(alpha = 0.72f),
+                modifier = Modifier.padding(top = 8.dp),
+            )
             if (daysLate > 0) {
                 Spacer(Modifier.width(6.dp))
                 Text(
@@ -314,6 +329,41 @@ private fun NextPeriodCard(window: PeriodWindow) {
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/**
+ * A pattern worth noticing.
+ *
+ * Rendered in the tertiary container rather than the error one, deliberately. These are
+ * observations, not alarms — a late period or a long cycle is usually nothing, and painting them
+ * red would make the app frightening to open. The detail line carries the actual numbers so the
+ * user has something concrete to take to a doctor rather than a colour and a verdict.
+ */
+@Composable
+private fun HealthFlagCard(flag: com.dheirav.cycletracker.core.HealthFlag) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                flag.headline,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
+            )
+            Text(
+                flag.detail,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
             )
         }
     }

@@ -174,6 +174,12 @@ interface LogDao {
     @Query("SELECT * FROM symptom_values")
     suspend fun allSymptomsOnce(): List<SymptomValueEntity>
 
+    @Query("SELECT * FROM symptom_values")
+    fun allSymptoms(): Flow<List<SymptomValueEntity>>
+
+    @Query("SELECT * FROM day_tags")
+    fun allDayTags(): Flow<List<DayTagEntity>>
+
     @Query("SELECT * FROM day_tags")
     suspend fun allTagsOnce(): List<DayTagEntity>
 

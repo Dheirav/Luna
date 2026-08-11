@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,6 +17,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -25,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -85,6 +90,132 @@ fun HistoryScreen(viewModel: HistoryViewModel, onPickDate: (LocalDate) -> Unit) 
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+
+        MonthLog(month = ui.month, days = ui.days, onPickDate = onPickDate)
+    }
+}
+
+/**
+ * What was actually logged this month, day by day.
+ *
+ * Fills the space under the calendar, and closes a real gap: symptoms could be entered but never
+ * read back. The calendar showed a dot meaning "something here" and the values themselves were
+ * write-only. Logging that visibly goes nowhere is logging that stops, and adherence is the
+ * constraint everything else depends on.
+ *
+ * Newest first, because the recent days are the ones being corrected.
+ */
+@Composable
+private fun MonthLog(
+    month: YearMonth,
+    days: Map<LocalDate, DaySummary>,
+    onPickDate: (LocalDate) -> Unit,
+) {
+    val entries = days
+        .filterKeys { YearMonth.from(it) == month }
+        .toList()
+        .sortedByDescending { it.first }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            "Logged this month",
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+
+        if (entries.isEmpty()) {
+            Text(
+                "Nothing logged in ${month.format(DateTimeFormatter.ofPattern("MMMM"))}.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            return@Column
+        }
+
+        entries.forEach { (date, summary) -> LogRow(date, summary, onPickDate) }
+
+        Spacer(Modifier.height(12.dp))
+    }
+}
+
+@Composable
+private fun LogRow(date: LocalDate, summary: DaySummary, onPickDate: (LocalDate) -> Unit) {
+    val cycle = MaterialTheme.cycleColors
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onPickDate(date) },
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    date.format(DateTimeFormatter.ofPattern("EEE d MMM")),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                if (summary.isBleeding) {
+                    Text(
+                        buildString {
+                            append(summary.flow?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Bleeding")
+                            // Estimated days are marked here too — the list must not quietly
+                            // present backfill's guesses as things the user recorded.
+                            if (summary.isAssumed) append(" · estimated")
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (summary.isAssumed) cycle.estimated else cycle.bleeding,
+                    )
+                }
+            }
+
+            if (summary.symptoms.isNotEmpty()) {
+                // Anchor words, not numbers. A stored 2 means nothing on its own, and the whole
+                // point of the anchored scales is that "OK" still means "OK" six months later.
+                Text(
+                    summary.symptoms.entries
+                        .sortedBy { it.key.ordinal }
+                        .joinToString("   ") { (symptom, value) ->
+                            "${symptom.label} ${symptom.levelLabel(value) ?: value}"
+                        },
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+
+            if (summary.tags.isNotEmpty()) {
+                Text(
+                    summary.tags.sortedBy { it.ordinal }.joinToString(" · ") { it.label },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            if (summary.notes.isNotBlank()) {
+                Text(
+                    summary.notes,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+
+            if (!summary.isBleeding && !summary.hasDetail) {
+                Text(
+                    "Logged, nothing recorded",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
 

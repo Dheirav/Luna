@@ -8,13 +8,14 @@ import com.dheirav.cycletracker.core.CycleEngine
 import com.dheirav.cycletracker.core.CycleProjector
 import com.dheirav.cycletracker.core.CycleState
 import com.dheirav.cycletracker.core.Forecast
+import com.dheirav.cycletracker.core.HealthFlag
+import com.dheirav.cycletracker.core.HealthFlags
 import com.dheirav.cycletracker.core.ForecastConfig
 import com.dheirav.cycletracker.core.PeriodWindow
 import com.dheirav.cycletracker.core.PredictionAccuracy
 import com.dheirav.cycletracker.core.PredictionBasis
 import com.dheirav.cycletracker.core.Projection
 import com.dheirav.cycletracker.data.PredictionLedger
-import com.dheirav.cycletracker.data.SeedImporter
 import com.dheirav.cycletracker.data.Settings
 import com.dheirav.cycletracker.reminder.ReminderScheduler
 import com.dheirav.cycletracker.widget.refreshCycleWidgets
@@ -47,6 +48,13 @@ data class TodayUiState(
     val window: PeriodWindow? = null,
     /** Why the prediction says what it says. Null only before the first load completes. */
     val basis: PredictionBasis? = null,
+    /**
+     * Patterns worth noticing — a late period, repeated long cycles, bleeding between periods.
+     *
+     * Usually empty, and rendered only when it is not. These are observations the user can take
+     * to a doctor, never a diagnosis; see [HealthFlags].
+     */
+    val flags: List<HealthFlag> = emptyList(),
     /** The reminder was due and never ran — almost always the vendor ROM killing background work. */
     val reminderBroken: Boolean = false,
     val batteryRestricted: Boolean = false,
@@ -64,7 +72,6 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         viewModelScope.launch {
-            SeedImporter(dao).importIfEmpty(getApplication())
             refresh()
         }
     }
@@ -116,6 +123,11 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
                 ),
             ),
             basis = Forecast.basis(projection.cycles, settings.typicalCycleLength),
+            flags = HealthFlags.evaluate(
+                projection = projection,
+                today = today,
+                expectedCycleLength = state.expectedCycleLength,
+            ),
             reminderBroken = settings.reminderLooksBroken(),
             batteryRestricted = !ReminderScheduler.isBatteryUnrestricted(getApplication()),
         )

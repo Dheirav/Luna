@@ -33,9 +33,11 @@ import com.dheirav.cycletracker.data.TrackerDatabase
 import com.dheirav.cycletracker.reminder.EXTRA_OPEN_LOG
 import com.dheirav.cycletracker.reminder.ReminderScheduler
 import com.dheirav.cycletracker.ui.AppLockGate
+import com.dheirav.cycletracker.ui.GuideViewModel
 import com.dheirav.cycletracker.ui.HistoryScreen
 import com.dheirav.cycletracker.ui.HistoryViewModel
 import com.dheirav.cycletracker.ui.LogScreen
+import com.dheirav.cycletracker.ui.PhaseGuideScreen
 import com.dheirav.cycletracker.ui.LogViewModel
 import com.dheirav.cycletracker.ui.SettingsScreen
 import com.dheirav.cycletracker.ui.TodayScreen
@@ -64,9 +66,9 @@ class CycleTrackerApp : Application() {
     }
 }
 
-/** Four screens, one back destination, no deep links beyond the reminder's. Still less code than
+/** Five screens, one back destination, no deep links beyond the reminder's. Still less code than
  *  wiring a navigation library, and every transition is visible in one `when`. */
-private enum class Screen { TODAY, LOG, HISTORY, SETTINGS }
+private enum class Screen { TODAY, LOG, HISTORY, SETTINGS, PHASE_GUIDE }
 
 class MainActivity : ComponentActivity() {
 
@@ -101,6 +103,7 @@ class MainActivity : ComponentActivity() {
             val todayVm: TodayViewModel = viewModel()
             val logVm: LogViewModel = viewModel()
             val historyVm: HistoryViewModel = viewModel()
+            val guideVm: GuideViewModel = viewModel()
             var screen by rememberSaveable { mutableStateOf(Screen.TODAY) }
 
             // Where the log form was opened from, so leaving it goes back there.
@@ -153,6 +156,7 @@ class MainActivity : ComponentActivity() {
                             screen = Screen.HISTORY
                         },
                         onSettings = { screen = Screen.SETTINGS },
+                        onPhaseGuide = { screen = Screen.PHASE_GUIDE },
                     )
 
                     Screen.LOG -> LogScreen(logVm) {
@@ -169,6 +173,10 @@ class MainActivity : ComponentActivity() {
                     // Any settings change alters what the engine computes, so Today is rebuilt on
                     // the way back rather than only after a restore.
                     Screen.SETTINGS -> SettingsScreen(onChanged = todayVm::reload)
+
+                    // Null phase means "whatever today is" — the guide resolves it from the same
+                    // engine, so it cannot disagree with the hero the user just tapped.
+                    Screen.PHASE_GUIDE -> PhaseGuideScreen(guideVm, initialPhase = null)
                 }
             }
         }

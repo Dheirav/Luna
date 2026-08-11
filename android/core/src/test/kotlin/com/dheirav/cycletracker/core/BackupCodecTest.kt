@@ -17,7 +17,7 @@ import org.junit.Test
 class BackupCodecTest {
 
     private val snapshot = BackupSnapshot(
-        exportedAt = "2026-08-11T01:45:00Z",
+        exportedAt = "2024-03-25T01:45:00Z",
         days = listOf(
             BackupDay(
                 date = "2024-03-11",
@@ -28,11 +28,11 @@ class BackupCodecTest {
                 symptoms = mapOf("pain" to 3, "energy" to 1),
                 tags = listOf("illness"),
             ),
-            BackupDay(date = "2026-07-29", isBleeding = true, source = "OBSERVED"),
+            BackupDay(date = "2024-03-12", isBleeding = true, source = "OBSERVED"),
         ),
         predictions = listOf(
             BackupPrediction(
-                madeOn = "2026-07-20",
+                madeOn = "2024-03-03",
                 cycleStart = "2024-02-12",
                 predictedNextPeriod = "2024-03-11",
                 expectedCycleLength = 28,
@@ -59,7 +59,7 @@ class BackupCodecTest {
     @Test
     fun `a backup with no predictions field decodes to an empty ledger`() {
         val legacy = """
-            {"formatVersion":1,"exportedAt":"2026-08-01T00:00:00Z",
+            {"formatVersion":1,"exportedAt":"2024-03-15T00:00:00Z",
              "days":[{"date":"2024-03-11","isBleeding":true,"source":"OBSERVED"}]}
         """.trimIndent().toByteArray(Charsets.UTF_8)
 
@@ -96,7 +96,7 @@ class BackupCodecTest {
     @Test
     fun `survives unicode and empty fields`() {
         val awkward = BackupSnapshot(
-            exportedAt = "2026-08-11T01:45:00Z",
+            exportedAt = "2024-03-25T01:45:00Z",
             days = listOf(BackupDay(date = "2026-01-01", notes = "μῆνις — 生理 🩸\nnewline\ttab")),
         )
         val pass = "pässwörd".toCharArray()

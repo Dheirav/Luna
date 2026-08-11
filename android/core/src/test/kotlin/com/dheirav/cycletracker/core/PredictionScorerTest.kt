@@ -41,8 +41,8 @@ class PredictionScorerTest {
     @Test
     fun `a period arriving after the predicted date is positive error`() {
         val scored = PredictionScorer.score(
-            records = listOf(record("2026-07-20", "2024-02-12", "2024-03-11")),
-            periods = listOf(period("2024-02-12"), period("2026-07-31")),
+            records = listOf(record("2024-03-03", "2024-02-12", "2024-03-11")),
+            periods = listOf(period("2024-02-12"), period("2024-03-14")),
         )
 
         assertEquals(1, scored.size)
@@ -53,8 +53,8 @@ class PredictionScorerTest {
     @Test
     fun `a period arriving early is negative error but positive absolute error`() {
         val scored = PredictionScorer.score(
-            records = listOf(record("2026-07-20", "2024-02-12", "2024-03-11")),
-            periods = listOf(period("2024-02-12"), period("2026-07-26")),
+            records = listOf(record("2024-03-03", "2024-02-12", "2024-03-11")),
+            periods = listOf(period("2024-02-12"), period("2024-03-09")),
         )
 
         assertEquals(-2, scored.single().errorDays)
@@ -63,7 +63,7 @@ class PredictionScorerTest {
 
     @Test
     fun `lead time is the gap between making the call and the date predicted`() {
-        assertEquals(8, record("2026-07-20", "2024-02-12", "2024-03-11").leadTimeDays)
+        assertEquals(8, record("2024-03-03", "2024-02-12", "2024-03-11").leadTimeDays)
     }
 
     // -- what refuses to be scored ----------------------------------------
@@ -73,7 +73,7 @@ class PredictionScorerTest {
     @Test
     fun `the open cycle is not scored`() {
         val scored = PredictionScorer.score(
-            records = listOf(record("2026-08-11", "2024-03-11", "2026-08-25")),
+            records = listOf(record("2024-03-25", "2024-03-11", "2024-04-08")),
             periods = listOf(period("2024-02-12"), period("2024-03-11")),
         )
 
@@ -84,8 +84,8 @@ class PredictionScorerTest {
     @Test
     fun `predictions against an assumed period are discarded`() {
         val scored = PredictionScorer.score(
-            records = listOf(record("2026-06-20", "2026-06-02", "2024-02-12")),
-            periods = listOf(period("2026-06-02"), period("2024-02-12", Source.ASSUMED)),
+            records = listOf(record("2024-02-02", "2024-01-15", "2024-02-12")),
+            periods = listOf(period("2024-01-15"), period("2024-02-12", Source.ASSUMED)),
         )
 
         assertTrue(scored.isEmpty())
@@ -94,8 +94,8 @@ class PredictionScorerTest {
     @Test
     fun `accuracy is null below the minimum sample rather than a small number`() {
         val scored = listOf(
-            ScoredPrediction(record("2026-06-20", "2026-06-02", "2024-02-12"), date("2024-02-12")),
-            ScoredPrediction(record("2026-07-20", "2024-02-12", "2024-03-11"), date("2024-03-11")),
+            ScoredPrediction(record("2024-02-02", "2024-01-15", "2024-02-12"), date("2024-02-12")),
+            ScoredPrediction(record("2024-03-03", "2024-02-12", "2024-03-11"), date("2024-03-11")),
         )
 
         assertNull(PredictionScorer.accuracy(scored))
@@ -151,15 +151,15 @@ class PredictionScorerTest {
     fun `latestPerCycle keeps the final call and drops the rest`() {
         val cycleStart = "2024-02-12"
         val scored = listOf(
-            ScoredPrediction(record("2026-07-01", cycleStart, "2024-03-11"), date("2026-07-31")),
-            ScoredPrediction(record("2026-07-15", cycleStart, "2024-03-11"), date("2026-07-31")),
-            ScoredPrediction(record("2026-07-27", cycleStart, "2026-07-30"), date("2026-07-31")),
+            ScoredPrediction(record("2024-02-13", cycleStart, "2024-03-11"), date("2024-03-14")),
+            ScoredPrediction(record("2024-02-27", cycleStart, "2024-03-11"), date("2024-03-14")),
+            ScoredPrediction(record("2024-03-10", cycleStart, "2024-03-13"), date("2024-03-14")),
         )
 
         val latest = PredictionScorer.latestPerCycle(scored)
 
         assertEquals(1, latest.size)
-        assertEquals(date("2026-07-27"), latest.single().record.madeOn)
+        assertEquals(date("2024-03-10"), latest.single().record.madeOn)
         assertEquals(1, latest.single().errorDays)
     }
 
@@ -169,26 +169,26 @@ class PredictionScorerTest {
     fun `records made after the period arrived are excluded`() {
         val cycleStart = "2024-02-12"
         val scored = listOf(
-            ScoredPrediction(record("2026-07-15", cycleStart, "2024-03-11"), date("2026-07-31")),
-            ScoredPrediction(record("2026-08-02", cycleStart, "2026-07-31"), date("2026-07-31")),
+            ScoredPrediction(record("2024-02-27", cycleStart, "2024-03-11"), date("2024-03-14")),
+            ScoredPrediction(record("2024-03-16", cycleStart, "2024-03-14"), date("2024-03-14")),
         )
 
         val latest = PredictionScorer.latestPerCycle(scored)
 
-        assertEquals(date("2026-07-15"), latest.single().record.madeOn)
+        assertEquals(date("2024-02-27"), latest.single().record.madeOn)
     }
 
     @Test
     fun `lead time filter compares like with like`() {
         val scored = listOf(
-            ScoredPrediction(record("2026-07-01", "2024-02-12", "2024-03-11"), date("2024-03-11")),
-            ScoredPrediction(record("2026-07-26", "2024-02-12", "2024-03-11"), date("2024-03-11")),
+            ScoredPrediction(record("2024-02-13", "2024-02-12", "2024-03-11"), date("2024-03-11")),
+            ScoredPrediction(record("2024-03-09", "2024-02-12", "2024-03-11"), date("2024-03-11")),
         )
 
         val farOut = PredictionScorer.atLeadTimeAtLeast(scored, days = 7)
 
         assertEquals(1, farOut.size)
-        assertEquals(date("2026-07-01"), farOut.single().record.madeOn)
+        assertEquals(date("2024-02-13"), farOut.single().record.madeOn)
     }
 
     /** Each entry gets its own cycle, a month apart, so aggregation helpers see distinct cycles. */

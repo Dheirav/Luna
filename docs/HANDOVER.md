@@ -37,7 +37,6 @@ Governing rules (full list in the plan artifact):
 | Today screen | On device: day 15/28, Ovulation, 25% confidence — all hand-checked correct |
 | Log screen | Renders; write round-trip confirmed in DB (`energy=1, pain=2, travel`) |
 | Delete path | Emptying a day removes the row entirely |
-| Backfill seed | 13 periods imported, source flags correct (11 assumed / 2 observed) |
 | App lock | On device: cold-start prompt, unlock, 15s grace holds, 70s re-locks, toggle both ways |
 | **Room migration 1→2** | On the Redmi, over a real v1 database — see below |
 | History calendar | On device: month grid, estimated vs observed, day→log form, back to Today |
@@ -220,8 +219,7 @@ opens the database plaintext on purpose. Do not "finish" this without re-reading
   the few working inspection channels on the Y19.
   (Correction from device inspection on 2026-08-11: the migration risk was overstated when this
   was written. The database holds exactly 65 bleeding days — 13 periods × 5 — with **zero**
-  symptom rows and **zero** tags, i.e. the backfill seed and nothing else. It is fully
-  reproducible from `spec/seed_periods.json`. The `energy=1, pain=2, travel` round-trip recorded
+  symptom rows and **zero** tags, i.e. the backfill and nothing else. The `energy=1, pain=2, travel` round-trip recorded
   above as verified is no longer present, presumably removed when the delete path was tested.
   The other reasons stand on their own.)
 - Deferring is nearly free. All database access goes through one `by lazy` in `CycleTrackerApp`,
@@ -244,7 +242,6 @@ migration risk. `FLAG_SECURE` also went on to keep cycle data out of the app-swi
 docs/CYCLE_RULES.md        authoritative spec — read before touching the engine
 docs/HANDOVER.md           this file
 spec/cycle_fixtures.json   golden fixture (34 cases), hand-authored from the spec
-spec/seed_periods.json     backfill: 13 period starts, 2 observed + 11 extrapolated
 src/                       legacy Python — reference only, do not repair
 android/
   core/                    plain Kotlin/JVM engine + tests (no Android deps)
@@ -253,9 +250,12 @@ android/
 
 `:core` is a plain JVM module on purpose — its tests run in seconds with no emulator and no SDK.
 
-**Spec files are vendored** into `core/src/test/resources/` and `app/src/main/assets/` because the
-`android/` directory can be transferred to Windows alone. After editing anything in `spec/`, run
-`./gradlew syncSpec`. `SpecDriftTest` fails on stale copies when `../spec` is reachable.
+**The fixture is vendored** into `core/src/test/resources/` because the `android/` directory can be
+transferred to Windows alone. After editing anything in `spec/`, run `./gradlew syncSpec`.
+`SpecDriftTest` fails on a stale copy when `../spec` is reachable.
+
+**Do not commit real cycle dates to this repository.** It has a public-facing remote, and the data
+is not only the author's. Test fixtures use obviously synthetic dates for the same reason.
 
 ---
 
@@ -447,16 +447,17 @@ database pulled off the device for debugging, which is real health data.
 
 ## Open questions for the user
 
-- Period lengths were assumed to be **5 days** for every backfilled period; only the two most recent
-  period *start* dates came from them. Correcting spans matters because
-  `spanDays` feeds `ovulationDay` via the `periodLength + 4` floor.
+- **The backfill seed has been removed from the repository** (2026-08-12). It held real period
+  dates belonging to someone who had not agreed to them being published, and the project was about
+  to gain a GitHub remote. There is no `spec/seed_periods.json`, no vendored asset, no
+  `SeedImporter`, and git history was rewritten so the dates are in no commit.
 
-  **The user can now answer this themselves**, two ways: Settings has a "usual period length"
-  stepper, and the history calendar shows every estimated day with *That's right* or *Remove*. Note the
-  promotion rule in `LogRepository.sourceFor` — editing an assumed day does **not** silently make
-  it observed, because that would let a uniform synthetic backfill leak into
-  `cycleLengthVariability` and fake high confidence (§3.2). Only changing the bleeding flag or
-  tapping *That's right* promotes it.
+  Nothing replaced it, deliberately. The history calendar now makes entering past periods a
+  two-tap job per day, which is what the seed existed to avoid back when the log form could only
+  step one day at a time. A fresh install simply starts empty and says "No periods logged yet".
+
+  Existing installs are untouched — the importer only ever ran on an empty database, so data
+  already on a phone stays there.
 - Whether the relationship-advice module stays or goes (it is currently cut).
 
   (An earlier item here claimed `menstrual_tracker.db` was tracked by git and needed

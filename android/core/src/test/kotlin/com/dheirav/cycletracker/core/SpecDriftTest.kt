@@ -21,10 +21,6 @@ class SpecDriftTest {
         assertMatchesSource("cycle_fixtures.json", "src/test/resources/cycle_fixtures.json")
     }
 
-    @Test
-    fun `vendored seed matches spec directory when it is present`() {
-        assertMatchesSource("seed_periods.json", "../app/src/main/assets/seed_periods.json")
-    }
 
     private fun assertMatchesSource(name: String, vendoredPath: String) {
         // Gradle runs tests with the module directory as the working directory: android/core.
