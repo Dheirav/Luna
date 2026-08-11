@@ -1,4 +1,4 @@
-# Cycle Rules — Corrected Specification
+# Luna — Cycle Rules — Corrected Specification
 
 **Status:** authoritative. The Kotlin implementation is built against this document and
 `spec/cycle_fixtures.json`. The Python tree in `src/` is reference material only and does

@@ -11,6 +11,12 @@ android {
     compileSdk = 35
 
     defaultConfig {
+        // The app is called Luna; the applicationId deliberately still says cycletracker.
+        //
+        // Android identifies an installed app by this string. Changing it does not rename the
+        // app — it creates a second, unrelated one, and strands the original's database where
+        // nothing can reach it. For a tracker whose entire value is a multi-year history, a
+        // cosmetic rename is not worth that. The package name is invisible to the user anyway.
         applicationId = "com.dheirav.cycletracker"
         // 31 rather than 34: java.time native with no desugaring, Material You, modern widget
         // APIs. Targeting the A35's shipping level would buy nothing and lock out a spare device.

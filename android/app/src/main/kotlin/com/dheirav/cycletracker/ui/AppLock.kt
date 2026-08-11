@@ -237,7 +237,7 @@ fun AppLockSection() {
  */
 private fun authenticate(context: Context, onSuccess: () -> Unit, onError: (String) -> Unit) {
     val prompt = BiometricPrompt.Builder(context)
-        .setTitle("Unlock Cycle Tracker")
+        .setTitle("Unlock Luna")
         // No negative button: setting one alongside DEVICE_CREDENTIAL throws.
         .setAllowedAuthenticators(AppLock.ALLOWED)
         .setConfirmationRequired(false)

@@ -1,10 +1,10 @@
-# Handover — Cycle Tracker
+# Handover — Luna
 
 Written 2026-08-11. Everything needed to pick this up in a fresh session.
 
-**Read first:** [`CYCLE_RULES.md`](CYCLE_RULES.md) is the authoritative spec. The build plan lives at
-(drafted outside the repository) (7 phases, stack decisions,
-size budget). This document covers state, environment, and the traps.
+**Read first:** [`CYCLE_RULES.md`](CYCLE_RULES.md) is the authoritative spec. This document covers
+state, environment, and the traps. The original build plan (7 phases, stack decisions, size budget)
+was drafted outside the repository; the phase numbering below is what survives of it.
 
 ---
 
@@ -52,7 +52,7 @@ Governing rules (full list in the plan artifact):
   Android file plumbing is not.
 - Boot receiver, notification permission prompt.
 - Nothing outstanding from the 2026-08-11 batch. The backfill banner's *That's right* /
-  *Remove* buttons were confirmed working by the user on the Redmi.
+  *Remove* buttons were confirmed working on the Redmi.
 
 ### Prediction ledger (Phase 3, started 2026-08-11)
 
@@ -80,8 +80,8 @@ rendered nowhere yet.
   another migration ever needs testing: `git worktree add <dir> <pre-change-commit>`, write a
   `local.properties` into it (it is gitignored, so the worktree has none), build that APK, install
   and launch it to create and seed the old schema, then `install -r` the new build over the top.
-  Result: `user_version` 1→2, `predictions` created, 65 daily_logs and 55 `ASSUMED` flags intact,
-  `integrity_check` ok, no entry in the crash buffer.
+  Result: `user_version` 1→2, `predictions` created, every existing row and its `ASSUMED`
+  flag intact, `integrity_check` ok, no entry in the crash buffer.
 - Predictions ride along in the encrypted backup (`BackupSnapshot.predictions`, defaulted so older
   backups still restore). Restore replaces the ledger wholesale, including with nothing.
 
@@ -101,8 +101,8 @@ observed cycles". Both cannot be true.
   are right-skewed, so true coverage sits a little below that.
 - `minHalfWidthDays = 1` means a perfectly regular history still never names a single date.
 - `Forecast.basis` is the receipt. The number that matters is the **observed/assumed split**: the
-  seed has 12 completed cycles behind its 28-day estimate and *one* was observed. "From 12 cycles"
-  would be true and badly misleading.
+  a backfilled database can show a dozen completed cycles behind its estimate with only one of
+  them observed. "From 12 cycles" would be true and badly misleading.
 - `basis()` mirrors the branch structure of `CycleStats.expectedCycleLength`. **If that function
   gains a branch, this must too** — no test catches that drift.
 
@@ -112,7 +112,7 @@ number that has not been earned.
 
 ### Visual design (2026-08-11)
 
-Direction came from five references supplied by the user. The consistent note across them was
+Direction came from five supplied reference designs. The consistent note across them was
 **neat over busy** — praised in two, and the single criticism of a third. Everything below follows
 from that plus rule 4: charm must not cost adherence.
 
@@ -142,7 +142,7 @@ Check first: the calendar at 440dpi, the hero card with and without bleeding, an
 
 ### Settings, and a precedence fix (2026-08-11)
 
-Prompted by the user asking whether the 28-day figure could be changed. It could not — and worse,
+Prompted by the question of whether the 28-day figure could be changed. It could not — and worse,
 setting it would have had no effect.
 
 **This amends CYCLE_RULES §3.** The spec says assumed cycles seed the length estimate, which is
@@ -212,16 +212,14 @@ opens the database plaintext on purpose. Do not "finish" this without re-reading
   `allowBackup="false"` is already set. **The lost-phone case is covered by the OS.**
 - What SQLCipher would add is protection against root, an exploit, or forensic extraction from an
   already-unlocked device — narrow for a single-user personal phone.
-- It does nothing about the threat that does apply: someone with your unlocked phone opening the
+- It does nothing about the threat that does apply: someone with the unlocked phone opening the
   app. The app would decrypt for them.
 - Costs were concrete: ~2.5 MB of native library, a migration step over live data, and — the
   deciding factor — it would have killed the pull-the-database debugging route, which is one of
   the few working inspection channels on the Y19.
   (Correction from device inspection on 2026-08-11: the migration risk was overstated when this
-  was written. The database holds exactly 65 bleeding days — 13 periods × 5 — with **zero**
-  symptom rows and **zero** tags, i.e. the backfill and nothing else. The `energy=1, pain=2, travel` round-trip recorded
-  above as verified is no longer present, presumably removed when the delete path was tested.
-  The other reasons stand on their own.)
+  was written. A freshly backfilled database holds only extrapolated bleeding days, with no symptom
+  rows and no tags — nothing that could not be re-entered. The other reasons stand on their own.)
 - Deferring is nearly free. All database access goes through one `by lazy` in `CycleTrackerApp`,
   so adopting it later is the same single-file change, and `sqlcipher_export` does not care how
   many rows have accumulated.
@@ -355,7 +353,7 @@ phone (~1.2–1.5 GB working set). The A35's 6–8 GB reopens it.
 
 ```bash
 export PATH="$HOME/Android/Sdk/platform-tools:$PATH"
-adb connect <PHONE_IP>:<PORT>          # ask the user for the current port
+adb connect <PHONE_IP>:<PORT>          # both change; read them off the device
 
 # Inspect UI state — this replaces logcat. Gives text, bounds and selected/checked.
 adb shell uiautomator dump /sdcard/ui.xml && adb shell cat /sdcard/ui.xml
@@ -409,11 +407,13 @@ misread as a chip label. `uiautomator dump` gives ground truth. Trust it over sc
 
 ### Battery / autostart
 
-The user has **allowed unrestricted battery**, but **could not enable Autostart** (Funtouch hides
-or gates it). This is exactly why `reminderLooksBroken()` exists — whether the reminder survives is
-an open empirical question. **Check it after a few days of real use.** If it is being killed, the
-home-screen widget (Phase 5) becomes the more important delivery mechanism, since it needs no
-background execution.
+Unrestricted battery can be granted on both test phones. **Autostart cannot** — Funtouch hides or
+gates it, and there is no public API for it on any of these ROMs. This is exactly why
+`reminderLooksBroken()` exists: whether the reminder survives is an open empirical question that
+can only be answered by a few days of real use.
+
+If it is being killed, the home-screen widget becomes the more important delivery mechanism, since
+it needs no background execution at all.
 
 ---
 
@@ -435,15 +435,14 @@ background execution.
 
 ## Version control
 
-A dedicated repo was initialised at the project root on 2026-08-11 (`git init`, branch `main`).
-Before that, **nothing here had ever been committed** — the whole tree sat untracked inside a
-catch-all repo at `~/Code` that lumps unrelated projects together behind a single `LOL` commit.
-That repo is not this project's history and should not be used as one.
+Single `main` branch. Nothing here is generated — `android/build/`, `.gradle/`, `.kotlin/` and
+`local.properties` are all ignored, the last because it hardcodes an SDK path and would break a
+build on another machine.
 
-Ignored on purpose: `android/build/`, `android/.gradle/`, `android/.kotlin/`, `local.properties`
-(it hardcodes the WSL SDK path and would break a Windows build), `*.jks`/`*.keystore`, and
-**every `*.db`, `*.db-wal` and `*.db-shm`** — the last covers both the legacy Python store and any
-database pulled off the device for debugging, which is real health data.
+**Every `*.db`, `*.db-wal` and `*.db-shm` is ignored, and that rule must not be relaxed.** It covers
+both any local database and anything pulled off a device for debugging, all of which is real health
+data. A backfill seed containing real period dates was removed from this repository and purged from
+its history for exactly that reason — see the note under "Open questions".
 
 ## Open questions for the user
 
