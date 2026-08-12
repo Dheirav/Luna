@@ -30,6 +30,24 @@ class Settings(context: Context) {
         set(value) = prefs.edit().putBoolean(KEY_PERIOD_WARNING, value).apply()
 
     /**
+     * How many days before the window opens the heads-up fires.
+     *
+     * Was a hardcoded 2. How much notice is useful is a personal question — it depends on what the
+     * warning is *for*, and packing a bag, rescheduling something or simply not being caught out
+     * are different amounts of lead time. Two days remains the default.
+     *
+     * Bounded at [MAX_WARNING_LEAD_DAYS] because past a point the warning stops being one: the
+     * window is itself several days wide, so a lead time approaching the window's own span fires
+     * a "soon" notice for something a week off.
+     */
+    var periodWarningLeadDays: Int
+        get() = prefs.getInt(KEY_PERIOD_WARNING_LEAD, DEFAULT_WARNING_LEAD_DAYS)
+            .coerceIn(MIN_WARNING_LEAD_DAYS, MAX_WARNING_LEAD_DAYS)
+        set(value) = prefs.edit()
+            .putInt(KEY_PERIOD_WARNING_LEAD, value.coerceIn(MIN_WARNING_LEAD_DAYS, MAX_WARNING_LEAD_DAYS))
+            .apply()
+
+    /**
      * Cycle start of the last cycle a heads-up was sent for.
      *
      * Keyed by cycle rather than by date so the notification fires **once per cycle**. Without it
@@ -134,20 +152,26 @@ class Settings(context: Context) {
         return Duration.between(fired, now) > Duration.ofHours(36)
     }
 
-    private companion object {
-        const val KEY_REMINDER_TIME = "reminder_time_seconds"
-        const val KEY_REMINDER_ENABLED = "reminder_enabled"
-        const val KEY_PERIOD_WARNING = "period_warning_enabled"
-        const val KEY_PERIOD_WARNING_FOR = "period_warning_for"
-        const val KEY_LAST_FIRED = "reminder_last_fired"
-        const val KEY_SCHEDULED_SINCE = "reminder_scheduled_since"
-        const val KEY_CYCLE_LENGTH = "typical_cycle_length"
-        const val KEY_PERIOD_LENGTH = "typical_period_length"
-        const val KEY_WINDOW_WIDTH = "window_width"
-        const val KEY_WIDGET_DETAILS = "widget_shows_details"
-        const val KEY_APP_LOCK = "app_lock_enabled"
+    companion object {
+        /** Bounds on [periodWarningLeadDays], shared with the settings UI so the two cannot drift. */
+        const val MIN_WARNING_LEAD_DAYS = 1
+        const val MAX_WARNING_LEAD_DAYS = 7
+        const val DEFAULT_WARNING_LEAD_DAYS = 2
+
+        private const val KEY_REMINDER_TIME = "reminder_time_seconds"
+        private const val KEY_REMINDER_ENABLED = "reminder_enabled"
+        private const val KEY_PERIOD_WARNING = "period_warning_enabled"
+        private const val KEY_PERIOD_WARNING_LEAD = "period_warning_lead_days"
+        private const val KEY_PERIOD_WARNING_FOR = "period_warning_for"
+        private const val KEY_LAST_FIRED = "reminder_last_fired"
+        private const val KEY_SCHEDULED_SINCE = "reminder_scheduled_since"
+        private const val KEY_CYCLE_LENGTH = "typical_cycle_length"
+        private const val KEY_PERIOD_LENGTH = "typical_period_length"
+        private const val KEY_WINDOW_WIDTH = "window_width"
+        private const val KEY_WIDGET_DETAILS = "widget_shows_details"
+        private const val KEY_APP_LOCK = "app_lock_enabled"
 
         /** 21:00 — late enough that the day is done, early enough not to be asleep. */
-        val DEFAULT_REMINDER_SECONDS = LocalTime.of(21, 0).toSecondOfDay().toLong()
+        private val DEFAULT_REMINDER_SECONDS = LocalTime.of(21, 0).toSecondOfDay().toLong()
     }
 }

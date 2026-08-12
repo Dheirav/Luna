@@ -13,6 +13,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -24,7 +25,9 @@ import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -35,14 +38,21 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.dheirav.cycletracker.core.WindowWidth
 import com.dheirav.cycletracker.data.Settings
 import com.dheirav.cycletracker.reminder.ReminderScheduler
+import com.dheirav.cycletracker.reminder.ReminderStatus
 import com.dheirav.cycletracker.widget.refreshCycleWidgets
+import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 private val clock = DateTimeFormatter.ofPattern("HH:mm")
+
+/** Day and time, for the reminder's own history — "21:00" alone cannot say *which* 21:00. */
+private val stamp = DateTimeFormatter.ofPattern("d MMM, HH:mm")
 
 /**
  * App lock, backup, and — for the first time — the numbers the engine runs on.
@@ -183,8 +193,21 @@ private fun PredictionCard(settings: Settings, onChanged: () -> Unit) {
     }
 }
 
-/** `TimePicker` is still `ExperimentalMaterial3Api`. Opted in rather than hand-rolling one: the
- *  alternative is reimplementing a clock face, and the API churn here is renames, not behaviour. */
+/**
+ * The daily nudge and the pre-period heads-up, with the state of both on show.
+ *
+ * The switches and the time picker were here already; what was missing was any way to tell whether
+ * any of it works. Three independent things can silently stop the reminder — a denied notification
+ * permission, an empty WorkManager queue, a ROM throttling the wakeup — and none of them was
+ * visible, so the only way to check the reminder was to wait until 21:00 and find out. Worse, the
+ * app's own verdict on that (`reminderLooksBroken`) surfaced on Today as a warning card and needed
+ * 36 hours before it would say anything at all.
+ *
+ * So: next due, last fired, the queue's own state, and a button that fires one now.
+ *
+ * `TimePicker` is still `ExperimentalMaterial3Api`. Opted in rather than hand-rolling one: the
+ * alternative is reimplementing a clock face, and the API churn here is renames, not behaviour.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ReminderCard(settings: Settings) {
@@ -192,7 +215,23 @@ private fun ReminderCard(settings: Settings) {
     var enabled by remember { mutableStateOf(settings.reminderEnabled) }
     var time by remember { mutableStateOf(settings.reminderTime) }
     var warn by remember { mutableStateOf(settings.periodWarningEnabled) }
+    var lead by remember { mutableIntStateOf(settings.periodWarningLeadDays) }
     var picking by remember { mutableStateOf(false) }
+    var sent by remember { mutableStateOf(false) }
+
+    // Bumped by anything that could change the answer, so the status block is never stale.
+    var probe by remember { mutableIntStateOf(0) }
+
+    // Recheck on every return to the screen: granting the notification permission or the battery
+    // exemption happens in system settings, so the app comes back to a changed world.
+    LifecycleResumeEffect(Unit) {
+        probe++
+        onPauseOrDispose { }
+    }
+
+    val status by produceState<ReminderStatus?>(null, probe, enabled, time) {
+        value = ReminderScheduler.status(context)
+    }
 
     SettingsCard("Daily reminder") {
         Row(
@@ -209,6 +248,7 @@ private fun ReminderCard(settings: Settings) {
                     // Reschedules or cancels immediately — a reminder setting that waits for the
                     // next app launch to take effect is one the user will believe is broken.
                     ReminderScheduler.schedule(context)
+                    probe++
                 },
             )
         }
@@ -222,6 +262,16 @@ private fun ReminderCard(settings: Settings) {
                 Text(time.format(clock), style = MaterialTheme.typography.titleMedium)
             }
         }
+        Text(
+            "It skips days you have already logged, so it only fires when it has something to ask " +
+                "for. It carries Bleeding / No bleeding buttons, so the usual answer takes one tap " +
+                "without opening the app.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        HorizontalDivider()
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -236,14 +286,85 @@ private fun ReminderCard(settings: Settings) {
                 },
             )
         }
+        if (warn) {
+            Stepper(
+                label = "Days of notice",
+                value = lead,
+                unset = "",
+                range = Settings.MIN_WARNING_LEAD_DAYS..Settings.MAX_WARNING_LEAD_DAYS,
+                default = Settings.DEFAULT_WARNING_LEAD_DAYS,
+                onChange = {
+                    lead = it
+                    settings.periodWarningLeadDays = it
+                },
+            )
+        }
         Text(
-            "The reminder skips days you have already logged, so it only fires when it has " +
-                "something to ask for. It carries Bleeding / No bleeding buttons, so the usual " +
-                "answer takes one tap without opening the app. The heads-up fires once per " +
-                "cycle, a couple of days before the window opens.",
+            "Fires once per cycle, $lead ${if (lead == 1) "day" else "days"} before the earliest " +
+                "date in the window — not once a day while the window is open, which is how a " +
+                "useful notification gets muted. It stays quiet once you have logged bleeding, " +
+                "since by then you know.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+
+        HorizontalDivider()
+
+        ReminderStatusBlock(status)
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = {
+                ReminderScheduler.sendTestReminder(context)
+                sent = true
+                probe++
+            }) { Text("Send one now") }
+            if (sent) {
+                Text(
+                    "Sent — check your shade",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Text(
+            "A test runs the real job through the same queue, so it proves the notification and " +
+                "its buttons work. It cannot prove the 21:00 one survives the night — only a few " +
+                "days of use can. It does not count as a reminder having fired, and its buttons " +
+                "write a real entry for today, exactly as the real one does.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        status?.let { s ->
+            if (!s.notificationsAllowed) {
+                FixRow(
+                    message = "Notifications are blocked for this app, so no reminder can arrive " +
+                        "however these switches are set.",
+                    action = "Open notification settings",
+                    onClick = {
+                        runCatching {
+                            context.startActivity(
+                                ReminderScheduler.appNotificationSettingsIntent(context),
+                            )
+                        }
+                    },
+                )
+            }
+            if (!s.batteryUnrestricted) {
+                FixRow(
+                    message = "Battery use is restricted, which is what usually kills the reminder " +
+                        "on this phone. Autostart, if this ROM has it, has to be granted by hand too.",
+                    action = "Open battery settings",
+                    onClick = {
+                        runCatching { context.startActivity(ReminderScheduler.batterySettingsIntent()) }
+                    },
+                )
+            }
+        }
     }
 
     if (picking) {
@@ -265,6 +386,75 @@ private fun ReminderCard(settings: Settings) {
             dismissButton = { TextButton(onClick = { picking = false }) { Text("Cancel") } },
             text = { TimePicker(state = picker) },
         )
+    }
+}
+
+/**
+ * What the app knows about whether the reminder will arrive.
+ *
+ * Reports the queue's own state rather than paraphrasing it: `ENQUEUED` with nothing ever firing
+ * means the ROM is dropping the wakeup, while no job at all means the queue was cleared and
+ * rescheduling is the fix. Those need different responses and the shade cannot tell them apart.
+ */
+@Composable
+private fun ReminderStatusBlock(status: ReminderStatus?) {
+    if (status == null) {
+        Text(
+            "Checking…",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        return
+    }
+
+    val lastFired = status.lastFired
+        ?.let { LocalDateTime.ofInstant(it, ZoneId.systemDefault()).format(stamp) }
+        ?: "not yet"
+
+    StatusLine("Next due", status.nextFireAt?.format(stamp) ?: "off")
+    StatusLine("Last fired", lastFired)
+    StatusLine(
+        "In the queue",
+        when {
+            !status.enabled -> "nothing — reminders are off"
+            status.workState == null -> "nothing queued"
+            else -> status.workState.lowercase()
+        },
+    )
+
+    if (status.looksBroken) {
+        Text(
+            "A reminder was due and did not fire. That is this phone killing background work, not " +
+                "a setting you have wrong.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+        )
+    }
+}
+
+@Composable
+private fun StatusLine(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(110.dp),
+        )
+        Text(value, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+/** A problem the user can actually do something about, with the something attached. */
+@Composable
+private fun FixRow(message: String, action: String, onClick: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            message,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+        )
+        TextButton(onClick = onClick) { Text(action) }
     }
 }
 

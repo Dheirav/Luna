@@ -19,8 +19,10 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import com.dheirav.cycletracker.CycleTrackerApp
 import com.dheirav.cycletracker.MainActivity
+import com.dheirav.cycletracker.R
 import com.dheirav.cycletracker.core.CycleEngine
 import com.dheirav.cycletracker.core.CycleProjector
 import com.dheirav.cycletracker.core.Forecast
@@ -29,6 +31,8 @@ import com.dheirav.cycletracker.data.LogDao
 import com.dheirav.cycletracker.data.PredictionLedger
 import com.dheirav.cycletracker.data.Settings
 import com.dheirav.cycletracker.widget.refreshCycleWidgets
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -37,16 +41,44 @@ import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 
 private const val WORK_NAME = "daily-log-reminder"
-private const val CHANNEL_ID = "reminders"
-private const val CHANNEL_ID_FORECAST = "forecast"
+
+/**
+ * Channel ids carry a version, because **a channel's settings are immutable once created.**
+ *
+ * `createNotificationChannel` on an existing id updates the name and description and silently
+ * ignores importance, sound and vibration. The v1 channels were created without
+ * `enableVibration(true)` — `NotificationChannel` defaults it to *false*, which is not obvious — and
+ * on a phone kept on silent that made the 21:00 reminder soundless and vibrationless: it appeared in
+ * the shade and nowhere else, and went unnoticed for a day. Changing the flag alone would have fixed
+ * nothing on any device the app had already run on.
+ *
+ * **If a channel's importance, sound or vibration ever needs to change again, bump the id.** Adding
+ * the old id to [LEGACY_CHANNEL_IDS] retires it so the settings screen does not accumulate dead
+ * channels.
+ *
+ * The cost of a bump is that any per-channel customisation the user made in system settings is lost.
+ * That was checked before doing it — `dumpsys notification` reported `mUserLockedFields=0`, so there
+ * was nothing to lose. Check the same thing next time rather than assuming.
+ */
+private const val CHANNEL_ID = "reminders-v2"
+private const val CHANNEL_ID_FORECAST = "forecast-v2"
+private val LEGACY_CHANNEL_IDS = listOf("reminders", "forecast")
+
 const val EXTRA_OPEN_LOG = "open_log"
 
 /** Stable so a notification action can dismiss the notification that carried it. */
 const val REMINDER_NOTIFICATION_ID = 1
 private const val FORECAST_NOTIFICATION_ID = 2
 
-/** Days before the predicted window opens that the heads-up fires. */
-private const val WARN_DAYS_BEFORE = 2L
+/**
+ * Marks a run triggered by the settings screen's "Send one now".
+ *
+ * A test must not touch the bookkeeping. Writing `lastReminderFired` would tell
+ * [Settings.reminderLooksBroken] the reminder is alive for the next 36 hours — a test that
+ * suppresses the very warning it exists to check is worse than no test. Consuming the cycle's
+ * one heads-up would be the same mistake in the other direction.
+ */
+private const val KEY_TEST_RUN = "test_run"
 
 /**
  * The daily nudge.
@@ -83,6 +115,77 @@ object ReminderScheduler {
         WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
     }
 
+    /**
+     * Runs the reminder now, through WorkManager, exactly as the scheduled job would.
+     *
+     * Whether the reminder survives this phone's ROM has been an open question since it was
+     * written, and the only way to answer it was to wait a day and see — which conflates three
+     * different failures: the notification permission missing, the notification itself being
+     * malformed, and the OS killing the delayed job. This settles the first two in two seconds.
+     *
+     * It deliberately goes through WorkManager rather than posting the notification directly. A
+     * test that calls the notify path straight would prove the notification builds, and nothing
+     * about whether the worker can run at all.
+     *
+     * **It cannot prove the 21:00 job survives overnight** — nothing but a few real days can, since
+     * that failure is a doze/vendor-kill of a *delayed* job and this one is not delayed.
+     */
+    fun sendTestReminder(context: Context) {
+        WorkManager.getInstance(context).enqueue(
+            // No unique name: this must not replace or cancel the real chain.
+            OneTimeWorkRequestBuilder<ReminderWorker>()
+                .setInputData(workDataOf(KEY_TEST_RUN to true))
+                .build(),
+        )
+    }
+
+    /** When the next reminder is due, or null when reminders are switched off. */
+    fun nextFireAt(context: Context): LocalDateTime? {
+        val settings = Settings(context)
+        if (!settings.reminderEnabled) return null
+        return LocalDateTime.now().plus(durationUntilNext(settings))
+    }
+
+    /**
+     * Everything known about whether the reminder will actually arrive, in one read.
+     *
+     * Assembled in one place because the failure modes are independent and each is silent on its
+     * own: the switch can be on while the permission is denied, the permission can be granted
+     * while WorkManager holds no job, and both can be fine while the ROM throttles the wakeup.
+     * Showing only the parts the app can act on would leave the user watching a reminder that
+     * never comes with nothing to look at.
+     */
+    suspend fun status(context: Context): ReminderStatus {
+        val settings = Settings(context)
+        return ReminderStatus(
+            enabled = settings.reminderEnabled,
+            nextFireAt = nextFireAt(context),
+            lastFired = settings.lastReminderFired,
+            workState = queuedWorkState(context),
+            notificationsAllowed = context.notificationsAllowed(),
+            batteryUnrestricted = isBatteryUnrestricted(context),
+            looksBroken = settings.reminderLooksBroken(),
+        )
+    }
+
+    /**
+     * WorkManager's own view of the queued job.
+     *
+     * This is the one signal that separates "the ROM cleared the queue" from "the job is sitting
+     * there and never runs" — the two look identical from the notification shade, and they have
+     * different remedies. A blocking `get()` on the IO dispatcher rather than the Flow API: this is
+     * read once per visit to the settings screen, and a collector would be more machinery for a
+     * value that does not change while it is on screen.
+     */
+    private suspend fun queuedWorkState(context: Context): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            WorkManager.getInstance(context)
+                .getWorkInfosForUniqueWork(WORK_NAME).get()
+                .firstOrNull { !it.state.isFinished }
+                ?.state?.name
+        }.getOrNull()
+    }
+
     private fun durationUntilNext(settings: Settings): Duration {
         val now = LocalDateTime.now()
         var next = now.toLocalDate().atTime(settings.reminderTime)
@@ -104,7 +207,30 @@ object ReminderScheduler {
 
     fun batterySettingsIntent(): Intent =
         Intent(AndroidSettings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+
+    /**
+     * The system page where a denied notification permission can be granted again.
+     *
+     * The runtime prompt is one-shot: Android stops showing it after two refusals, and from then on
+     * the app can only point at this screen. Without a route here, a denied permission leaves every
+     * reminder switch in the app looking on while [notify] returns early and posts nothing — the
+     * failure the notification pipeline was least able to explain.
+     */
+    fun appNotificationSettingsIntent(context: Context): Intent =
+        Intent(AndroidSettings.ACTION_APP_NOTIFICATION_SETTINGS)
+            .putExtra(AndroidSettings.EXTRA_APP_PACKAGE, context.packageName)
 }
+
+/** A snapshot of reminder health for the settings screen. See [ReminderScheduler.status]. */
+data class ReminderStatus(
+    val enabled: Boolean,
+    val nextFireAt: LocalDateTime?,
+    val lastFired: Instant?,
+    val workState: String?,
+    val notificationsAllowed: Boolean,
+    val batteryUnrestricted: Boolean,
+    val looksBroken: Boolean,
+)
 
 class ReminderWorker(
     context: Context,
@@ -114,20 +240,25 @@ class ReminderWorker(
     override suspend fun doWork(): Result {
         val context = applicationContext
         val settings = Settings(context)
+        val isTest = inputData.getBoolean(KEY_TEST_RUN, false)
 
-        settings.lastReminderFired = Instant.now()
+        if (!isTest) settings.lastReminderFired = Instant.now()
 
         // Only nag if today has not been logged. A reminder for something already done is noise,
         // and noise is how notifications get muted.
+        //
+        // A test ignores both that and the enable switch: someone pressing "Send one now" wants to
+        // see the notification, and "nothing happened because today is already logged" is
+        // indistinguishable from the failure they are testing for.
         val dao = (context as CycleTrackerApp).database.logDao()
         val alreadyLogged = dao.logFor(LocalDate.now()) != null
-        if (!alreadyLogged && settings.reminderEnabled) {
+        if (isTest || (!alreadyLogged && settings.reminderEnabled)) {
             notify(context)
         }
 
         recordPrediction(dao)
 
-        maybeWarnPeriodDue(context, dao, settings)
+        if (!isTest) maybeWarnPeriodDue(context, dao, settings)
 
         // The worker runs daily, which makes it the most reliable clock the app has for rolling
         // the widget's cycle day over. ACTION_DATE_CHANGED covers midnight; this covers the case
@@ -135,7 +266,9 @@ class ReminderWorker(
         refreshCycleWidgets(context)
 
         // Chain the next one. Doing this last means a crash above cannot silently end the chain.
-        ReminderScheduler.schedule(context)
+        // A test must not touch the chain at all — rescheduling from an off-schedule run is how a
+        // 21:00 reminder quietly becomes a 15:40 one.
+        if (!isTest) ReminderScheduler.schedule(context)
         return Result.success()
     }
 
@@ -198,9 +331,10 @@ class ReminderWorker(
             ) ?: return@runCatching
 
             val today = LocalDate.now()
+            val lead = settings.periodWarningLeadDays.toLong()
             // Only in the short run-up. Already bleeding means the answer has arrived.
             if (state.isBleeding) return@runCatching
-            if (today.isBefore(window.earliest.minusDays(WARN_DAYS_BEFORE))) return@runCatching
+            if (today.isBefore(window.earliest.minusDays(lead))) return@runCatching
             if (today.isAfter(window.earliest)) return@runCatching
 
             val fmt = DateTimeFormatter.ofPattern("d MMM")
@@ -213,10 +347,23 @@ class ReminderWorker(
         }
     }
 
+    /**
+     * Creates a channel, retiring the previous generation of ids on the way past.
+     *
+     * **Vibration is opt-in.** `NotificationChannel` defaults it to false, so a channel that says
+     * nothing about vibration is a channel that does not vibrate — which on a silent phone means a
+     * notification with no perceptible arrival at all. Both channels here vibrate: the daily nudge
+     * because a reminder nobody notices is not a reminder, and the heads-up because it fires once per
+     * cycle and there is no second chance to catch it.
+     */
     private fun channel(context: Context, id: String, name: String, description: String) {
-        context.getSystemService(NotificationManager::class.java).createNotificationChannel(
-            NotificationChannel(id, name, NotificationManager.IMPORTANCE_DEFAULT)
-                .apply { this.description = description },
+        val manager = context.getSystemService(NotificationManager::class.java)
+        LEGACY_CHANNEL_IDS.forEach { manager.deleteNotificationChannel(it) }
+        manager.createNotificationChannel(
+            NotificationChannel(id, name, NotificationManager.IMPORTANCE_DEFAULT).apply {
+                this.description = description
+                enableVibration(true)
+            },
         )
     }
 
@@ -241,7 +388,8 @@ class ReminderWorker(
         NotificationManagerCompat.from(context).notify(
             FORECAST_NOTIFICATION_ID,
             NotificationCompat.Builder(context, CHANNEL_ID_FORECAST)
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setColor(ContextCompat.getColor(context, R.color.notification_accent))
                 .setContentTitle(title)
                 .setContentText(body)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(body))
@@ -252,14 +400,10 @@ class ReminderWorker(
     }
 
     private fun notify(context: Context) {
-        val manager = context.getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(
-            NotificationChannel(
-                CHANNEL_ID,
-                "Daily reminder",
-                NotificationManager.IMPORTANCE_DEFAULT,
-            ).apply { description = "A nudge to log today" },
-        )
+        // Same helper as the forecast channel, so the vibration and retirement rules cannot drift
+        // between the two. This used to build its channel inline and was the one that shipped
+        // without vibration.
+        channel(context, CHANNEL_ID, "Daily reminder", "A nudge to log today")
 
         // Opens straight into the log form — not the app's front door. Every extra tap between
         // the notification and a saved entry costs adherence.
@@ -283,7 +427,8 @@ class ReminderWorker(
         NotificationManagerCompat.from(context).notify(
             REMINDER_NOTIFICATION_ID,
             NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setColor(ContextCompat.getColor(context, R.color.notification_accent))
                 .setContentTitle("How was today?")
                 .setContentText("Ten seconds now beats guessing later.")
                 .setContentIntent(pending)

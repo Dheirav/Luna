@@ -14,4 +14,9 @@
     <color name="widget_text">#43303C</color>
     <color name="widget_muted">#7A6470</color>
     <color name="widget_accent">#C2477E</color>
+
+    <!-- Tint for the notification's small icon and its app name in the shade. Not split into
+         values-night: the shade draws it over its own surface in both themes, and this rose holds
+         enough contrast on each. Deliberately the same rose as the widget accent. -->
+    <color name="notification_accent">#C2477E</color>
 </resources>

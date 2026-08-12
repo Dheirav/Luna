@@ -19,11 +19,15 @@ there never will be**, and it refuses to state a number it has not earned.
 - **A history calendar** where any past day can be corrected, with estimated days visibly marked
 - **Phase guidance** — what is typical, kept strictly separate from what your own logs show
 - **Health flags** — a late period, repeated long or short cycles, bleeding between periods
+- **A reminder you can answer without opening the app** — Bleeding / No bleeding in one tap — and a
+  heads-up a configurable few days before the window opens
+- **A plain-text summary to take to an appointment**, with observed and estimated never conflated
 - **A home-screen widget** that works even when the OS kills background work
 - **Encrypted backup** to a file you control (PBKDF2 + AES-GCM)
 - **Biometric app lock** and `FLAG_SECURE` on the recents thumbnail
+- **Screen-reader support** throughout; decoration is hidden from it rather than announced
 
-Release APK is about 2.3 MB.
+Release APK is about 2.5 MB.
 
 ---
 

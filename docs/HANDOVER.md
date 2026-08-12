@@ -1,6 +1,7 @@
 # Handover — Luna
 
-Written 2026-08-11. Everything needed to pick this up in a fresh session.
+Written 2026-08-11, current as of **2026-08-12**. Everything needed to pick this up in a fresh
+session.
 
 **Read first:** [`CYCLE_RULES.md`](CYCLE_RULES.md) is the authoritative spec. This document covers
 state, environment, and the traps. The original build plan (7 phases, stack decisions, size budget)
@@ -31,28 +32,99 @@ Governing rules (full list in the plan artifact):
 | | Verified how |
 |---|---|
 | Phase 0 — spec + golden fixture | 34 cases, `spec/cycle_fixtures.json` |
-| Cycle/period/phase engine (`:core`) | `./gradlew :core:test` — all pass |
-| Encrypted backup codec | 8 tests incl. tamper detection, wrong-passphrase, no-plaintext-leak |
-| Android project builds | debug + release; release APK **2.15 MB** |
-| Today screen | On device: day 15/28, Ovulation, 25% confidence — all hand-checked correct |
+| Cycle/period/phase engine (`:core`) | `./gradlew :core:test` — **85 tests, all pass** |
+| Encrypted backup codec | 11 tests incl. tamper detection, wrong-passphrase, no-plaintext-leak |
+| Forecast window / prediction scorer | 16 + 13 tests |
+| Health flags, symptom patterns, clinical summary | 14 + 12 + 11 tests |
+| Android project builds | debug + release; release APK **2.49 MB** |
+| Today screen | On device: day 15/28, Ovulation — hand-checked correct. (It also showed a "25% confidence" figure at the time; that display has since been removed as unearned.) |
 | Log screen | Renders; write round-trip confirmed in DB (`energy=1, pain=2, travel`) |
 | Delete path | Emptying a day removes the row entirely |
 | App lock | On device: cold-start prompt, unlock, 15s grace holds, 70s re-locks, toggle both ways |
 | **Room migration 1→2** | On the Redmi, over a real v1 database — see below |
 | History calendar | On device: month grid, estimated vs observed, day→log form, back to Today |
-| Prediction ledger | First row recorded on device with correct values and a null variability |
+| Prediction ledger | First row recorded on device with correct values and a null variability; **2 rows by 2026-08-12, one per day, as designed** |
+| Daily reminder fires | On the Redmi: worker ran at 21:00 on 11 Aug and posted. See below — a 24h delay is still unproven |
+| Today screen, dark mode | On the Redmi at 440dpi, 2026-08-12. Cycle day and phase hand-checked against the logged data |
+
+### The reminder does fire — established 2026-08-12
+
+The project's oldest open question, answered from the device rather than by waiting. The user reported
+never having seen the reminder; the evidence says it fired anyway and they missed it.
+
+| Evidence | Reading |
+|---|---|
+| `reminder_last_fired` = **21:00 device time, 11 Aug** | The worker ran. Only a non-test run writes this. |
+| The `reminders` notification **channel exists** | Channels are created *inside* `notify()`, so the posting path executed — not just the worker. |
+| 11 Aug has **no row** in `daily_logs` | So the "already logged, stay quiet" skip did not apply. |
+| `POST_NOTIFICATIONS: granted=true`, `mZenMode=ZEN_MODE_OFF` | Nothing blocked it. |
+| A job is **`ENQUEUED`** now, delay 10h52m from 10:07 | Due 21:00 tonight. The scheduling arithmetic is right. |
+
+**Why it went unnoticed: the phone is on silent, and the v1 channel had `mVibrationEnabled=false`.**
+The notification posted with no sound and no vibration, and `setAutoCancel(true)` means a stray tap
+clears it. At 21:00 it appeared in the shade and nowhere else.
+
+**Fixed 2026-08-12 — vibration is on, and the fix required new channel ids.** `NotificationChannel`
+defaults vibration to *false*, which is easy to miss, and **a channel's settings are immutable after
+creation**: calling `createNotificationChannel` again on the same id updates the name and description
+and silently ignores importance, sound and vibration. So `enableVibration(true)` alone would have
+worked on a fresh install and done nothing on this phone. The ids are now `reminders-v2` and
+`forecast-v2`, with the old pair in `LEGACY_CHANNEL_IDS` and deleted on next creation.
+
+**If importance, sound or vibration ever needs to change again, bump the id** — and check
+`mUserLockedFields` in `dumpsys notification` first, because a bump discards any per-channel
+customisation the user made in system settings. It was `0` here, so there was nothing to lose.
+`notify()` used to build its channel inline rather than through the shared `channel()` helper, which
+is how it came to be the one without vibration; both now go through the one function.
+
+Verified on the Redmi the same day: `reminders-v2` has `mImportance=3, mVibrationEnabled=true`, and
+the old `reminders` reads `mDeleted=true`. **A deleted channel keeps appearing in `dumpsys` with that
+flag set** rather than vanishing — Android retains it so an id cannot be recycled to wipe a user's
+choices. Read `mDeleted`; do not expect the row to disappear.
+
+### The status-bar icon (2026-08-12)
+
+Both notifications used `android.R.drawable.ic_dialog_info`. **Android keeps only the alpha channel of
+a small icon and discards its colours**, so a full-colour framework drawable flattened to a solid
+disc — it read as a stop sign in the status bar, which is alarming for a cycle reminder and, on a
+phone other people can see, conspicuous in exactly the way the launcher icon avoids.
+
+`drawable/ic_notification.xml` is the launcher bloom reduced to a silhouette. What that rule forces:
+
+- **Opaque white fills only.** Any palette would be thrown away; `setColor` supplies the shade accent
+  (`@color/notification_accent`) instead.
+- **No background.** A filled backdrop flattens to the same solid block as before.
+- **No fine detail.** The launcher icon's lighter diagonal petals and its sparkle are omitted — with
+  colour gone they merge into the four main petals and an 18dp bloom becomes a blob.
+
+Still a bloom rather than a droplet or calendar, for the reason the launcher icon is.
+
+**What is still unproven:** the 11 Aug run was scheduled at 19:14 and fired at 21:00 — a **1h46m**
+delay. A 24-hour delay is the case vendor ROMs actually kill, and tonight's job (10h52m) is the first
+real test of it. Check *Last fired* in Settings tomorrow morning.
 
 ### Built but NOT yet verified on device
 
-- **Daily reminder** (`reminder/Reminders.kt`) — self-rescheduling WorkManager job at 21:00, skips
-  if today is already logged, deep-links into the log form. Needs a real 24h cycle to confirm.
+- **Pre-period heads-up** and the reminder's **Bleeding / No bleeding** actions (2026-08-12) — the
+  daily reminder itself was seen and felt on the Redmi via *Send one now*, so the pipeline, the
+  channel and the vibration are all confirmed. What has not been seen: the heads-up (it cannot fire
+  until two days before the next predicted window, which is still ahead), and whether either
+  action button actually writes its row.
+- **The new status-bar icon** — installed after the reminder had already been fired, so the bloom
+  silhouette has not yet been seen in a real notification.
 - **Reminder-health detector** — `Settings.reminderLooksBroken()`. Surfaces a warning card when the
   reminder was due and didn't run. Exists because vendor ROMs kill background work silently.
 - **Encrypted export/restore UI** — SAF file picker + passphrase dialog. The codec is tested; the
   Android file plumbing is not.
+- **Clinical summary export** (2026-08-12) — plain-text SAF write. Generator has 11 tests; the file
+  plumbing shares the untested path above.
+- **Most surfaces since the pastel redesign.** Today was seen on the Redmi in dark mode on
+  2026-08-12 and is correct — see the visual-design section. Not yet seen: the calendar at 440dpi,
+  light mode, health-flag cards (nothing is currently flagged), the summary card, and the reminder
+  status block. `adb shell input` was blocked again that session, so nothing behind a tap could be
+  reached; screenshots from the user are the way through.
 - Boot receiver, notification permission prompt.
-- Nothing outstanding from the 2026-08-11 batch. The backfill banner's *That's right* /
-  *Remove* buttons were confirmed working on the Redmi.
+- The backfill banner's *That's right* / *Remove* buttons were confirmed working on the Redmi.
 
 ### Prediction ledger (Phase 3, started 2026-08-11)
 
@@ -61,8 +133,9 @@ the first table that is not derivable from the daily logs, because a prediction 
 the data *as it stood that day* and cannot be reconstructed once the logs change.
 
 Built before any UI on purpose: the record can only ever be written going forward, so every day
-without it is scoring data lost permanently. `TodayUiState.accuracy` is populated and deliberately
-rendered nowhere yet.
+without it is scoring data lost permanently. `TodayUiState.accuracy` was populated and deliberately
+rendered nowhere for a while; it now reaches the screen inside Today's *Why these numbers?* card
+(`TodayScreen.kt`, `WhyCard`), which still shows nothing where `accuracy()` returns null.
 
 - Written from **two** places: `TodayViewModel.refresh` and `ReminderWorker` — the worker covers
   days the app is never opened. Its call is wrapped in `runCatching`; bookkeeping must never break
@@ -106,9 +179,10 @@ observed cycles". Both cannot be true.
 - `basis()` mirrors the branch structure of `CycleStats.expectedCycleLength`. **If that function
   gains a branch, this must too** — no test catches that drift.
 
-Both are wired into `TodayUiState` (`window`, `basis`) and **rendered nowhere yet**, by the same
-rule as `accuracy`: the display is the last piece, so there is no temptation to fill space with a
-number that has not been earned.
+Both are wired into `TodayUiState` (`window`, `basis`) and now **rendered** — `NextPeriodCard` draws
+the window and says in words when the span is a stated default rather than this user's measured
+variability, and `WhyCard` carries the basis. The contradiction described above is fixed: no single
+date is printed anywhere.
 
 ### Visual design (2026-08-11)
 
@@ -137,8 +211,23 @@ from that plus rule 4: charm must not cost adherence.
 - System typeface throughout. A rounded face would suit better but needs a bundled TTF (50–100 KB);
   no `INTERNET` permission means downloadable fonts are not an option.
 
-**None of this has been seen on a device** — the Redmi's port cycled before it could be installed.
-Check first: the calendar at 440dpi, the hero card with and without bleeding, and dark mode.
+**Seen on the Redmi at last, 2026-08-12 — dark mode, and it holds up.** The warm-plum ground, the
+scalloped hero card, the mascot cloud and the pink accents all read as intended at 440dpi, and the
+honest window copy ("A 9-day window based on a typical spread — not yours yet") carries the point
+without a wall of text. Two notes from that screenshot:
+
+- **Decorative hearts collided with the hero card's text** — one sat directly above "What this phase
+  is like →", another across the baseline of "of a 28-day cycle". **Fixed the same day** by moving
+  both from `BottomStart` into the right-hand margin below the mascot.
+
+  The rule that came out of it, and the reason this was certain rather than unlucky: **ornament
+  anchors to the edge the text does not occupy.** The text column is left-aligned with a short
+  longest line, so the right side is always free, while the bottom-left is precisely where the text
+  ends — and it extends further into that corner as the font scale grows.
+- The bare **"History"** text button under the filled "Log today" reads as a weaker sibling than it
+  is, given it is the entry point for correcting backfill. Not changed.
+
+Still unseen: **light mode**, the calendar at 440dpi, and the hero card with bleeding logged.
 
 ### Settings, and a precedence fix (2026-08-11)
 
@@ -197,10 +286,103 @@ fails. Adherence is the binding constraint (rule 4), so that matters more than i
   one-tap shortcut. A home screen is seen by other people, and a widget reading
   "Day 15 · Ovulation" undoes the reason the launcher icon is a bloom rather than a droplet.
 
+### Health flags and the symptom list (Phase 5, 2026-08-11)
+
+`core/HealthFlags.kt`, 14 tests. The one place this app comes close to saying something about a
+body, so the line is drawn hard: **it reports logged figures against common reference ranges and
+never names a condition.** "Your last three cycles were 44, 47 and 41 days" is something to take to
+a doctor; "this may indicate PCOS" is a diagnosis from an app that has seen a few dozen
+self-reported rows.
+
+- **Most of the tests are about not firing.** Assumed cycles can never raise a flag (§3.2) — the
+  old backfill invented eleven cycles at a uniform 28 days, and alarming someone about the app's
+  own extrapolation would be indefensible. One long cycle is ordinary; two is a pattern.
+- Rendered in the tertiary colour, never red. An app that goes red at you is one you stop opening.
+- Spotting between periods is surfaced at last: `CycleProjector` had always produced
+  `SpottingEvent`s and §2.3 had always called them a flag input, and nothing ever read them.
+- The history screen lists what was logged each month beneath the calendar. Symptoms had been
+  write-only — enterable, with a calendar dot as their only trace — and logging that visibly goes
+  nowhere is logging that stops. Anchor words rather than integers, estimated days marked.
+
+### Accessibility (2026-08-12)
+
+There was none: zero `contentDescription`, zero semantics blocks, against thirteen clickable or
+hand-drawn elements. With TalkBack on, the calendar — the screen the whole backfill-correction flow
+depends on — announced each cell as a bare number, while fill, outline, wash, ring and dot all
+carried meaning.
+
+- **Ornament hides itself.** `Sparkle`, `Dot`, `Heart`, `Cloud`, `MascotCloud` and `SparkleCluster`
+  each clear their own semantics inside `Decor.kt`, not at the call site — that is exactly the thing
+  that gets forgotten on the twentieth sparkle.
+- Calendar cells merge into one announcement: weekday, date, bleeding logged or estimated, whether
+  the day sits in the predicted window.
+- Two of these were plain bugs rather than accessibility bugs. The phase picker clipped every label
+  to five characters to fit four chips across, rendering "Menst" / "Folli" / "Ovula" / "Lutea"; the
+  row scrolls now, which also survives a large font scale. And the "worse than your other phases"
+  dot carried its meaning **only in colour** — the sentence beside it already says it, so the dot is
+  decorative now.
+
+### Heads-up, one-tap logging, clinical summary (2026-08-12)
+
+Three gaps with one shape: the app asking for something and giving nothing back.
+
+- **Pre-period heads-up.** There was a predicted window and a working notification pipeline, and the
+  only thing the app ever said was "log today". Keyed on the **cycle start rather than the date**, so
+  it fires once per cycle — repeating it every evening the window stayed open is how a useful
+  notification becomes a muted one. Stays quiet once bleeding is logged.
+- **Bleeding / No bleeding actions on the daily reminder.** The gap between "I should log this" and a
+  saved row was six steps — unlock, tap, wait, biometric, chip, save — on a task with a ten-second
+  budget. Most days the answer is one bit and now costs one tap. **"No bleeding" writes a real row**:
+  it is an observation, and rule 2 makes that different from a day never logged. `LogActionReceiver`
+  **is not exported** — an exported one would let any installed app write to the cycle log — and it
+  preserves anything already recorded that day rather than overwriting it.
+- **Clinical summary** (`core/ClinicalSummary.kt`, 11 tests). Closes the loop the health flags open:
+  they say a pattern is worth mentioning to a doctor and then leave you nothing to bring, because
+  the only export was an encrypted blob no other software can open. **Plain text, deliberately** —
+  a file only this app can decrypt is useless in an appointment, and the trade is stated on the card
+  rather than buried. Observed and estimated are separated on every line and in every count: a
+  clinician reading "12 cycles, median 28 days" would reasonably assume twelve measurements, and
+  backfill can manufacture that from two remembered dates. No median below three observed cycles.
+  It reports lengths, spans and counts, offers no interpretation, and says on its face that it is
+  self-reported app data rather than a medical record.
+
+### Reminder control (2026-08-12)
+
+Prompted by the user reporting they had never managed to check whether the reminder works, and that
+they had no sense of controlling it. The timing was in fact already configurable — on/off and a time
+picker have been in `SettingsScreen` since the settings split — so the real gap was **not control but
+visibility, and one hardcoded number**:
+
+- **`periodWarningLeadDays`** replaces a hardcoded `WARN_DAYS_BEFORE = 2`. Bounded 1–7: how much
+  notice is useful is personal, but a lead time approaching the window's own span fires a "soon"
+  notice for something a week off. Two remains the default; the bounds live on `Settings.Companion`
+  so the stepper cannot drift from the setter's clamp.
+- **`ReminderScheduler.sendTestReminder`** — fires the real job now, **through WorkManager**, not by
+  calling the notify path directly. A test that posts the notification straight would prove the
+  notification builds and nothing about whether the worker can run. It settles two of the three
+  silent failures (permission denied, notification malformed) in two seconds. **It cannot settle the
+  third** — a vendor kill of a *delayed* job — and the UI says so rather than implying a pass means
+  the reminder is safe.
+- A test run is flagged in the worker's input data and **must not touch the bookkeeping**: it skips
+  `lastReminderFired` (writing it would tell `reminderLooksBroken()` the reminder is alive for 36
+  hours, so the test would suppress the warning it exists to check), skips the heads-up (which would
+  consume the cycle's only one), and skips rescheduling (which would move a 21:00 reminder to
+  whenever the button was pressed).
+- **`ReminderScheduler.status`** collects the four independent failure modes in one read, because
+  each is silent alone: the switch can be on while the permission is denied, the permission can be
+  granted while WorkManager holds no job, and both can be fine while the ROM throttles the wakeup.
+  It reports **WorkManager's own state verbatim** — `ENQUEUED` with nothing ever firing means the ROM
+  is dropping the wakeup, whereas no job at all means the queue was cleared and rescheduling is the
+  fix. Those have different remedies and look identical from the notification shade.
+- Settings shows next due, last fired, and that queue state, and offers the battery-settings and
+  **app-notification-settings** routes when either is wrong. The latter is new and matters: the
+  runtime permission prompt is one-shot, and a denied `POST_NOTIFICATIONS` previously left every
+  switch in the app looking on while `notify` returned early and posted nothing.
+
 ### Not started
 
-- Phases 4 and 6, and the rest of Phase 5 (fertility window, health flags) — both of which
-  depend on Phase 4's luteal-length work first.
+- Phases 4 and 6, and the fertility window from Phase 5 — which depends on Phase 4's luteal-length
+  work first. (Health flags, the other Phase 5 item, shipped on 2026-08-11; see above.)
 
 ### Decided against — SQLCipher (2026-08-11)
 
@@ -280,9 +462,17 @@ cd android
 
 **Use `-PminifyDebug` for anything going to a phone.** The plain debug APK is ~25 MB and takes
 one to three minutes over wireless debugging, which is longer than the Redmi's adb port usually
-survives — installs were dying mid-transfer more often than they completed. R8 brings it to
-7.6 MB. Screenshots still work: `FLAG_SECURE` keys off `ApplicationInfo.FLAG_DEBUGGABLE`, which
-this build still sets, so it is the *release* build that blocks `screencap`, not the minified one.
+survives — installs were dying mid-transfer more often than they completed. Screenshots still work:
+`FLAG_SECURE` keys off `ApplicationInfo.FLAG_DEBUGGABLE`, which this build still sets, so it is the
+*release* build that blocks `screencap`, not the minified one.
+
+**The "7.6 MB" figure this document used to quote was the dex, not the file.** As of 2026-08-12 the
+minified debug APK is **26.5 MB on disk**, while its zip entries account for only 7.8 MB — 7.59 MB of
+that being `classes.dex`. So R8 *is* running (verify with `:app:minifyDebugWithR8` in the task list,
+not by the file size); the remaining ~18.8 MB is packaging overhead that was not chased down. It
+installs over wifi in **45 seconds**, which is the number that actually matters, so this is a
+documentation correction rather than a problem to fix. Do not read the file size as evidence the flag
+failed — that is the third variant of the same trap listed below.
 
 Two traps in that flag, both already paid for:
 
@@ -348,6 +538,11 @@ phone (~1.2–1.5 GB working set). The A35's 6–8 GB reopens it.
    main Wireless debugging screen under "IP address & Port".
 4. **There is no `sqlite3` binary on the device.** Pull the database instead (below).
 5. USB does not reach WSL — no `/dev/bus/usb`, no usbip client. Would need `usbipd-win` on Windows.
+6. **The WSL box and the phone are in different timezones** — the box is UTC+4, the Redmi UTC+5:30.
+   Every timestamp in the app's prefs and in WorkManager is epoch millis, so converting them with
+   `datetime.fromtimestamp` on the host reads **1h30m earlier than the phone's own clock**. A
+   `reminder_last_fired` of 19:30 host-side is the 21:00 reminder, exactly on schedule — do not
+   conclude the reminder fired at the wrong time. Add the offset, or convert with an explicit zone.
 
 ### What does work
 
@@ -370,9 +565,42 @@ python3 -c "import sqlite3;print(sqlite3.connect('cycle-tracker.db').execute('se
 # Is the ledger actually recording? This should gain a row a day.
 python3 -c "import sqlite3;print(sqlite3.connect('cycle-tracker.db').execute('select * from predictions').fetchall())"
 
-# The screen locks constantly; wake and dismiss before screenshots
+# Reminder settings, including whether the worker has ever run (reminder_last_fired).
+# Absent keys mean defaults — reminder_enabled and period_warning_enabled default to true.
+adb exec-out run-as $PKG cat /data/data/$PKG/shared_prefs/cycle-settings.xml
+
+# Is a reminder actually queued? WorkManager's db is in no_backup/, NOT databases/.
+# This is the ground truth behind the settings screen's status block.
+for f in androidx.work.workdb androidx.work.workdb-wal androidx.work.workdb-shm; do
+  adb exec-out run-as $PKG cat /data/data/$PKG/no_backup/$f > $f
+done
+python3 - <<'PY'
+import sqlite3, datetime as dt
+S = {0:'ENQUEUED',1:'RUNNING',2:'SUCCEEDED',3:'FAILED',4:'BLOCKED',5:'CANCELLED'}
+c = sqlite3.connect('androidx.work.workdb')
+cols = [r[1] for r in c.execute('pragma table_info(WorkSpec)')]
+for r in c.execute('select * from WorkSpec'):
+    d = dict(zip(cols, r))
+    due = (d['last_enqueue_time'] + d['initial_delay']) / 1000
+    print(d['worker_class_name'].split('.')[-1], S.get(d['state']),
+          'due', dt.datetime.fromtimestamp(due), '(host zone — the phone may differ)')
+PY
+
+# Did anything block the notification? Permission, DND, and the channel's own settings.
+# The channel existing at all proves notify() ran, since that is where it is created.
+adb shell dumpsys package $PKG | grep POST_NOTIFICATIONS
+adb shell dumpsys notification | grep -iE "mZenMode"
+adb shell dumpsys notification --noredact | grep -A2 "$PKG"
+
+# Screenshots. `adb exec-out screencap -p > shot.png` is the usual recipe and it started returning
+# ZERO BYTES mid-session on 2026-08-12 while the device was awake, focused and otherwise responsive
+# (dumpsys and uiautomator kept working). Writing to the device and pulling is reliable — use it
+# first rather than debugging the pipe.
+adb shell screencap -p /sdcard/shot.png && adb pull /sdcard/shot.png shot.png
+
+# KEYCODE_WAKEUP is subject to the same INJECT_EVENTS block as `input tap`, so when input is blocked
+# there is no way to wake the screen from here. Ask the user.
 adb shell input keyevent KEYCODE_WAKEUP
-adb exec-out screencap -p > shot.png
 ```
 
 `FLAG_SECURE` is set on **release builds only**, precisely so `screencap` and `uiautomator dump`
@@ -415,23 +643,33 @@ can only be answered by a few days of real use.
 If it is being killed, the home-screen widget becomes the more important delivery mechanism, since
 it needs no background execution at all.
 
+Settings' reminder status block is the instrument for this. `ENQUEUED` in the queue with *Last fired*
+stuck in the past is the ROM dropping the wakeup — the case with no programmatic remedy. An empty
+queue instead means WorkManager's own state was cleared, which rescheduling fixes and which the boot
+receiver exists to cover.
+
 ---
 
 ## Suggested next steps
 
-1. **Verify the reminder fires** over a couple of real days. This is a genuine open question on
-   this ROM, not a formality.
-2. **Test backup export/restore on device** — the codec is tested, the SAF plumbing is not. Watch
+1. **Check *Last fired* the morning after.** The reminder is proven to fire after a short delay
+   (see "The reminder does fire"); what is unproven is a full 24-hour one, which is the case vendor
+   ROMs kill. Settings → Daily reminder now shows *Last fired* and the queue state, so this is a
+   ten-second check rather than an investigation. If it stalls, `ENQUEUED` with an old *Last fired*
+   means the ROM dropped the wakeup — battery and Autostart are the only remedies.
+2. **Decide whether the daily nudge should vibrate.** It currently posts silently on a phone in
+   silent mode, which is why it went unnoticed for a day. A user's call, not a defect.
+3. **Test backup export/restore on device** — the codec is tested, the SAF plumbing is not. Watch
    the app lock during this: the file picker backgrounds the app, and the 60-second grace in
    `AppLock` is what stops a re-auth prompt landing mid-export. The grace itself is verified;
-   what is not is whether a slow browse through the picker exceeds it.
-3. **Install once and confirm the migration runs.** The v1→v2 SQL was checked against Room's
-   exported schema and replayed through real SQLite (columns, types, nullability, primary keys all
-   match; existing rows survive), but it has **never opened on the phone with the real database**.
-   That is the one failure here that would be loud and destructive, so it should not sit untested.
-   Then check `select * from predictions` gains a row a day.
-4. Then the rest of Phase 3 — receipts, explain-this-prediction, uncertainty cone — and the UI
-   pass that was deferred (launcher icon; the app still uses the stock Android robot).
+   what is not is whether a slow browse through the picker exceeds it. The clinical-summary export
+   shares this path.
+4. **Look at the screens still unseen** — light mode, the calendar at 440dpi, the summary card, the
+   reminder status block. `adb shell input` is blocked on the Redmi as often as not, so screenshots
+   from the user are the reliable channel. Fix the hero card's overlapping hearts while there.
+   (The v1→v2 migration no longer needs testing — verified on the Redmi against a real v1 database on
+   2026-08-11. See the prediction-ledger section.)
+5. Then Phase 4's luteal-length work, which the fertility window depends on.
 
 ## Version control
 
