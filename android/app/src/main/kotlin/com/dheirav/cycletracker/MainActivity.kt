@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.room.Room
 import com.dheirav.cycletracker.data.TrackerDatabase
+import com.dheirav.cycletracker.data.Settings
 import com.dheirav.cycletracker.reminder.EXTRA_OPEN_LOG
 import com.dheirav.cycletracker.reminder.ReminderScheduler
 import com.dheirav.cycletracker.ui.AppLockGate
@@ -74,19 +75,43 @@ class MainActivity : ComponentActivity() {
 
     private var openLogOnLaunch by mutableStateOf(false)
 
+    /**
+     * Applies [Settings.allowScreenshots] to the window.
+     *
+     * `FLAG_SECURE` keeps the cycle day and phase out of the app-switcher thumbnail, which would
+     * otherwise show them to anyone flicking through recents — the same over-the-shoulder threat the
+     * lock, the bloom launcher icon and the widget's discreet mode all address. It also blocks
+     * screenshots and screen recording, which is the cost, and why it is now a setting rather than a
+     * rule the app imposes.
+     *
+     * Callable at any time, and called from `onResume` as well as `onCreate` so the switch takes
+     * effect without a restart — the window flag is not something Compose can own.
+     *
+     * Debug builds never set it. `FLAG_SECURE` also blocks `adb screencap`, and on the test phone
+     * `adb shell input` is permanently unavailable and logcat is filtered, which leaves screenshots as
+     * one of only two ways to see what the app is doing (HANDOVER, "Traps that cost hours").
+     */
+    private fun applyScreenshotPolicy() {
+        val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+        val secure = !debuggable && !Settings(this).allowScreenshots
+        if (secure) {
+            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        applyScreenshotPolicy()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         openLogOnLaunch = intent?.getBooleanExtra(EXTRA_OPEN_LOG, false) == true
         enableEdgeToEdge()
 
-        // Keeps cycle data out of the app-switcher thumbnail, which would otherwise show the day
-        // and phase to anyone thumbing through recents — the same threat the lock addresses.
-        // Debug builds are exempt: FLAG_SECURE also blocks `adb screencap`, and with logcat
-        // filtered on the test device that is one of the only two ways left to see what the app
-        // is doing (HANDOVER, "Traps that cost hours").
-        if (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE == 0) {
-            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
-        }
+        applyScreenshotPolicy()
 
         setContent {
             CycleTrackerTheme {

@@ -136,6 +136,26 @@ class Settings(context: Context) {
         set(value) = prefs.edit().putBoolean(KEY_APP_LOCK, value).apply()
 
     /**
+     * Whether screenshots and the recents thumbnail are allowed. **Off by default.**
+     *
+     * `FLAG_SECURE` was unconditional in release builds, which blocks screen recording and screenshots
+     * and blanks the app-switcher preview. Blanking the preview is the part worth having: the recents
+     * screen would otherwise show the cycle day and phase to anyone flicking through it, which is the
+     * same over-the-shoulder threat the bloom launcher icon and the widget's discreet mode address.
+     *
+     * A setting rather than a fixed rule because the cost is real and lands on people the threat model
+     * does not fit — anyone who wants to screenshot a window to send to a partner, or record a screen
+     * for someone helping them, or keep a copy of the doctor summary as an image. The app should not
+     * decide that a person's home life is the one it imagined.
+     *
+     * Default stays private, so nobody has to know about this to be protected. Turning it on is an
+     * informed choice, and the switch says what it costs.
+     */
+    var allowScreenshots: Boolean
+        get() = prefs.getBoolean(KEY_ALLOW_SCREENSHOTS, false)
+        set(value) = prefs.edit().putBoolean(KEY_ALLOW_SCREENSHOTS, value).apply()
+
+    /**
      * True when a reminder should have fired by now and didn't.
      *
      * Deliberately conservative — it waits for a missed window plus most of a day, so a phone
@@ -170,6 +190,7 @@ class Settings(context: Context) {
         private const val KEY_WINDOW_WIDTH = "window_width"
         private const val KEY_WIDGET_DETAILS = "widget_shows_details"
         private const val KEY_APP_LOCK = "app_lock_enabled"
+        private const val KEY_ALLOW_SCREENSHOTS = "allow_screenshots"
 
         /** 21:00 — late enough that the day is done, early enough not to be asleep. */
         private val DEFAULT_REMINDER_SECONDS = LocalTime.of(21, 0).toSecondOfDay().toLong()

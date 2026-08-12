@@ -1,5 +1,6 @@
 package com.dheirav.cycletracker.ui
 
+import android.app.Activity
 import android.content.Context
 import android.hardware.biometrics.BiometricManager
 import android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_WEAK
@@ -7,6 +8,7 @@ import android.hardware.biometrics.BiometricManager.Authenticators.DEVICE_CREDEN
 import android.hardware.biometrics.BiometricPrompt
 import android.os.CancellationSignal
 import android.os.SystemClock
+import android.view.WindowManager
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -190,6 +193,7 @@ fun AppLockSection() {
     val settings = remember { Settings(context) }
     val available = remember { AppLock.available(context) }
     var enabled by remember { mutableStateOf(settings.appLockEnabled) }
+    var screenshots by remember { mutableStateOf(settings.allowScreenshots) }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -220,6 +224,49 @@ fun AppLockSection() {
                 } else {
                     "Unavailable: this device has no screen lock set up. Add a PIN, pattern or " +
                         "fingerprint in system settings to use the lock."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Allow screenshots", style = MaterialTheme.typography.titleSmall)
+                Switch(
+                    checked = screenshots,
+                    onCheckedChange = {
+                        screenshots = it
+                        settings.allowScreenshots = it
+                        // Applied to the window immediately rather than on the next launch. A privacy
+                        // switch that needs a restart to take effect is one people reasonably assume
+                        // did not work.
+                        (context as? Activity)?.let { activity ->
+                            if (it) {
+                                activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                            } else {
+                                activity.window.setFlags(
+                                    WindowManager.LayoutParams.FLAG_SECURE,
+                                    WindowManager.LayoutParams.FLAG_SECURE,
+                                )
+                            }
+                        }
+                    },
+                )
+            }
+            Text(
+                if (screenshots) {
+                    "On. You can screenshot and screen-record — and your cycle day and phase will " +
+                        "show in the app switcher, where anyone flicking through recent apps can " +
+                        "see them."
+                } else {
+                    "Off. Screenshots and screen recording are blocked, and the app switcher shows " +
+                        "a blank card instead of your cycle. Turn this on if you want to save or " +
+                        "send a screenshot."
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
