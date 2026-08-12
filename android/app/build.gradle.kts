@@ -73,6 +73,16 @@ android {
         }
     }
 
+    // `MigrationTestHelper` reads the exported schema from the **test APK's assets**, not from disk.
+    // Without this the instrumented migration test compiles, installs, and then throws at runtime
+    // looking for a schema that was never packaged — which is precisely how it failed on its first CI
+    // run. `room.schemaLocation` above only writes the JSON; this is what ships it.
+    sourceSets {
+        getByName("androidTest") {
+            assets.srcDirs("$projectDir/schemas")
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
