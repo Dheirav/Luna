@@ -61,6 +61,25 @@ jobs:
       - name: Build debug APK with shrinking
         run: ./gradlew :app:assembleDebug -PminifyDebug
 
+      # The authoritative INTERNET check, on the built artifact rather than on source.
+      #
+      # `copy-rules` greps the source tree, and that is not enough: `ACCESS_NETWORK_STATE` is in the
+      # shipped APK and appears nowhere in this repository — WorkManager's manifest contributes it
+      # during merge. The same route could contribute INTERNET, which is exactly the case the source
+      # grep claims to cover and does not. Only the APK knows what actually shipped.
+      - name: No INTERNET permission in the built APK
+        run: |
+          set -euo pipefail
+          AAPT=$(ls -d "$ANDROID_HOME"/build-tools/*/ | tail -1)aapt2
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          "$AAPT" dump permissions "$APK" > /tmp/perms.txt
+          echo "Permissions in the built APK:"
+          grep "uses-permission" /tmp/perms.txt || true
+          if grep -q "android.permission.INTERNET" /tmp/perms.txt; then
+            echo "::error::INTERNET reached the merged manifest. See README and rule 5."
+            exit 1
+          fi
+
       - name: Upload test reports on failure
         if: failure()
         uses: actions/upload-artifact@v4

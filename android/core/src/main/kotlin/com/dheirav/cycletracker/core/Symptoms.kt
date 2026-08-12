@@ -33,7 +33,21 @@ enum class Symptom(
 
     IRRITABILITY("irritability", "Irritability", BURDEN, isCore = false),
     ANXIETY("anxiety", "Anxiety", BURDEN, isCore = false),
-    LOW_MOOD("low_mood", "Low mood", BURDEN, isCore = false),
+    /**
+     * **Core, unlike the other three burdens.** Promoted 2026-08-12.
+     *
+     * Everything mood-related was behind the log form's "More" button, and on the one phone this app
+     * runs on it had never once been logged — which left `SymptomPatterns` empty, the clinical summary
+     * with no symptoms section, the mood widget able to say only what is *typical* rather than
+     * anything about this person, and Phase 4's correlation half with nothing to correlate. Four built
+     * features inert behind one collapsed section.
+     *
+     * One of the four, not all four: seven rows would break the form's own constraint of one screen
+     * and about ten seconds, which rule 4 makes the thing everything else depends on. Low mood is the
+     * one promoted because it is the most directly *mood* of the four — irritability, anxiety and
+     * stress all have obvious non-cycle causes, and the day tags already exist to record those.
+     */
+    LOW_MOOD("low_mood", "Low mood", BURDEN, isCore = true),
     STRESS("stress", "Stress", BURDEN, isCore = false);
 
     /** Human-readable anchor for a stored value, or null when out of range. */

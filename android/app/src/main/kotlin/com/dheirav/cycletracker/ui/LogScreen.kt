@@ -114,7 +114,9 @@ fun LogScreen(viewModel: LogViewModel, onSaved: () -> Unit) {
         }
 
         TextButton(onClick = viewModel::toggleExtended) {
-            Text(if (ui.showExtended) "Fewer" else "More — mood, stress")
+            // Named for what is actually behind it. "mood" moved to the core rows on 2026-08-12,
+            // so leaving it in this label would send someone hunting for a field already on screen.
+            Text(if (ui.showExtended) "Fewer" else "More — irritability, anxiety, stress")
         }
 
         if (ui.showExtended) {

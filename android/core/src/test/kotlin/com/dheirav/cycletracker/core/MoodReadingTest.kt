@@ -84,6 +84,26 @@ class MoodReadingTest {
         assertEquals(MoodSource.NOTHING, reading.source)
     }
 
+    /**
+     * At least one mood symptom must be reachable without opening "More".
+     *
+     * This is a guard on a product decision, not on arithmetic. Every burden symptom used to sit
+     * behind that collapsed section and none had ever been logged on the one phone this runs on, which
+     * left this whole file computing over an empty set — along with the clinical summary's symptom
+     * section and the mood widget's ability to say anything personal. Demoting the last core mood
+     * symptom would silently restore that state, and nothing else here would fail.
+     */
+    @Test
+    fun `at least one mood symptom is logged without opening More`() {
+        val coreMoods = Symptom.core.filter { it.isMood }
+
+        assertEquals(
+            "no mood symptom is in the core rows, so nothing can ever be logged into this",
+            true,
+            coreMoods.isNotEmpty(),
+        )
+    }
+
     // -- today outranks the tendency ---------------------------------------
 
     /**

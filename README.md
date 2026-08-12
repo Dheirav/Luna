@@ -77,11 +77,19 @@ Android SDK.
 ```bash
 cd android
 ./gradlew :core:test                          # engine + backup + scoring tests
-./gradlew :app:assembleDebug -PminifyDebug    # 7.6 MB rather than 25 MB — see HANDOVER
-./gradlew :app:assembleRelease
+./gradlew :app:assembleDebug -PminifyDebug    # runs R8 on the debug build — see HANDOVER
+./gradlew :app:assembleRelease                # 2.4 MB, signed if a keystore is present
 ```
 
 Requires JDK 17–21 and Android SDK 35. `minSdk` is 31.
+
+The debug APK is about 25 MB either way; `-PminifyDebug` shrinks the dex, not the package, and its
+real value is exercising the release ProGuard rules early. An earlier note here claimed 7.6 MB — that
+was the size of `classes.dex`, not of the APK.
+
+**Release signing** reads `android/keystore/keystore.properties`, which is gitignored along with the
+keystore. Without it `assembleRelease` still succeeds and produces an unsigned APK, which is what CI
+builds; unsigned APKs cannot be installed.
 
 ## Contributing
 
@@ -92,11 +100,27 @@ engine in `core/` is dependency-free and reasonably well tested if any of it is 
 
 This repository contains **no real cycle data**, deliberately. Every date in the tests and fixtures
 is synthetic. A backfill seed holding genuine period dates was removed and purged from the git
-history before this repository was ever published; `.gitignore` blocks every `*.db`, `*.db-wal` and
-`*.db-shm` so that a database pulled off a phone for debugging cannot be committed by accident.
+history before this repository was ever published, and verified gone on 2026-08-12 — no SQLite
+header appears in any object in any ref.
 
-If you fork this, keep that rule.
+It is enforced rather than remembered. `.gitignore` blocks databases, `.cyc` backups, exported
+clinical summaries and seed files; CI fails the build if any of them is ever committed, and separately
+reads the header of every tracked file, because a database renamed to something innocuous is still a
+database. CI also checks the **built APK** for the `INTERNET` permission rather than the source, since
+a dependency can contribute a permission during manifest merge without anyone writing a line —
+`ACCESS_NETWORK_STATE` is in the APK and in no file here, which is how that was noticed.
 
 ## Licence
 
-None yet. All rights reserved for now.
+**None, deliberately — all rights reserved.** Not an oversight, and not "not yet": the choice was made
+on 2026-08-12 and this line exists so nobody has to wonder.
+
+You can read all of it. The engine in `core/` is dependency-free, spec-driven and reasonably well
+tested, and the comments explain the reasoning rather than the mechanics, so it may be worth reading
+even though you cannot reuse it. If you want to use something here, ask.
+
+The reason is not proprietary interest. This is one person's medical tool, built to a specific spec
+with rules that only make sense together — a fork that kept the interface and dropped "absent is not
+zero", or that quietly widened a prediction window, would carry the same name and none of the care.
+Nobody is harmed by an unlicensed hobby project; someone could be harmed by a cycle tracker that
+looks trustworthy and is not.

@@ -27,6 +27,15 @@ cycle-summary-*.txt
 seed_*.json
 *_periods.json
 
+# Signing credentials. The keystore *is* the app's identity — anyone holding it can publish an
+# update that Android will accept as genuine. Losing it is equally bad in the other direction: a
+# differently-signed APK cannot be installed over an existing one without uninstalling first, which
+# deletes the database. Back both files up outside this repository.
+keystore/
+*.jks
+*.keystore
+keystore.properties
+
 # Local environment
 .venv/
 __pycache__/

@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -5,6 +7,26 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
 }
+
+/**
+ * Release signing, loaded from `keystore/keystore.properties` — which is gitignored, along with the
+ * keystore itself.
+ *
+ * **Absent by design on any machine but the author's**, so this must degrade rather than fail: CI has
+ * no keystore and must still build, and a fresh clone must still compile. When the file is missing,
+ * `signingConfigs` is simply not created and `assembleRelease` produces an unsigned APK exactly as it
+ * did before — which cannot be installed, but that is honest and is the pre-existing behaviour.
+ *
+ * The alternative, hardcoding a password or reading an environment variable that is usually unset,
+ * either commits a credential or fails confusingly. This fails only at the point where signing is
+ * actually attempted.
+ */
+val keystoreProperties = Properties().apply {
+    val f = rootProject.file("keystore/keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+val canSignRelease = keystoreProperties.getProperty("storeFile") != null &&
+    rootProject.file("keystore/${keystoreProperties.getProperty("storeFile")}").exists()
 
 android {
     namespace = "com.dheirav.cycletracker"
@@ -30,8 +52,21 @@ android {
 
     }
 
+    if (canSignRelease) {
+        signingConfigs {
+            create("release") {
+                storeFile = rootProject.file("keystore/${keystoreProperties.getProperty("storeFile")}")
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // Null when no keystore is present, which leaves the APK unsigned rather than failing.
+            signingConfig = signingConfigs.findByName("release")
             ndk {
                 // One known phone, so the shipped APK carries one ABI.
                 //
