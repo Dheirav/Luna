@@ -148,5 +148,9 @@ private suspend fun buildSummary(context: android.content.Context): String {
         expectedCycleLength = state.expectedCycleLength,
         flags = HealthFlags.evaluate(projection, today, state.expectedCycleLength),
         symptomSummaries = state.phase?.let { SymptomPatterns.summarise(observations, it) }.orEmpty(),
+        // Read from the logs rather than from the summaries, because that is the whole point: the
+        // summaries are empty both when nothing was logged and when the phase could not be worked
+        // out, and only this side can tell those apart.
+        anySymptomsLogged = symptomsByDate.values.any { it.isNotEmpty() },
     )
 }
