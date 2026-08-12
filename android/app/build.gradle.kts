@@ -28,15 +28,25 @@ android {
         versionCode = 1
         versionName = "0.1.0"
 
-        ndk {
-            // One known phone. Kept even though SQLCipher was dropped (see HANDOVER) — costs
-            // nothing while there are no native libs, and is already correct if any arrive.
-            abiFilters += "arm64-v8a"
-        }
     }
 
     buildTypes {
         release {
+            ndk {
+                // One known phone, so the shipped APK carries one ABI.
+                //
+                // **Release only, and it stopped being free.** This used to sit in `defaultConfig`
+                // with a comment saying it "costs nothing while there are no native libs" — no longer
+                // true. Compose pulls in `libandroidx.graphics.path.so`, so the filter now genuinely
+                // excludes ABIs, and an arm64-only debug APK **cannot install on an x86_64 emulator**.
+                // AGP reports that as "Found 1 connected device(s), 0 of which were compatible",
+                // which reads like a broken emulator and is not.
+                //
+                // That is what blocked the migration test in CI. Debug is unfiltered so it installs
+                // anywhere; release keeps the single ABI, where the size actually matters.
+                abiFilters += "arm64-v8a"
+            }
+
             // The difference between ~12 MB and ~35 MB.
             isMinifyEnabled = true
             isShrinkResources = true
