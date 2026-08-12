@@ -32,7 +32,7 @@ Governing rules (full list in the plan artifact):
 | | Verified how |
 |---|---|
 | Phase 0 — spec + golden fixture | 34 cases, `spec/cycle_fixtures.json` |
-| Cycle/period/phase engine (`:core`) | `./gradlew :core:test` — **85 tests, all pass** |
+| Cycle/period/phase engine (`:core`) | `./gradlew :core:test` — **121 tests, all pass** (plus 5 in `:app`) |
 | Encrypted backup codec | 11 tests incl. tamper detection, wrong-passphrase, no-plaintext-leak |
 | Forecast window / prediction scorer | 16 + 13 tests |
 | Health flags, symptom patterns, clinical summary | 14 + 12 + 11 tests |
@@ -135,15 +135,29 @@ cannot mask a reminder that never fired.
   different question, and only *Last fired* the next morning answers it.
 - **Reminder-health detector** — `Settings.reminderLooksBroken()`. Surfaces a warning card when the
   reminder was due and didn't run. Exists because vendor ROMs kill background work silently.
-- **Encrypted export/restore UI** — SAF file picker + passphrase dialog. The codec is tested; the
-  Android file plumbing is not.
-- **Clinical summary export** (2026-08-12) — plain-text SAF write. Generator has 11 tests; the file
-  plumbing shares the untested path above.
-- **Most surfaces since the pastel redesign.** Today was seen on the Redmi in dark mode on
-  2026-08-12 and is correct — see the visual-design section. Not yet seen: the calendar at 440dpi,
-  light mode, health-flag cards (nothing is currently flagged), the summary card, and the reminder
-  status block. `adb shell input` was blocked again that session, so nothing behind a tap could be
-  reached; screenshots from the user are the way through.
+- **Most surfaces since the pastel redesign.** Today, History, the reminder status block and the
+  summary card were all seen on the Redmi on 2026-08-12 and are correct. Still unseen: health-flag
+  cards (nothing is currently flagged), and the estimated-day marker on a real calendar cell — this
+  phone's data appears to contain no assumed bleeding days left, so there is nothing for it to draw on.
+- **The mood widget** (2026-08-12) — registered and installed, never placed on a home screen. Its
+  `UNKNOWN` state is what this phone will show: `SymptomPatterns` finds no mood data at all here,
+  because all four burden symptoms sit behind the log form's "More" button.
+- Boot receiver, notification permission prompt.
+
+#### Backup, restore and the clinical summary — verified on device 2026-08-12
+
+Previously listed here as untested plumbing. All three were exercised through the real SAF picker:
+
+| Step | Evidence |
+|---|---|
+| **Export** | Header `CYCBK`, format version 1. Two exports of identical data produced **different salt, IV and ciphertext at identical length** — so the codec's "never the same bytes twice" claim holds in practice. |
+| **Save summary** | 46 lines, correct opening and closing markers, trailing newline, no off-vocabulary words. |
+| **Restore** | Month-by-month row distribution **identical before and after**. The failure a naive restore would produce is duplication, and every count is unchanged. |
+| Throughout | No `BackupException`, no `AndroidRuntime`, no `FATAL`; the app never left the foreground. |
+
+**Still untested: `AppLock`'s 60-second grace.** The lock was switched off during the run, so the
+picker never backgrounded a locked app. Testing it means switching *Require unlock* back on first and
+browsing slowly in the picker — otherwise it passes for the wrong reason.
 - Boot receiver, notification permission prompt.
 - The backfill banner's *That's right* / *Remove* buttons were confirmed working on the Redmi.
 
@@ -402,8 +416,42 @@ visibility, and one hardcoded number**:
 
 ### Not started
 
-- Phases 4 and 6, and the fertility window from Phase 5 — which depends on Phase 4's luteal-length
-  work first. (Health flags, the other Phase 5 item, shipped on 2026-08-11; see above.)
+- Phase 6. (Health flags, the other Phase 5 item, shipped on 2026-08-11; see above.)
+
+### Phase 4 — closed as blocked, not abandoned (2026-08-12)
+
+**Read this before reopening it.** `core/…/LutealLength.kt` is written and has 13 tests. It implements
+the three-over-six temperature rule §7 prescribes and it is **dormant — nothing calls it, and nothing
+should until a temperature source exists.**
+
+Why it stopped: §7 permits refining luteal length *only* from basal body temperature or a wearable
+skin-temperature shift, and forbids inferring it from cycle-length variance because that is circular.
+The circularity is easy to walk into: ovulation day is derived **from** expected cycle length, so a
+luteal length derived from observed cycle lengths agrees with the prediction by construction whatever
+the body did — and then feeds the fertility window looking like a measurement.
+
+Both permitted sources were considered and rejected on 2026-08-12:
+
+- **Manual basal temperature** — a reading before sitting up, most mornings, for at least three
+  cycles. Judged an unreasonable ask. It is made worse by the method's own failure mode: patchy
+  measurement does not produce "no answer", it produces a luteal phase that is **too short**, with
+  nothing on screen to distinguish the two. See the test `a gap inside a run delays the shift rather
+  than reading through it`.
+- **A wearable** — genuinely possible. Health Connect reads skin temperature entirely on-device, so it
+  would not breach the no-internet rule. It needs hardware that records and exports it; a Galaxy Watch
+  or Oura does, the Xiaomi band here does not. **This is the route to take if the hardware ever
+  changes** — the analysis is already done.
+
+Until then the app keeps `CycleConfig.defaultLutealLength = 14` and calls it an assumption, which is
+the honest end state rather than a gap. **The fertility window (Phase 5) stays blocked behind this**,
+and should not be built on an assumed luteal length.
+
+### Two phase numberings — `PROJECT_STATUS.md` is the legacy one
+
+`PROJECT_STATUS.md` is the **old Python project's** roadmap (`config/rules.yaml`, `src/`, `main.py`).
+Its "Phase 4: Platform Expansion — Android app (Kotlin port)" is *this app*, which exists. Its phase
+numbers do not correspond to the ones used here or in `CYCLE_RULES.md`. It cost a wrong turn on
+2026-08-12; treat it as history.
 
 ### Decided against — SQLCipher (2026-08-11)
 
@@ -558,7 +606,34 @@ phone (~1.2–1.5 GB working set). The A35's 6–8 GB reopens it.
    and expires fast — connecting to it yields an `offline` transport. The port you want is on the
    main Wireless debugging screen under "IP address & Port".
 4. **There is no `sqlite3` binary on the device.** Pull the database instead (below).
-5. USB does not reach WSL — no `/dev/bus/usb`, no usbip client. Would need `usbipd-win` on Windows.
+5. **USB does not reach WSL** — no `/dev/bus/usb`, no usbip client. Would need `usbipd-win` on
+   Windows. Attempting USB on 2026-08-12 also produced `adbd: timed out while waiting for
+   FUNCTIONFS_BIND` and a transport that flapped between `offline` and `unauthorized` while
+   `transport_id` climbed; the phone's own USB stack is unreliable. Not worth pursuing.
+
+   **The fix is the Windows adb, not WSL's.** `/mnt/c/Users/<user>/AppData/Local/Android/Sdk/platform-tools/adb.exe`
+   discovers the phone over `_adb-tls-connect._tcp` by itself and holds the connection, so **no port
+   number is needed at all** — which sidesteps trap 2 entirely. WSL's adb cannot do this: WSL2's NAT
+   blocks mDNS multicast, so `adb mdns services` there returns nothing.
+
+   **Only one adb server may run.** `adbd` accepts a single connection, so a WSL server and a Windows
+   server steal the device from each other — which looks exactly like a flaky device, and cost about
+   an hour on 2026-08-12 being misread as one. Kill one before using the other. Pulls from the Windows
+   adb must name a Windows path (`C:\...`), readable from WSL under `/mnt/c/...`.
+6. **`adb shell input` is permanently unavailable on the Redmi, not intermittently.** Every attempt
+   returns `SecurityException: INJECT_EVENTS`. On Xiaomi, event injection is gated behind *USB
+   debugging (Security settings)*, a separate toggle from plain USB debugging, which requires a signed-in
+   Mi account, which requires a SIM — and there is no SIM in this phone. So **no tap, swipe or
+   `KEYCODE_WAKEUP` will ever work here.** Earlier notes describing this as blocked "as often as not"
+   were wrong and sent at least one session hunting an intermittent fault.
+
+   The one exception: `adb shell monkey -p <pkg> -c android.intent.category.LAUNCHER 1` **does** launch
+   the app, via a different path. Do not use `monkey` for anything else — its other modes send random
+   events, and this app writes health data.
+
+   Consequence for planning: anything behind a tap needs a human. Screenshots plus `dumpsys` are the
+   only channels, and the screen must be awake — `screencap` on a sleeping screen returns a valid,
+   entirely black PNG of about 15 KB rather than an error.
 6. **The WSL box and the phone are in different timezones** — the box is UTC+4, the Redmi UTC+5:30.
    Every timestamp in the app's prefs and in WorkManager is epoch millis, so converting them with
    `datetime.fromtimestamp` on the host reads **1h30m earlier than the phone's own clock**. A
@@ -568,14 +643,25 @@ phone (~1.2–1.5 GB working set). The A35's 6–8 GB reopens it.
 ### What does work
 
 ```bash
+# Prefer the Windows adb: it finds the phone by mDNS and needs no port. See trap 5.
+# Use ONE adb server only — kill the other first.
+WADB=/mnt/c/Users/<user>/AppData/Local/Android/Sdk/platform-tools/adb.exe
+"$WADB" kill-server; "$WADB" start-server; sleep 8; "$WADB" devices   # rediscovers on its own
+
+# WSL's adb, if you must. Both IP and port change; read them off the device each time.
 export PATH="$HOME/Android/Sdk/platform-tools:$PATH"
-adb connect <PHONE_IP>:<PORT>          # both change; read them off the device
+adb kill-server && adb connect <PHONE_IP>:<PORT>
 
 # Inspect UI state — this replaces logcat. Gives text, bounds and selected/checked.
 adb shell uiautomator dump /sdcard/ui.xml && adb shell cat /sdcard/ui.xml
 
-# Tap accurately: parse bounds from the dump, never guess coordinates.
-adb shell input tap <x> <y>
+# NOT AVAILABLE on the Redmi — `input` needs INJECT_EVENTS, which needs a Mi account. See trap 6.
+# Anything behind a tap requires a human. This line is kept only so nobody re-tries it.
+#   adb shell input tap <x> <y>
+
+# Screenshots. The screen must be awake or this yields a valid all-black ~15KB PNG.
+adb shell screencap -p /sdcard/s.png && adb pull /sdcard/s.png . && adb shell rm /sdcard/s.png
+# (`adb exec-out screencap -p > f.png` has returned 0 bytes on this device. Use the two-step form.)
 
 # Read the database (no sqlite3 on device — pull all three files, WAL matters)
 PKG=com.dheirav.cycletracker.debug
@@ -676,25 +762,42 @@ receiver exists to cover.
 1. **Check *Last fired* the morning after a day the app went unopened.** The only unproven thing left
    in the reminder. A short delay is proven and *Send one now* proves the posting path; the 24-hour
    delay is not, and — see "The reminder does fire" — every app launch replaces the pending job with a
-   shorter one, so a normal day never tests it. Settings → Daily reminder shows *Last fired* and the
-   queue state. If it stalls, `ENQUEUED` with an old *Last fired* means the ROM dropped the wakeup —
-   battery and Autostart are the only remedies.
-2. **Add a drift test for `Forecast.basis()`.** It reproduces the branch structure of
-   `CycleStats.expectedCycleLength` by hand and nothing catches divergence. Change the precedence rule
-   in one and not the other and the app states a *basis* that contradicts the *number* it is
-   explaining — the one failure this app exists to not have. Pure `:core`, no emulator.
-3. **Test backup export/restore on device** — the codec is tested, the SAF plumbing is not. Watch
-   the app lock during this: the file picker backgrounds the app, and the 60-second grace in
-   `AppLock` is what stops a re-auth prompt landing mid-export. The grace itself is verified;
-   what is not is whether a slow browse through the picker exceeds it. The clinical-summary export
-   shares this path.
-4. **Look at the screens still unseen** — light mode, the calendar at 440dpi, the summary card, the
-   reminder status block. `adb shell input` is blocked on the Redmi as often as not, so screenshots
-   from the user are the reliable channel.
-   (The v1→v2 migration no longer needs testing — verified on the Redmi against a real v1 database on
-   2026-08-11. See the prediction-ledger section. The hero card's overlapping hearts are fixed —
-   commit `8a579cf`.)
-5. Then Phase 4's luteal-length work, which the fertility window depends on.
+   shorter one, so a normal day never tests it. If it stalls, `ENQUEUED` with an old *Last fired* means
+   the ROM dropped the wakeup — battery and Autostart are the only remedies.
+2. **Give the mood fields a reason to be logged.** All four burden symptoms sit behind the log form's
+   "More" button, and nothing on this phone has ever been logged into them — which is why
+   `SymptomPatterns` is empty, why the clinical summary has no symptoms section, and why the mood
+   widget will read *Typically: …* rather than anything personal. Promoting one out from behind "More",
+   or routing the mood widget's tap into a mood-first form, is the smallest change that unblocks all
+   three. **This also gates the other half of Phase 4** — the symptom/phase correlation work
+   `SymptomPatterns` defers to it needs symptom data to correlate.
+3. **Decide what a day's value is when a symptom is logged twice.** `upsertSymptoms` uses
+   `OnConflictStrategy.REPLACE`, so re-logging already works and silently keeps the *last* value. That
+   is an undocumented, implicit rule of exactly the kind removed from the clinical summary on
+   2026-08-12. Worst-of-day would be consistent with `MoodReadings`, which takes the worst of the four
+   burdens rather than their mean. About ten lines, and no migration.
+
+   A **timestamped** multiple-entries-per-day schema was considered and deferred the same day: it needs
+   Room v2→v3 on real data, plus DAO, repository, log form, `SymptomPatterns` and a `FORMAT_VERSION`
+   bump in the backup codec. Revisit only once mood is actually being logged and there is a surface
+   that wants to *show* within-day variation, rather than merely capture it.
+4. **Verify `AppLock`'s 60-second grace** during a slow browse in the file picker. Requires switching
+   *Require unlock* back on first — it is currently off, so an export would pass for the wrong reason.
+5. **Place the mood widget and the resized cycle widget on a home screen.** Neither has been seen.
+   Note Android applies `targetCellWidth/Height` only to *newly placed* widgets, so an existing widget
+   keeps its old size until removed and re-added.
+6. **Fix the stale comment in `TodayScreen`.** Its KDoc says "No character or face here, deliberately"
+   and the card has had a face since the pastel redesign. Worse, `MascotMood` derives that face from the
+   phase alone — the app inferring a mood from a calendar, which is precisely what the mood widget was
+   built to avoid. Switching the hero to the same log-driven `MoodReadings` source is the highest-value
+   follow-on from that work.
+7. **Consider the `· estimated` label's contrast** in the History month list (`HistoryScreen.kt:188`).
+   `cycle.estimated` doubles as a text colour there; darkening it on 2026-08-12 took it from roughly
+   1.9:1 to 2.6:1 against the cream card, still short of AA for an 11sp label. The proper fix is to let
+   the *word* carry the meaning and give the text a normal on-surface colour — a design call, not a bug.
+
+Phase 4 is **closed as blocked** — see its own section. Phase 5's fertility window stays blocked behind
+it and must not be built on an assumed luteal length.
 
 ## Version control
 

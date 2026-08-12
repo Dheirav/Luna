@@ -56,6 +56,27 @@ data class LutealEstimate(
 /**
  * Phase 4 — learning luteal length from basal body temperature.
  *
+ * **DORMANT. Nothing calls this, and nothing is expected to.** It is complete and tested, and it has
+ * no data source, because the app records no temperature and the decision was taken (2026-08-12) not
+ * to add one:
+ *
+ *  - **Manual basal temperature was rejected as unreasonable to ask for.** It means a thermometer at
+ *    the bedside and a reading before sitting up, most mornings, for at least three cycles. And per
+ *    `a gap inside a run delays the shift rather than reading through it`, patchy measurement does not
+ *    fail loudly — it silently returns a luteal phase that is too short. Half-hearted logging here is
+ *    worse than none, which makes it a bad thing to ask of someone who is unsure.
+ *  - **A wearable source is possible but not available.** Health Connect can read skin temperature
+ *    entirely on-device, so it would not breach the no-internet rule. It needs hardware that records
+ *    and exports it — a Galaxy Watch or Oura will, the Xiaomi band on this project will not.
+ *
+ * So this file exists for one reason: if a temperature source ever appears, the analysis is already
+ * written and does not have to be re-derived from a spec clause. **Do not wire it to anything else.**
+ * In particular do not feed it estimated cycle lengths to "get it working" — that is precisely the
+ * circular route §7 forbids, and the code refuses assumed cycles specifically to make that harder.
+ *
+ * Until then the app keeps `CycleConfig.defaultLutealLength` and calls it an assumption, which is the
+ * honest end state rather than a gap.
+ *
  * `CYCLE_RULES.md` §7 is specific about what is permitted here:
  *
  * > Learned luteal length. Fixed at 14 for now. Refine only with real evidence — basal body

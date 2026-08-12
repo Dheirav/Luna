@@ -1,5 +1,19 @@
 # Menstrual Cycle Intelligence System - Implementation Complete
 
+> ## ⚠️ Historical document — this describes the **Python prototype**, not Luna
+>
+> This is the status of the original Python tree (`src/`, `config/rules.yaml`, `main.py`), which
+> `docs/HANDOVER.md` describes as *"reference material only and not being repaired"* — three of its
+> defects are documented in `docs/CYCLE_RULES.md` and were deliberately not carried over.
+>
+> **Its phase numbering is not Luna's.** "Phase 4: Platform Expansion — Android app (Kotlin port)"
+> below *is* Luna, which exists and ships. Luna's own phases are in `docs/HANDOVER.md`, where Phase 4
+> means learned luteal length — a completely different piece of work. Reading the two as one numbering
+> cost a wrong turn on 2026-08-12.
+>
+> For current state, read **`docs/HANDOVER.md`**. For the rules, **`docs/CYCLE_RULES.md`**.
+> Nothing here is a to-do list.
+
 ## 📊 Project Status: **COMPLETE** ✅
 
 All core implementation, documentation, and supporting infrastructure delivered.
