@@ -334,7 +334,7 @@ private fun NextPeriodCard(window: PeriodWindow) {
             Text(
                 "${window.earliest.format(dayMonth)} – ${window.latest.format(dayMonth)}",
                 style = MaterialTheme.typography.headlineSmall,
-                // "21 Aug – 29 Aug" reads as two dates and a dash out loud.
+                // A bare "1 Jan – 9 Jan" reads as two dates and a dash out loud.
                 modifier = Modifier.semantics {
                     contentDescription = "Expected between ${window.earliest.format(dayMonth)} " +
                         "and ${window.latest.format(dayMonth)}"
