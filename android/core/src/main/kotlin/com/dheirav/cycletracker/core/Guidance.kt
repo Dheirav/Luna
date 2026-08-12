@@ -22,6 +22,20 @@ data class PhaseGuidance(
     val summary: String,
     /** What mood and energy commonly do here. Hedged on purpose — these vary enormously. */
     val mood: String,
+    /**
+     * [mood] compressed to a single clause, for places with one line and no room to hedge at length.
+     *
+     * **Written to follow the word "Typically" and to contain no second person.** The full [mood]
+     * text can afford "many people feel…"; a widget row cannot, so the framing has to come from the
+     * surface and the phrase itself must never read as a statement about the reader. That is why
+     * these say "energy at its lowest" rather than "you will feel flat" — the same content, with the
+     * subject removed rather than implied.
+     *
+     * Kept beside [mood] instead of derived from it. Taking the first sentence would be shorter to
+     * write and would produce a different claim in each phase, since the first sentences are not
+     * uniformly hedged.
+     */
+    val moodBrief: String,
     val movement: List<String>,
     val nourishment: List<String>,
     val selfCare: List<String>,
@@ -49,6 +63,7 @@ object Guidance {
             mood = "Energy is often at its lowest, and many people feel flat, tender or inward " +
                 "for the first couple of days. Some feel relief once bleeding starts, " +
                 "particularly if the days before were rough.",
+            moodBrief = "low energy, often flat or tender",
             movement = listOf(
                 "Gentle movement — stretching, restorative yoga, an easy walk",
                 "Rest days are a legitimate choice here, not a failure of discipline",
@@ -74,6 +89,7 @@ object Guidance {
             mood = "Often the most open stretch of the cycle — mood lifts, patience returns, " +
                 "and new things feel possible again. A good window for anything that needs " +
                 "optimism to start.",
+            moodBrief = "mood lifts, patience returns",
             movement = listOf(
                 "Build intensity gradually as energy returns",
                 "Good time to start something new or add load",
@@ -98,6 +114,7 @@ object Guidance {
             mood = "Frequently the most outward and confident few days — verbal, social, " +
                 "physically capable. Some people get a short dip or a twinge of pain right at " +
                 "release, which is common and usually brief.",
+            moodBrief = "outward, social, confident",
             movement = listOf(
                 "Strength and power tend to peak here — a good time to test yourself",
                 "High intensity work, sprints, competitive sport",
@@ -124,6 +141,7 @@ object Guidance {
                 "harder in the last few days as hormones fall — irritability, low mood, anxiety " +
                 "and poorer sleep are all common then. Appetite frequently rises, which is " +
                 "physiological rather than a lapse.",
+            moodBrief = "steady, then often harder near the end",
             movement = listOf(
                 "Consistency over intensity — keep moving, skip the new maximums",
                 "Steady cardio, moderate strength work",

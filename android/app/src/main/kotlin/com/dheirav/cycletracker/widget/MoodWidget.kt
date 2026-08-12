@@ -12,10 +12,12 @@ import com.dheirav.cycletracker.MainActivity
 import com.dheirav.cycletracker.R
 import com.dheirav.cycletracker.core.CycleEngine
 import com.dheirav.cycletracker.core.CycleProjector
+import com.dheirav.cycletracker.core.Guidance
 import com.dheirav.cycletracker.core.MoodFace
 import com.dheirav.cycletracker.core.MoodReading
 import com.dheirav.cycletracker.core.MoodReadings
 import com.dheirav.cycletracker.core.MoodSource
+import com.dheirav.cycletracker.core.Phase
 import com.dheirav.cycletracker.core.PhaseObservation
 import com.dheirav.cycletracker.core.Symptom
 import com.dheirav.cycletracker.data.Settings
@@ -129,13 +131,14 @@ private suspend fun buildMoodViews(context: Context): RemoteViews {
             rows.mapNotNull { row -> Symptom.byKey(row.key)?.let { it to row.value } }.toMap()
         }
 
+    val phase = stateOn(today).phase
     val reading = MoodReadings.read(
         todaysSymptoms = symptomsByDate[today].orEmpty(),
         observations = logs.map { PhaseObservation(stateOn(it.date).phase, symptomsByDate[it.date].orEmpty()) },
-        phase = stateOn(today).phase,
+        phase = phase,
     )
 
-    val (headline, evidence) = wording(reading)
+    val (headline, evidence) = wording(reading, phase)
     return views.showing(reading.face, headline, evidence)
 }
 
@@ -146,8 +149,17 @@ private suspend fun buildMoodViews(context: Context): RemoteViews {
  * the act of logging, which is a fact, rather than a state of mind, which the app has no access to.
  * Today's entry is the one case allowed to be flat, because it is the user's own report of their own
  * day and hedging it would be strange.
+ *
+ * The empty state borrows [Guidance], and the seam between the two is the whole point. Guidance is
+ * population-level and says so in the first word — "Typically" — while everything else here is the
+ * user's own data and speaks in the second person. `Guidance`'s own contract is that the two must
+ * never be blended, and this keeps them apart in the only two ways a one-line widget can: the
+ * grammatical person, and the fact that guidance never moves the face off
+ * [MoodFace.UNKNOWN]. A face is inherently first-person — a frowning cloud reads as "you are low"
+ * whatever caption sits beside it — so population content is allowed to inform the words and never
+ * the picture.
  */
-private fun wording(reading: MoodReading): Pair<String, String> = when (reading.source) {
+private fun wording(reading: MoodReading, phase: Phase?): Pair<String, String> = when (reading.source) {
     MoodSource.TODAY -> {
         val symptom = reading.symptom
         val level = reading.level
@@ -177,8 +189,15 @@ private fun wording(reading: MoodReading): Pair<String, String> = when (reading.
         }
     }
 
-    MoodSource.NOTHING ->
-        "Not enough logged yet" to "Tap to log mood, stress, anxiety or irritability"
+    // Nothing of the user's own to show. With a known phase there is still something true to say —
+    // what is common in it — which turns a dead-end into the only thing this widget can offer before
+    // there are logs. Without a phase there is not even that: no periods logged means no phase, and
+    // §6 forbids inventing one.
+    MoodSource.NOTHING -> if (phase == null) {
+        "Not enough logged yet" to "Tap to log how you feel"
+    } else {
+        "Typically: ${Guidance.forPhase(phase).moodBrief}" to "Common here — log yours"
+    }
 }
 
 private fun plural(n: Int) = if (n == 1) "" else "s"

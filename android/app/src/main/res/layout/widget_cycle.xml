@@ -20,6 +20,13 @@
     log today", which is instruction rather than information, and the whole widget was already the
     tap target. What the action line uniquely carried, whether today is logged, moved into the
     detail line as a tick, because that is the one question this widget exists to answer quickly.
+
+    **Now 2x1, and that width does not fit every string.** "Day 16 · Follicular" is the longest
+    headline the app can produce and it will clip to an ellipsis at two cells on a dense launcher
+    grid. That is deliberate rather than overlooked: an ellipsis is visible truncation, so the reader
+    can see something was cut and drag the widget wider — `targetCellWidth` is a default, not a cap.
+    The alternative was dropping a fact to guarantee a fit, and clipping a label is cheaper than
+    losing the window date or the tick.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
@@ -34,7 +41,7 @@
         android:id="@+id/widget_headline"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textSize="16sp"
+        android:textSize="15sp"
         android:textStyle="bold"
         android:textColor="@color/widget_text"
         android:maxLines="1"
