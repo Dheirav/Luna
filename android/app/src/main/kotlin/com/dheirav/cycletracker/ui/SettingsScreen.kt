@@ -43,7 +43,7 @@ import com.dheirav.cycletracker.core.WindowWidth
 import com.dheirav.cycletracker.data.Settings
 import com.dheirav.cycletracker.reminder.ReminderScheduler
 import com.dheirav.cycletracker.reminder.ReminderStatus
-import com.dheirav.cycletracker.widget.refreshCycleWidgets
+import com.dheirav.cycletracker.widget.refreshWidgets
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
@@ -488,7 +488,7 @@ private fun WidgetCard(settings: Settings) {
                 onCheckedChange = {
                     details = it
                     settings.widgetShowsDetails = it
-                    refreshCycleWidgets(context)
+                    refreshWidgets(context)
                 },
             )
         }

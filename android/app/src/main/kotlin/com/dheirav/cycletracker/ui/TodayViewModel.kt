@@ -18,7 +18,7 @@ import com.dheirav.cycletracker.core.Projection
 import com.dheirav.cycletracker.data.PredictionLedger
 import com.dheirav.cycletracker.data.Settings
 import com.dheirav.cycletracker.reminder.ReminderScheduler
-import com.dheirav.cycletracker.widget.refreshCycleWidgets
+import com.dheirav.cycletracker.widget.refreshWidgets
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -107,7 +107,7 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
         // Push the widget rather than waiting on updatePeriodMillis, which the system clamps and
         // vendor ROMs throttle. A widget disagreeing with the screen beside it is worse than one
         // that is simply plain.
-        refreshCycleWidgets(getApplication())
+        refreshWidgets(getApplication())
 
         _ui.value = TodayUiState(
             loading = false,

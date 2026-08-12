@@ -242,13 +242,24 @@ private fun phaseTint(phase: Phase?): Int = when (phase) {
 }
 
 /**
- * Pushes a refresh to every placed widget.
+ * Pushes a refresh to **every** widget the app has.
  *
  * Called after any log edit and from the reminder worker, because `updatePeriodMillis` is a
  * backstop that vendor ROMs throttle — the same reason the reminder's health is measured rather
  * than assumed. Safe to call when no widget is placed; it is a no-op.
+ *
+ * One function for all widgets rather than one per widget, and named for what it does rather than
+ * for the cycle widget it started as. Five call sites push refreshes; if each had to remember to
+ * call a second function, the mood widget would go stale at whichever site someone forgot, and it
+ * would go stale silently — a face showing yesterday's answer looks exactly like a face showing
+ * today's.
  */
-fun refreshCycleWidgets(context: Context) {
+fun refreshWidgets(context: Context) {
+    refreshCycleWidgets(context)
+    refreshMoodWidgets(context)
+}
+
+private fun refreshCycleWidgets(context: Context) {
     val manager = AppWidgetManager.getInstance(context)
     val ids = manager.getAppWidgetIds(component(context))
     if (ids.isEmpty()) return

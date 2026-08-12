@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Separate from widget_info.xml, and a separate widget, on purpose. The cycle widget was just cut
+    to 3x1 for glanceability; this one needs a face beside a hedged sentence and a sample size, which
+    does not fit in one cell. Two widgets each doing one thing beats one widget doing both badly.
+
+    updatePeriodMillis matches the cycle widget's reasoning: a six-hour backstop, not the mechanism.
+    Real updates are pushed after any log edit — see refreshWidgets — because a mood reading that
+    ignored the entry made a minute ago would be the exact failure this feature is built to avoid.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="180dp"
+    android:minHeight="80dp"
+    android:targetCellWidth="3"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="21600000"
+    android:initialLayout="@layout/widget_mood"
+    android:previewLayout="@layout/widget_mood"
+    android:description="@string/mood_widget_description"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen" />

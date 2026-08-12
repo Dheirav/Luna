@@ -6,7 +6,7 @@ import android.content.Intent
 import androidx.core.app.NotificationManagerCompat
 import com.dheirav.cycletracker.CycleTrackerApp
 import com.dheirav.cycletracker.data.DailyLogEntity
-import com.dheirav.cycletracker.widget.refreshCycleWidgets
+import com.dheirav.cycletracker.widget.refreshWidgets
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -63,7 +63,7 @@ class LogActionReceiver : BroadcastReceiver() {
                         source = "OBSERVED",
                     ),
                 )
-                refreshCycleWidgets(context)
+                refreshWidgets(context)
             } finally {
                 pending.finish()
             }

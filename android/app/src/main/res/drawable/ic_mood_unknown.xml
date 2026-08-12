@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The cloud that does not know. A flat dash for a mouth — deliberately not a faint smile, which would read as "you're fine" about a mood nobody logged. This is what a new user sees, so it is the state that matters most.
+
+    Four faces share one silhouette so they read as a single character changing expression rather
+    than four unrelated icons. Only the eyes and mouth differ.
+
+    **One path, fillType="evenOdd".** The eyes and mouth are holes in the cloud, not shapes drawn on
+    top of it, so a single runtime tint colours the whole icon and the widget background shows
+    through the face. Two-tone would need either a fixed palette that breaks in one theme or a
+    duplicate set of drawables under drawable-night. Same lesson as the notification icon: let the
+    shape carry the meaning.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M12,34 C6,34 6,25 13,24 C12,16 22,12 27,18 C33,13 42,18 40,25 C45,27 44,34 38,34 Z M18,25 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0 Z M29,25 a2,2 0 1,0 4,0 a2,2 0 1,0 -4,0 Z M21,30 h9 v1.8 h-9 Z" />
+</vector>

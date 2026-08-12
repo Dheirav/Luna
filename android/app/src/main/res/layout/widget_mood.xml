@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The mood widget: a face, and the sentence that licenses it.
+
+    **The face is never alone here, and that is the design.** A face is a confident-looking object
+    and cannot express "probably" by itself — a frown reads as a statement about today whatever the
+    intent. So the words carry the hedge and the evidence, and the face is only ever a glanceable
+    summary of text that is actually present. This is the same rule `MascotMood` states for the hero
+    card: never the only indicator of anything.
+
+    Only LinearLayout, ImageView and TextView — all annotated `@RemoteView`. RemoteViews inflates in
+    the launcher's process and silently reports anything else as "Can't load widget" with no clue as
+    to which line caused it. See widget_cycle.xml for the longer version of that lesson.
+
+    The face is an ImageView rather than the Compose `MascotCloud`, because RemoteViews cannot host a
+    Canvas. That means the character exists twice in this codebase; the drawables are the widget's
+    copy and are deliberately simpler.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/mood_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@drawable/widget_background"
+    android:padding="14dp">
+
+    <ImageView
+        android:id="@+id/mood_face"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_marginEnd="12dp"
+        android:src="@drawable/ic_mood_unknown"
+        android:importantForAccessibility="no" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/mood_headline"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="@color/widget_text"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:text="Not enough logged yet" />
+
+        <!-- The sample size. Small, and never omitted when there is one: "usually" resting on six
+             days and on sixty are different claims, and the difference belongs on screen. -->
+        <TextView
+            android:id="@+id/mood_evidence"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textSize="11sp"
+            android:textColor="@color/widget_muted"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:text="Tap to log how you feel" />
+    </LinearLayout>
+</LinearLayout>

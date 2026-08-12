@@ -30,7 +30,7 @@ import com.dheirav.cycletracker.core.ForecastConfig
 import com.dheirav.cycletracker.data.LogDao
 import com.dheirav.cycletracker.data.PredictionLedger
 import com.dheirav.cycletracker.data.Settings
-import com.dheirav.cycletracker.widget.refreshCycleWidgets
+import com.dheirav.cycletracker.widget.refreshWidgets
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.Duration
@@ -285,7 +285,7 @@ class ReminderWorker(
         // The worker runs daily, which makes it the most reliable clock the app has for rolling
         // the widget's cycle day over. ACTION_DATE_CHANGED covers midnight; this covers the case
         // where the ROM swallowed that broadcast too.
-        refreshCycleWidgets(context)
+        refreshWidgets(context)
 
         // Chain the next one. Doing this last means a crash above cannot silently end the chain.
         // A test must not touch the chain at all — rescheduling from an off-schedule run is how a

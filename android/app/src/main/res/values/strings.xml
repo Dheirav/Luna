@@ -4,4 +4,7 @@
     <!-- Shown in the launcher's widget picker. Deliberately vague about what it tracks — the
          picker is browsed in public as readily as the home screen is seen. -->
     <string name="widget_description">Today at a glance, and a one-tap shortcut to log.</string>
+    <!-- Same discretion as above: says nothing about cycles, and says "logged" rather than "feel",
+         because that is what it shows. -->
+    <string name="mood_widget_description">A face for what you have logged, and a tap to log more.</string>
 </resources>
