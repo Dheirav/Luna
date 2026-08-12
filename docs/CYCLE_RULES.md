@@ -1,11 +1,16 @@
 # Luna — Cycle Rules — Corrected Specification
 
 **Status:** authoritative. The Kotlin implementation is built against this document and
-`spec/cycle_fixtures.json`. The Python tree in `src/` is reference material only and does
-**not** implement these rules.
+`spec/cycle_fixtures.json`.
 
-This spec fixes three defects in the current Python implementation. Each is called out
-inline as **DEFECT**.
+This spec fixes three defects in the Python prototype that preceded Luna. Each is called out inline
+as **DEFECT**, with the file and line it was found at.
+
+**Those files were deleted from this repository on 2026-08-12** and exist only in git history, so the
+citations can no longer be followed — they are kept because each one is the *reason* a rule reads the
+way it does. A rule whose justification has been deleted becomes an arbitrary constraint that the next
+person is free to talk themselves out of, and these three were all bugs that looked reasonable in
+isolation. If you need to see the original, `git log --all -- src/` will find it.
 
 ---
 

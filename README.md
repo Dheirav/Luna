@@ -64,7 +64,6 @@ own body.
 docs/CYCLE_RULES.md   authoritative spec — read before touching the engine
 docs/HANDOVER.md      state, environment, and the traps that cost hours
 spec/                 golden fixture: 34 hand-authored cases
-src/                  legacy Python prototype — reference only, three known defects, not repaired
 android/
   core/               plain Kotlin/JVM engine + tests, no Android dependencies
   app/                Room, Compose, WorkManager, the widget

@@ -22,6 +22,9 @@ android {
         // APIs. Targeting the A35's shipping level would buy nothing and lock out a spare device.
         minSdk = 31
         targetSdk = 35
+        // Needed by the Room migration test in src/androidTest. That test needs a device or
+        // emulator, so it is not part of CI — see .github/workflows/tests.yml.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         versionCode = 1
         versionName = "0.1.0"
 
@@ -117,4 +120,13 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
 
     testImplementation(libs.junit)
+
+    // Instrumented tests exist for one reason: the Room migration. `MigrationTestHelper` replays a
+    // real schema against a real SQLite, which cannot be done on the JVM, and a broken migration
+    // does not lose data quietly — there is no fallbackToDestructiveMigration, so it stops the app
+    // opening at all with the user's history stranded inside.
+    androidTestImplementation(libs.androidx.room.testing)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.junit)
 }

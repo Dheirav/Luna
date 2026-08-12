@@ -1,0 +1,105 @@
+# Runs the whole test suite on every push and pull request.
+#
+# Everything here is deliberately emulator-free. `:core` is a plain JVM module and `:app`'s unit tests
+# are too, so the entire suite finishes in seconds on a free runner — which is the only reason CI is
+# worth having on a one-person project. Nothing in this file needs a device, an SDK image, or a secret.
+#
+# Why it exists: 126 tests existed with nothing running them. Every regression this repository has
+# caught so far was caught by someone remembering to run gradle by hand, including two on 2026-08-12
+# that were found only because a specific suspicion prompted a specific check.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # So it can be run against a branch by hand without pushing a dummy commit.
+  workflow_dispatch:
+
+# A second push to the same branch cancels the first. The suite is short, so a queue is never useful.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        # The Gradle project is a subdirectory; the repository root holds only docs and the fixture.
+        working-directory: android
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # JDK 21 to match the version pinned locally in ~/.gradle/gradle.properties. A mismatch here
+      # would produce failures that cannot be reproduced on the machine this is developed on.
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # Split from the Android module so a pure-engine failure is obvious in the job list without
+      # opening a log. The engine is where the rules live and where a regression matters most.
+      - name: "Engine tests: core"
+        run: ./gradlew :core:test
+
+      - name: "Unit tests: app"
+        run: ./gradlew :app:testDebugUnitTest
+
+      # `assembleDebug` compiles the Compose and RemoteViews code that no unit test touches. Widget
+      # layouts in particular fail at *inflation* time on a device, so compiling them is the earliest
+      # any problem can be seen — and `-PminifyDebug` runs R8 over the release ProGuard rules, which
+      # is the only automated check that they still work.
+      - name: Build debug APK with shrinking
+        run: ./gradlew :app:assembleDebug -PminifyDebug
+
+      - name: Upload test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            android/core/build/reports/tests/
+            android/app/build/reports/tests/
+          retention-days: 7
+
+  # A grep pass, because these are rules about wording that no unit test can see. Both were enforced
+  # by hand on 2026-08-12 and by nothing afterwards.
+  copy-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # One idea, one word. Seven words for "a day the app worked out rather than one you lived" were
+      # collapsed into `estimated`/`observed`, so a user learns the distinction once instead of six
+      # times. These words are the ones that were retired; `backfill` names an internal process and is
+      # still correct in comments, which is why only string literals are searched.
+      - name: No retired vocabulary in user-facing strings
+        run: |
+          set -euo pipefail
+          hits=$(grep -rnoE '"[^"]*\b(backfill|guesswork|guesses|guessed)\b[^"]*"' \
+            android/app/src/main/kotlin --include='*.kt' || true)
+          if [ -n "$hits" ]; then
+            echo "Retired vocabulary in a user-facing string. Use estimated/observed:"
+            echo "$hits"
+            exit 1
+          fi
+
+      # The app has never had the INTERNET permission and the README promises it never will. That is
+      # the single most load-bearing claim in the project, and a transitive dependency can add it to
+      # the merged manifest without anyone writing a line.
+      - name: No INTERNET permission
+        run: |
+          set -euo pipefail
+          if grep -rn "android.permission.INTERNET" android/app/src android/core/src; then
+            echo "The app must never request INTERNET. See README and rule 5."
+            exit 1
+          fi

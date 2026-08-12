@@ -12,8 +12,14 @@ was drafted outside the repository; the phase numbering below is what survives o
 ## What this is
 
 A personal, offline menstrual cycle tracker. One user, one phone. Kotlin/Compose, built from a
-corrected design — **the Python tree in `src/` is reference material only and is not being
-repaired.** Three defects in it are documented in `CYCLE_RULES.md` and deliberately not ported.
+corrected design.
+
+**The Python prototype this replaced was deleted from the repository on 2026-08-12**, along with its
+five status documents. It had been kept as reference and was doing more harm than good: its roadmap
+used a different phase numbering that cost a wrong turn, and `PROJECT_STATUS.md` announced the project
+"COMPLETE" while describing a tree nobody was maintaining. Three defects found in it are still
+documented in `CYCLE_RULES.md`, because the reasoning behind three rules depends on them — the
+file-and-line citations there now point at code that exists only in git history.
 
 Governing rules (full list in the plan artifact):
 
@@ -446,12 +452,12 @@ Until then the app keeps `CycleConfig.defaultLutealLength = 14` and calls it an 
 the honest end state rather than a gap. **The fertility window (Phase 5) stays blocked behind this**,
 and should not be built on an assumed luteal length.
 
-### Two phase numberings — `PROJECT_STATUS.md` is the legacy one
+### There is only one phase numbering now
 
-`PROJECT_STATUS.md` is the **old Python project's** roadmap (`config/rules.yaml`, `src/`, `main.py`).
-Its "Phase 4: Platform Expansion — Android app (Kotlin port)" is *this app*, which exists. Its phase
-numbers do not correspond to the ones used here or in `CYCLE_RULES.md`. It cost a wrong turn on
-2026-08-12; treat it as history.
+The Python prototype had its own, in which "Phase 4: Platform Expansion — Android app (Kotlin port)"
+meant *building this app*. Reading the two schemes as one cost a wrong turn on 2026-08-12, and the
+banner added to warn about it was deleted along with the file the same day. **The phases referred to
+anywhere in this document and in `CYCLE_RULES.md` are the only ones that exist.**
 
 ### Decided against — SQLCipher (2026-08-11)
 
@@ -491,7 +497,6 @@ migration risk. `FLAG_SECURE` also went on to keep cycle data out of the app-swi
 docs/CYCLE_RULES.md        authoritative spec — read before touching the engine
 docs/HANDOVER.md           this file
 spec/cycle_fixtures.json   golden fixture (34 cases), hand-authored from the spec
-src/                       legacy Python — reference only, do not repair
 android/
   core/                    plain Kotlin/JVM engine + tests (no Android deps)
   app/                     Room + Compose
@@ -602,11 +607,11 @@ phone (~1.2–1.5 GB working set). The A35's 6–8 GB reopens it.
    so you know what you are reading is current. This is the one log channel worth trying.
 2. **Wireless debugging turns itself off** when the screen sleeps, and **the connect port changes
    every time it restarts.** Pairing persists; the port does not.
-3. **The pairing port and the connect port are different.** The pairing dialog's port is throwaway
+4. **The pairing port and the connect port are different.** The pairing dialog's port is throwaway
    and expires fast — connecting to it yields an `offline` transport. The port you want is on the
    main Wireless debugging screen under "IP address & Port".
 4. **There is no `sqlite3` binary on the device.** Pull the database instead (below).
-5. **USB does not reach WSL** — no `/dev/bus/usb`, no usbip client. Would need `usbipd-win` on
+6. **USB does not reach WSL** — no `/dev/bus/usb`, no usbip client. Would need `usbipd-win` on
    Windows. Attempting USB on 2026-08-12 also produced `adbd: timed out while waiting for
    FUNCTIONFS_BIND` and a transport that flapped between `offline` and `unauthorized` while
    `transport_id` climbed; the phone's own USB stack is unreliable. Not worth pursuing.
@@ -620,7 +625,7 @@ phone (~1.2–1.5 GB working set). The A35's 6–8 GB reopens it.
    server steal the device from each other — which looks exactly like a flaky device, and cost about
    an hour on 2026-08-12 being misread as one. Kill one before using the other. Pulls from the Windows
    adb must name a Windows path (`C:\...`), readable from WSL under `/mnt/c/...`.
-6. **`adb shell input` is permanently unavailable on the Redmi, not intermittently.** Every attempt
+7. **`adb shell input` is permanently unavailable on the Redmi, not intermittently.** Every attempt
    returns `SecurityException: INJECT_EVENTS`. On Xiaomi, event injection is gated behind *USB
    debugging (Security settings)*, a separate toggle from plain USB debugging, which requires a signed-in
    Mi account, which requires a SIM — and there is no SIM in this phone. So **no tap, swipe or
@@ -757,21 +762,58 @@ receiver exists to cover.
 
 ---
 
+## Continuous integration (2026-08-12)
+
+`.github/workflows/tests.yml`. Two jobs, both emulator-free, both finishing in seconds:
+
+- **`unit-tests`** — `:core:test`, `:app:testDebugUnitTest`, then `:app:assembleDebug -PminifyDebug`.
+  The build step is not redundant: it compiles the Compose and RemoteViews code no unit test touches,
+  and `-PminifyDebug` is the only automated check that the release ProGuard rules still work. Test
+  reports upload as an artifact on failure.
+- **`copy-rules`** — two greps for things no unit test can see. That no retired vocabulary
+  (`backfill`, `guesswork`, `guesses`, `guessed`) appears in a **string literal**, since those were
+  collapsed into `estimated`/`observed` and the word is still correct in comments. And that
+  `android.permission.INTERNET` appears nowhere, because that is the project's most load-bearing
+  promise and a transitive dependency can add it to the merged manifest without anyone writing a line.
+
+JDK 21, matching the local pin. A mismatch there produces failures nobody can reproduce.
+
+### The migration test needs a device, and is not in CI
+
+`app/src/androidTest/…/MigrationTest.kt`, three cases. Run it with
+`./gradlew :app:connectedDebugAndroidTest` while a phone is attached.
+
+`MigrationTestHelper` replays an exported schema through real SQLite, which cannot be done on the JVM
+— hence the one exception to the emulator-free rule. It is worth the exception: `CycleTrackerApp`
+opens the database with **no `fallbackToDestructiveMigration`**, on purpose, so a broken migration does
+not degrade — it stops the app opening at all, with the history intact and unreachable.
+
+It writes rows *before* migrating and reads them back after, because "the migration ran" and "the
+user's history survived it" are different claims. `validateMigration = true` compares the result
+against `app/schemas/2.json`, so a migration that executes cleanly and produces the wrong shape still
+fails — which is exactly what a hand-check on a phone is worst at catching. **`app/schemas/` is checked
+in and must stay checked in.**
+
+Written but **not yet executed**: no device was reachable when it was added. Running it once is the
+first item below.
+
 ## Suggested next steps
 
-1. **Check *Last fired* the morning after a day the app went unopened.** The only unproven thing left
+1. **Run the migration test once.** `./gradlew :app:connectedDebugAndroidTest` with a phone
+   attached. It compiles and has never executed, so it currently proves nothing.
+2. **Check *Last fired* the morning after a day the app went unopened.** The only unproven thing left
    in the reminder. A short delay is proven and *Send one now* proves the posting path; the 24-hour
    delay is not, and — see "The reminder does fire" — every app launch replaces the pending job with a
    shorter one, so a normal day never tests it. If it stalls, `ENQUEUED` with an old *Last fired* means
    the ROM dropped the wakeup — battery and Autostart are the only remedies.
-2. **Give the mood fields a reason to be logged.** All four burden symptoms sit behind the log form's
+3. **Give the mood fields a reason to be logged.** All four burden symptoms sit behind the log form's
    "More" button, and nothing on this phone has ever been logged into them — which is why
    `SymptomPatterns` is empty, why the clinical summary has no symptoms section, and why the mood
    widget will read *Typically: …* rather than anything personal. Promoting one out from behind "More",
    or routing the mood widget's tap into a mood-first form, is the smallest change that unblocks all
    three. **This also gates the other half of Phase 4** — the symptom/phase correlation work
    `SymptomPatterns` defers to it needs symptom data to correlate.
-3. **Decide what a day's value is when a symptom is logged twice.** `upsertSymptoms` uses
+4. **Decide what a day's value is when a symptom is logged twice.** `upsertSymptoms` uses
    `OnConflictStrategy.REPLACE`, so re-logging already works and silently keeps the *last* value. That
    is an undocumented, implicit rule of exactly the kind removed from the clinical summary on
    2026-08-12. Worst-of-day would be consistent with `MoodReadings`, which takes the worst of the four
@@ -781,17 +823,17 @@ receiver exists to cover.
    Room v2→v3 on real data, plus DAO, repository, log form, `SymptomPatterns` and a `FORMAT_VERSION`
    bump in the backup codec. Revisit only once mood is actually being logged and there is a surface
    that wants to *show* within-day variation, rather than merely capture it.
-4. **Verify `AppLock`'s 60-second grace** during a slow browse in the file picker. Requires switching
+5. **Verify `AppLock`'s 60-second grace** during a slow browse in the file picker. Requires switching
    *Require unlock* back on first — it is currently off, so an export would pass for the wrong reason.
-5. **Place the mood widget and the resized cycle widget on a home screen.** Neither has been seen.
+6. **Place the mood widget and the resized cycle widget on a home screen.** Neither has been seen.
    Note Android applies `targetCellWidth/Height` only to *newly placed* widgets, so an existing widget
    keeps its old size until removed and re-added.
-6. **Fix the stale comment in `TodayScreen`.** Its KDoc says "No character or face here, deliberately"
+7. **Fix the stale comment in `TodayScreen`.** Its KDoc says "No character or face here, deliberately"
    and the card has had a face since the pastel redesign. Worse, `MascotMood` derives that face from the
    phase alone — the app inferring a mood from a calendar, which is precisely what the mood widget was
    built to avoid. Switching the hero to the same log-driven `MoodReadings` source is the highest-value
    follow-on from that work.
-7. **Consider the `· estimated` label's contrast** in the History month list (`HistoryScreen.kt:188`).
+8. **Consider the `· estimated` label's contrast** in the History month list (`HistoryScreen.kt:188`).
    `cycle.estimated` doubles as a text colour there; darkening it on 2026-08-12 took it from roughly
    1.9:1 to 2.6:1 against the cream card, still short of AA for an 11sp label. The proper fix is to let
    the *word* carry the meaning and give the text a normal on-surface colour — a design call, not a bug.
