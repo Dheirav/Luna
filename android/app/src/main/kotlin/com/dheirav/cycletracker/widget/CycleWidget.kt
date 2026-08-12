@@ -198,7 +198,7 @@ private suspend fun buildViews(context: Context): RemoteViews {
     views.setTextViewText(R.id.widget_action, action)
 
     // Without this a screen reader reads four disconnected fragments — "DAY 16", "Luteal",
-    // "Next 21 Aug – 29 Aug", "Tap to log today" — with no indication they are one tappable card.
+    // "Next 1 Jan – 9 Jan", "Tap to log today" — with no indication they are one tappable card.
     views.setContentDescription(
         R.id.widget_root,
         "Luna. Day ${state.cycleDay}, ${state.phase?.name?.lowercase() ?: "phase unknown"}. " +

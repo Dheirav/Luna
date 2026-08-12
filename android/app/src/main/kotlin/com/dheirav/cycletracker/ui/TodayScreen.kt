@@ -232,15 +232,23 @@ private fun CycleHero(
             size = 9.dp,
             modifier = Modifier.align(Alignment.TopStart).offset(x = 176.dp, y = 44.dp),
         )
+        // Hearts belong in the right-hand margin, under the mascot — **not** anchored to
+        // BottomStart, which is where they were and which put them straight through
+        // "of a 28-day cycle" and "What this phase is like →" on the Redmi at 440dpi.
+        //
+        // The rule this card follows: ornament anchors to the edge the text does not occupy. The
+        // text column is left-aligned and its longest line is short, so the right side is safe while
+        // the bottom-left is exactly where the text ends up — and it moves further into that corner
+        // at larger font scales, which is what made the collision certain rather than unlucky.
         Heart(
             color = ink.copy(alpha = 0.30f),
             size = 12.dp,
-            modifier = Modifier.align(Alignment.BottomStart).offset(x = 26.dp, y = (-52).dp),
+            modifier = Modifier.align(Alignment.TopEnd).offset(x = (-52).dp, y = 106.dp),
         )
         Heart(
             color = ink.copy(alpha = 0.18f),
             size = 8.dp,
-            modifier = Modifier.align(Alignment.BottomStart).offset(x = 46.dp, y = (-66).dp),
+            modifier = Modifier.align(Alignment.TopEnd).offset(x = (-30).dp, y = 122.dp),
         )
 
         // The mascot. Sits clear of the text column and carries no information of its own.

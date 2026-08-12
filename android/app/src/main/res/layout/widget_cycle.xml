@@ -57,7 +57,7 @@
         android:textColor="@color/widget_muted"
         android:maxLines="2"
         android:ellipsize="end"
-        android:text="Next 21–29 Aug" />
+        android:text="Next 1–9 Jan" />
 
     <TextView
         android:id="@+id/widget_action"

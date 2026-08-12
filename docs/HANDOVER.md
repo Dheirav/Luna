@@ -92,7 +92,7 @@ rendered nowhere yet.
 observed cycles". Both cannot be true.
 
 - `Forecast.periodWindow` returns a range, tagged `MEASURED` or `ASSUMED`. With the current seed
-  it is ASSUMED: 21–29 Aug, ±4 days. **The UI must never present an ASSUMED window as measured** —
+  it is ASSUMED: 1–9 Jan, ±4 days. **The UI must never present an ASSUMED window as measured** —
   it is a stated default spread (`ForecastConfig.assumedVariabilityDays`), not this user's data.
 - Width comes from observed variability × `sqrt(1 + 1/n)`, the small-sample prediction-interval
   correction. A Student-t factor was considered and deliberately left out: at n=3 a 90% t-interval
