@@ -103,3 +103,57 @@ jobs:
             echo "The app must never request INTERNET. See README and rule 5."
             exit 1
           fi
+
+  # The Room migration test, on an emulator, because it cannot run anywhere else.
+  #
+  # It was written to be run by hand against the phone. That turned out to be impossible: MIUI
+  # refuses to install a *new* package over adb without "Install via USB", which needs a signed-in
+  # Mi account, which needs a SIM the test phone does not have — `INSTALL_FAILED_USER_RESTRICTED`
+  # with nobody touching the device. The same Mi-account gate blocks `adb shell input`. So the only
+  # place this test can execute is a runner, which is better than the original plan: automatic
+  # rather than remembered.
+  #
+  # Minutes rather than seconds, so it is kept off pull requests — the fast jobs above stay fast
+  # and this guards what actually reaches main.
+  migration-test:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # KVM has to be reachable or the emulator falls back to software rendering and times out.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # API 31 because that is minSdk. Testing a migration on an API the app cannot be installed on
+      # would prove nothing about the SQLite it actually ships against.
+      - name: Room migration test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 31
+          arch: x86_64
+          target: default
+          disable-animations: true
+          working-directory: android
+          script: ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.dheirav.cycletracker.data.MigrationTest
+
+      - name: Upload migration report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-report
+          path: android/app/build/reports/androidTests/
+          retention-days: 7

@@ -778,10 +778,25 @@ receiver exists to cover.
 
 JDK 21, matching the local pin. A mismatch there produces failures nobody can reproduce.
 
-### The migration test needs a device, and is not in CI
+### The migration test runs on an emulator in CI, because the phone cannot install it
 
-`app/src/androidTest/…/MigrationTest.kt`, three cases. Run it with
-`./gradlew :app:connectedDebugAndroidTest` while a phone is attached.
+`app/src/androidTest/…/MigrationTest.kt`, three cases, run by the `migration-test` job on every push
+to `main`. Not on pull requests — it takes minutes rather than seconds, and the point of the other
+jobs is fast feedback.
+
+**It was written to be run by hand against the Redmi and that is impossible.** MIUI refuses to install
+a *new* package over adb without "Install via USB", which requires a signed-in Mi account, which
+requires a SIM this phone does not have. The failure is `INSTALL_FAILED_USER_RESTRICTED: Install
+canceled by user` with nobody touching the device, and it is the same Mi-account gate that blocks
+`adb shell input` (trap 7). Note the app APK *does* install, because that is an update to an existing
+package — only new packages are refused, which is why this was not noticed until the test APK existed.
+
+A local emulator is not an option either: the SDK here has no `emulator` package, no system image and
+no AVD, and WSL2 would need nested virtualisation on top of that.
+
+So CI is the only place it can execute, which is a better outcome than the original plan — automatic
+rather than remembered. API 31 to match `minSdk`; testing a migration on an API the app cannot be
+installed on would prove nothing about the SQLite it ships against.
 
 `MigrationTestHelper` replays an exported schema through real SQLite, which cannot be done on the JVM
 — hence the one exception to the emulator-free rule. It is worth the exception: `CycleTrackerApp`
@@ -799,8 +814,9 @@ first item below.
 
 ## Suggested next steps
 
-1. **Run the migration test once.** `./gradlew :app:connectedDebugAndroidTest` with a phone
-   attached. It compiles and has never executed, so it currently proves nothing.
+1. **Check the `migration-test` job went green on its first run** (2026-08-12). It had never
+   executed when it was written, and CI is the only place it can — see above. If it failed, the
+   emulator job is new and unproven, not necessarily the migration.
 2. **Check *Last fired* the morning after a day the app went unopened.** The only unproven thing left
    in the reminder. A short delay is proven and *Send one now* proves the posting path; the 24-hour
    delay is not, and — see "The reminder does fire" — every app launch replaces the pending job with a
