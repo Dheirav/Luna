@@ -1,18 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Separate from widget_info.xml, and a separate widget, on purpose. The cycle widget was just cut
-    to 3x1 for glanceability; this one needs a face beside a hedged sentence and a sample size, which
-    does not fit in one cell. Two widgets each doing one thing beats one widget doing both badly.
+    Separate from widget_info.xml, and a separate widget, on purpose. Two widgets each doing one thing
+    beats one widget doing both badly.
+
+    3x1 like the cycle widget, and the `minWidth`/`minHeight` floors are low so either can be dragged
+    smaller by hand. This started at 3x2 on the assumption that a face beside a hedged sentence and a
+    sample size needed two cells; it does not, once the face stops being 44dp. Neither line was
+    dropped to get here — the second one carries how many days the tendency rests on, and "you often
+    log this" over six days and over sixty are different claims.
 
     updatePeriodMillis matches the cycle widget's reasoning: a six-hour backstop, not the mechanism.
     Real updates are pushed after any log edit — see refreshWidgets — because a mood reading that
     ignored the entry made a minute ago would be the exact failure this feature is built to avoid.
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:minWidth="180dp"
-    android:minHeight="80dp"
+    android:minWidth="110dp"
+    android:minHeight="40dp"
     android:targetCellWidth="3"
-    android:targetCellHeight="2"
+    android:targetCellHeight="1"
     android:updatePeriodMillis="21600000"
     android:initialLayout="@layout/widget_mood"
     android:previewLayout="@layout/widget_mood"

@@ -23,13 +23,13 @@
     android:orientation="horizontal"
     android:gravity="center_vertical"
     android:background="@drawable/widget_background"
-    android:padding="14dp">
+    android:padding="10dp">
 
     <ImageView
         android:id="@+id/mood_face"
-        android:layout_width="44dp"
-        android:layout_height="44dp"
-        android:layout_marginEnd="12dp"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_marginEnd="10dp"
         android:src="@drawable/ic_mood_unknown"
         android:importantForAccessibility="no" />
 
@@ -42,7 +42,7 @@
             android:id="@+id/mood_headline"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textSize="14sp"
+            android:textSize="13sp"
             android:textStyle="bold"
             android:textColor="@color/widget_text"
             android:maxLines="2"
@@ -50,15 +50,18 @@
             android:text="Not enough logged yet" />
 
         <!-- The sample size. Small, and never omitted when there is one: "usually" resting on six
-             days and on sixty are different claims, and the difference belongs on screen. -->
+             days and on sixty are different claims, and the difference belongs on screen.
+
+             One line, so a small launcher cell truncates the tail rather than pushing the whole
+             block out of the widget. The copy is written short enough not to need the second line. -->
         <TextView
             android:id="@+id/mood_evidence"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
-            android:textSize="11sp"
+            android:textSize="10sp"
             android:textColor="@color/widget_muted"
-            android:maxLines="2"
+            android:maxLines="1"
             android:ellipsize="end"
             android:text="Tap to log how you feel" />
     </LinearLayout>

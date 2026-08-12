@@ -168,8 +168,12 @@ private fun wording(reading: MoodReading): Pair<String, String> = when (reading.
             "Nothing unusual for you around now" to
                 "From $days day${plural(days)} you logged in this phase"
         } else {
+            // No "— not a prediction" tail here any more. It made the line wrap on a one-cell-tall
+            // widget, and the headline's grammar already carries it: "you often log" is a statement
+            // about the logs, not a forecast. The hedge is in the verb, which is cheaper than a
+            // clause and harder to truncate away.
             "You often log ${symptom.label.lowercase()} around now" to
-                "From $days day${plural(days)} you logged in this phase — not a prediction"
+                "From $days day${plural(days)} you logged in this phase"
         }
     }
 
