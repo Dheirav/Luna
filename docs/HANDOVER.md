@@ -99,19 +99,40 @@ phone other people can see, conspicuous in exactly the way the launcher icon avo
 
 Still a bloom rather than a droplet or calendar, for the reason the launcher icon is.
 
-**What is still unproven:** the 11 Aug run was scheduled at 19:14 and fired at 21:00 — a **1h46m**
-delay. A 24-hour delay is the case vendor ROMs actually kill, and tonight's job (10h52m) is the first
-real test of it. Check *Last fired* in Settings tomorrow morning.
+**Confirmed on the Redmi, 2026-08-12**, via *Send one now*: the silhouette reads as a bloom at status-bar
+size and the notification vibrates. So the whole posting path is now proven end to end — worker, versioned
+channel, icon, vibration — for a run triggered from the app.
+
+**What is still unproven, and why it may stay that way.** The 11 Aug run was scheduled at 19:14 and
+fired at 21:00 — a **1h46m** delay. A 24-hour delay is the case vendor ROMs actually kill.
+
+**`MainActivity.onCreate` calls `ReminderScheduler.schedule` on every launch** (`MainActivity.kt:65`),
+and `schedule` uses `ExistingWorkPolicy.REPLACE` with a fresh `setInitialDelay` of *time until the next
+21:00*. So opening the app at any point in the day replaces the pending job with a shorter-delay one.
+Observed directly on 12 Aug: at 16:07 the queued job showed `Enqueue time: -3m58s`,
+`earliest=+4h51m` — a five-hour delay, because the app had just been opened, not the 24-hour one left
+behind by the previous night's run.
+
+This is the right behaviour (a stale job after a time change would be worse), but it has a consequence
+worth knowing: **the 24-hour delay is only ever exercised on a day the app is not opened at all.** For
+a user who logs most days, the delay in practice is short and the vendor-ROM risk is correspondingly
+lower — which is reassuring about the app and inconvenient for testing. Do not read a successful
+overnight fire as proof the 24-hour case works unless the app went untouched that day.
+
+**Also confirmed 12 Aug:** after *Send one now*, `reminder_last_fired` was still 11 Aug 21:00. The
+`if (!isTest)` guard around the bookkeeping works — a test run does not pose as a real one, so it
+cannot mask a reminder that never fired.
 
 ### Built but NOT yet verified on device
 
 - **Pre-period heads-up** and the reminder's **Bleeding / No bleeding** actions (2026-08-12) — the
   daily reminder itself was seen and felt on the Redmi via *Send one now*, so the pipeline, the
-  channel and the vibration are all confirmed. What has not been seen: the heads-up (it cannot fire
-  until two days before the next predicted window, which is still ahead), and whether either
-  action button actually writes its row.
-- **The new status-bar icon** — installed after the reminder had already been fired, so the bloom
-  silhouette has not yet been seen in a real notification.
+  versioned channel, the bloom icon and the vibration are all confirmed. What has not been seen: the
+  heads-up (it cannot fire until two days before the next predicted window, which is still ahead), and whether either action button actually writes its row.
+
+  *Send one now* deliberately does not prove the one thing that matters most: it runs the real worker
+  through the real queue, but with no delay. Surviving an overnight wait on a vendor ROM is a
+  different question, and only *Last fired* the next morning answers it.
 - **Reminder-health detector** — `Settings.reminderLooksBroken()`. Surfaces a warning card when the
   reminder was due and didn't run. Exists because vendor ROMs kill background work silently.
 - **Encrypted export/restore UI** — SAF file picker + passphrase dialog. The codec is tested; the
@@ -652,13 +673,16 @@ receiver exists to cover.
 
 ## Suggested next steps
 
-1. **Check *Last fired* the morning after.** The reminder is proven to fire after a short delay
-   (see "The reminder does fire"); what is unproven is a full 24-hour one, which is the case vendor
-   ROMs kill. Settings → Daily reminder now shows *Last fired* and the queue state, so this is a
-   ten-second check rather than an investigation. If it stalls, `ENQUEUED` with an old *Last fired*
-   means the ROM dropped the wakeup — battery and Autostart are the only remedies.
-2. **Decide whether the daily nudge should vibrate.** It currently posts silently on a phone in
-   silent mode, which is why it went unnoticed for a day. A user's call, not a defect.
+1. **Check *Last fired* the morning after a day the app went unopened.** The only unproven thing left
+   in the reminder. A short delay is proven and *Send one now* proves the posting path; the 24-hour
+   delay is not, and — see "The reminder does fire" — every app launch replaces the pending job with a
+   shorter one, so a normal day never tests it. Settings → Daily reminder shows *Last fired* and the
+   queue state. If it stalls, `ENQUEUED` with an old *Last fired* means the ROM dropped the wakeup —
+   battery and Autostart are the only remedies.
+2. **Add a drift test for `Forecast.basis()`.** It reproduces the branch structure of
+   `CycleStats.expectedCycleLength` by hand and nothing catches divergence. Change the precedence rule
+   in one and not the other and the app states a *basis* that contradicts the *number* it is
+   explaining — the one failure this app exists to not have. Pure `:core`, no emulator.
 3. **Test backup export/restore on device** — the codec is tested, the SAF plumbing is not. Watch
    the app lock during this: the file picker backgrounds the app, and the 60-second grace in
    `AppLock` is what stops a re-auth prompt landing mid-export. The grace itself is verified;
@@ -666,9 +690,10 @@ receiver exists to cover.
    shares this path.
 4. **Look at the screens still unseen** — light mode, the calendar at 440dpi, the summary card, the
    reminder status block. `adb shell input` is blocked on the Redmi as often as not, so screenshots
-   from the user are the reliable channel. Fix the hero card's overlapping hearts while there.
+   from the user are the reliable channel.
    (The v1→v2 migration no longer needs testing — verified on the Redmi against a real v1 database on
-   2026-08-11. See the prediction-ledger section.)
+   2026-08-11. See the prediction-ledger section. The hero card's overlapping hearts are fixed —
+   commit `8a579cf`.)
 5. Then Phase 4's luteal-length work, which the fertility window depends on.
 
 ## Version control
