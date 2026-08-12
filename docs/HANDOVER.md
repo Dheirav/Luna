@@ -1,6 +1,6 @@
 # Handover — Luna
 
-Written 2026-08-11, current as of **2026-08-12**. Everything needed to pick this up in a fresh
+Written 2026-08-11, current as of **2026-08-13**. Everything needed to pick this up in a fresh
 session.
 
 **Read first:** [`CYCLE_RULES.md`](CYCLE_RULES.md) is the authoritative spec. This document covers
@@ -38,11 +38,11 @@ Governing rules (full list in the plan artifact):
 | | Verified how |
 |---|---|
 | Phase 0 — spec + golden fixture | 34 cases, `spec/cycle_fixtures.json` |
-| Cycle/period/phase engine (`:core`) | `./gradlew :core:test` — **121 tests, all pass** (plus 5 in `:app`) |
+| Cycle/period/phase engine (`:core`) | `./gradlew :core:test` — **122 tests, all pass** (plus 5 in `:app`, and 3 instrumented) |
 | Encrypted backup codec | 11 tests incl. tamper detection, wrong-passphrase, no-plaintext-leak |
 | Forecast window / prediction scorer | 16 + 13 tests |
 | Health flags, symptom patterns, clinical summary | 14 + 12 + 11 tests |
-| Android project builds | debug + release; release APK **2.49 MB** |
+| Android project builds | debug + release; release APK **2.41 MB**, signed — see "Sharing, signing, and screenshots" |
 | Today screen | On device: day 15/28, Ovulation — hand-checked correct. (It also showed a "25% confidence" figure at the time; that display has since been removed as unearned.) |
 | Log screen | Renders; write round-trip confirmed in DB (`energy=1, pain=2, travel`) |
 | Delete path | Emptying a day removes the row entirely |
@@ -419,6 +419,57 @@ visibility, and one hardcoded number**:
   **app-notification-settings** routes when either is wrong. The latter is new and matters: the
   runtime permission prompt is one-shot, and a denied `POST_NOTIFICATIONS` previously left every
   switch in the app looking on while `notify` returned early and posted nothing.
+
+### Sharing, signing, and screenshots (2026-08-13)
+
+**The app can be given to someone else now.** It could not before: there was no signing config, so
+`assembleRelease` produced an unsigned APK, which Android will not install at all.
+
+- 4096-bit RSA key, 30-year validity, in `android/keystore/` — **gitignored, along with
+  `keystore.properties`, before either file existed.** Release APK is 2.41 MB and verifies under APK
+  Signature Scheme v2, which is what API 31+ requires.
+- **The build degrades rather than fails when the keystore is absent**, which it is on every machine
+  but the author's. `canSignRelease` goes false, `signingConfigs` is never created, and the release APK
+  comes out unsigned exactly as before — so CI and a fresh clone both still build. Hardcoding a
+  password or reading an always-unset environment variable would either commit a credential or fail
+  confusingly.
+- **The keystore is the app's identity and cannot be regenerated.** Android only accepts an update
+  signed with the same key; lose it and the only route is uninstalling, which deletes the user's data.
+  A verified copy lives at `C:\D_Drive\Projects\luna\` with a plain-English README beside it. That
+  path was checked not to be a git repository first.
+
+**`FLAG_SECURE` is now a setting, not a rule.** `Settings.allowScreenshots`, default off, switch beside
+the app lock. It was unconditional in release builds and doing two jobs: blanking the app-switcher
+thumbnail — worth keeping, since recents would otherwise show the cycle day and phase to anyone
+flicking past — and blocking screenshots and screen recording, which is a real cost falling on people
+the threat model does not fit. Applied on toggle and in `onResume`, not just `onCreate`: a window flag
+is not something Compose can own, and a privacy switch needing a restart is one people assume failed.
+Debug builds still never set it, for the reason under "Traps" — `screencap` is one of only two
+channels left on the test phone.
+
+**Low mood moved to the core log rows.** All four burden symptoms were behind the "More" button and
+**none had ever been logged on this phone**, which left four built features computing over an empty
+set: `SymptomPatterns`, the clinical summary's symptom section, the mood widget's ability to say
+anything personal, and Phase 4's correlation half. One of the four rather than all four — seven rows
+would break the form's ten-second constraint, which rule 4 makes load-bearing. `MoodReadingTest` fails
+if the last core mood symptom is ever demoted, because nothing else would notice.
+
+**No licence, decided rather than deferred.** All rights reserved, recorded in the README with the
+reasoning. Not "none yet". The concern is not commercial: a fork that kept the interface and dropped
+"absent is not zero", or quietly widened a window, would carry the name and none of the care.
+
+### A gate of mine that did not do what its comment claimed (2026-08-13)
+
+`copy-rules` greps the source tree for `android.permission.INTERNET`, and the comment above it said
+that guarded against a dependency contributing the permission during manifest merge. **It does not —
+a merged permission is in no source file.** The proof was already in the artifact:
+`ACCESS_NETWORK_STATE` is in the shipped APK and appears nowhere in this repository, contributed by
+WorkManager.
+
+There is now a second check that dumps permissions from the **built APK**, which is the only thing
+that knows what actually shipped. Both are kept: the source grep fails fast and points at a line, the
+APK check is authoritative. Worth generalising from — a check is only as good as the layer it inspects,
+and a confident comment above a weak check is worse than no check, because it stops anyone looking.
 
 ### Not started
 

@@ -24,10 +24,11 @@ there never will be**, and it refuses to state a number it has not earned.
 - **A plain-text summary to take to an appointment**, with observed and estimated never conflated
 - **A home-screen widget** that works even when the OS kills background work
 - **Encrypted backup** to a file you control (PBKDF2 + AES-GCM)
-- **Biometric app lock** and `FLAG_SECURE` on the recents thumbnail
+- **Biometric app lock**, and the app switcher shows a blank card instead of your cycle — a switch,
+  private by default, because blocking screenshots is a real cost to some people
 - **Screen-reader support** throughout; decoration is hidden from it rather than announced
 
-Release APK is about 2.5 MB.
+Release APK is 2.41 MB.
 
 ---
 
@@ -69,8 +70,46 @@ android/
   app/                Room, Compose, WorkManager, the widget
 ```
 
-`core` is a plain JVM module on purpose: the engine's tests run in seconds with no emulator and no
-Android SDK.
+## How it fits together
+
+Two modules, and the split is the most important structural decision in the project.
+
+**`core/` is plain Kotlin with zero Android imports.** Not "few" — zero, and it is worth keeping that
+way. It holds every rule and every calculation: what a cycle is, which phase a day falls in, how wide a
+prediction window should be, what counts as a health flag, the backup codec's cryptography. Because
+nothing in it touches the framework, its 122 tests run in about ten seconds on any machine, with no
+phone, no emulator and no Android SDK. That is *why* the engine is the best-tested part of the app —
+testing it is nearly free, so there was never a reason not to. Add one Android import and that stops
+being true, and the cost is not obvious from the diff.
+
+**`app/` is everything Android:** Compose screens, the Room database, WorkManager for the reminder,
+`RemoteViews` for the two widgets, the biometric lock. It decides how things look and when they happen.
+It does not decide what anything means.
+
+### The path a number takes
+
+```
+you log a day        LogScreen → LogRepository → Room
+                                                  │
+what the app knows   Room ──► CycleProjector ──► CycleEngine ──► Forecast
+                             bleeding days      today's cycle    the window
+                             → periods,         day, phase,      around the
+                               cycles           length           next period
+                                                  │
+what you see         TodayViewModel ──► Today, History, the widgets, the summary
+```
+
+`CycleProjector` turns a list of bleeding days into periods and cycles. `CycleEngine` turns those into
+today's cycle day, phase and expected length. `Forecast` turns that into a window and — separately —
+into a *basis*, the receipt explaining which of four sources the number came from.
+
+This is what rule 1 means concretely. **Every number on every screen comes out of that chain**, and no
+screen, widget or notification computes one of its own. When the summary and the Today screen agree, it
+is not because someone kept them in step; it is because they asked the same function.
+
+The same applies to the two ways the app describes a phase, which are deliberately separate types:
+`Guidance` is population-level ("typically…") and `SymptomPatterns` is your own logs ("you often
+log…"). They are never blended, and the type system is what stops it.
 
 ## Building
 
