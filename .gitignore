@@ -1,18 +1,36 @@
-# Python
-.venv/
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.coverage
-htmlcov/
+# Health data never enters this repository. Verified across all of history on 2026-08-12:
+# no tracked database, no SQLite blob among any object in any ref, and no seed file.
+#
+# The rule is absolute rather than cautious, because the failure is not recoverable. This is a public
+# repository, a push is immediately mirrored and indexed, and cycle data identifies pregnancy,
+# pregnancy loss and sexual activity. A backfill seed holding one person's real period dates was once
+# committed here and had to be purged from history — see docs/HANDOVER.md. Do not relax any line
+# below, and do not use `git add -f` to get around one.
+#
+# `.github/workflows/tests.yml` fails the build if any of these ever appears in a commit, because an
+# ignore rule only stops accidents and a forced add is not an accident.
 
-# Local database — health data, never committed. menstrual_tracker.db is the legacy
-# Python tracker's store; it was never committed to any repo and stays that way.
+# Databases — the app's own, and anything pulled off a device for debugging.
 *.db
 *.db-wal
 *.db-shm
 *.db-journal
+*.sqlite
 *.sqlite3
+
+# The app's exports. Both hold real data: `.cyc` is an encrypted backup, and the clinical summary is
+# deliberately plain text so a doctor can read it, which means anyone can.
+*.cyc
+cycle-summary-*.txt
+
+# Seed / import files. The one that existed held real dates.
+seed_*.json
+*_periods.json
+
+# Local environment
+.venv/
+__pycache__/
+local.properties
 
 # Editors
 .idea/

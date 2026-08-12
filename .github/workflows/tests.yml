@@ -93,6 +93,27 @@ jobs:
             exit 1
           fi
 
+      # No health data, ever. An ignore rule stops accidents; `git add -f` is not an accident, and
+      # this is a public repository where a push is mirrored and indexed before anyone notices.
+      # A seed file holding one person's real period dates was committed here once and had to be
+      # purged from history — this is what makes that unrepeatable rather than merely discouraged.
+      - name: No database or export data committed
+        run: |
+          set -euo pipefail
+          bad=$(git ls-files | grep -iE '\.(db|db-wal|db-shm|db-journal|sqlite|sqlite3|cyc)$|^seed_|_periods\.json$|cycle-summary-.*\.txt$' || true)
+          if [ -n "$bad" ]; then
+            echo "Health data must never be committed. Offending files:"
+            echo "$bad"
+            exit 1
+          fi
+          # Belt and braces: a database renamed to something innocuous still has its header.
+          for f in $(git ls-files); do
+            if [ -f "$f" ] && head -c 16 "$f" 2>/dev/null | grep -q "SQLite format 3"; then
+              echo "SQLite database committed under a non-obvious name: $f"
+              exit 1
+            fi
+          done
+
       # The app has never had the INTERNET permission and the README promises it never will. That is
       # the single most load-bearing claim in the project, and a transitive dependency can add it to
       # the merged manifest without anyone writing a line.
