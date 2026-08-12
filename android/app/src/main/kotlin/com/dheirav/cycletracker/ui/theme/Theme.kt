@@ -121,7 +121,15 @@ data class CycleColors(
     /** A day the user logged bleeding on. The strongest mark in the app. */
     val bleeding: Color,
     val onBleeding: Color,
-    /** Backfill's guess at a bleeding day — drawn as an outline, never a fill. */
+    /**
+     * An estimated bleeding day — drawn as a **dashed** outline, never a fill.
+     *
+     * Dashed rather than solid, and dustier than [bleeding], because today's marker is also a thin
+     * ring in `primary`. When this was a light pink solid ring the two were one hue apart and
+     * differed by half a device-independent pixel of stroke: the calendar's legend taught that a
+     * pink ring meant "estimated", and today was a pink ring. A broken line carries "provisional"
+     * without relying on colour at all, so it also survives colour-blindness and greyscale.
+     */
     val estimated: Color,
     /** The predicted window for the next period. Deliberately softer than [bleeding]: a forecast
      *  must never look as solid as an observation. */
@@ -148,12 +156,33 @@ data class CycleColors(
      * light-mode pastels, pale marks on deep dark-mode ones.
      */
     val onPhase: Color,
+    /**
+     * The mascot's body, and the face knocked out of it.
+     *
+     * **Its own pair rather than derived from [onPhase]**, which is what it used to be:
+     * `body = onPhase.copy(alpha = 0.92f)`, `face = ` the card's own gradient bottom. That made the
+     * mascot invert with the *text* — cream on deep purple in dark mode, which is the character as
+     * drawn, and near-black on pale lavender in light mode, which is a heavy dark mass. It also
+     * handed a piece of pure decoration the same visual weight as the phase name beside it, while
+     * every other ornament on that card sits between 0.18 and 0.30 alpha.
+     *
+     * Lowering the alpha is not available as a fix: the face is knocked *out* of the body rather
+     * than drawn on top of it, so the pair has to stay contrasty or the mascot loses its face. Hence
+     * two stated colours per scheme instead of one colour and an alpha.
+     *
+     * Deliberately the same on all four phase cards, like [onPhase]. The mascot's mood already
+     * varies with the phase; its colour varying too would imply the hue meant something.
+     */
+    val mascotBody: Color,
+    val mascotFace: Color,
 )
 
 private val LightCycleColors = CycleColors(
     bleeding = Color(0xFFE86A93),
     onBleeding = Color.White,
-    estimated = Color(0xFFEFA9C0),
+    // Dustier than it was (#EFA9C0), to sit further from `primary` #E0669B than a shade of
+    // lightness. The dashes do the real separating; this stops the two reading as one family.
+    estimated = Color(0xFFC98CA6),
     predicted = Color(0xFFCBB6EE),
     logged = Lavender,
     phase = mapOf(
@@ -163,6 +192,10 @@ private val LightCycleColors = CycleColors(
         Phase.LUTEAL to (Color(0xFFE6DDFA) to Color(0xFFD3C5F5)),
     ),
     onPhase = Ink,
+    // A medium violet: unmistakably a character on every one of the four pale cards, where Ink at
+    // 0.92 was the darkest thing on the screen.
+    mascotBody = Color(0xFF7E6BC0),
+    mascotFace = Color(0xFFF7F3FE),
 )
 
 private val DarkCycleColors = CycleColors(
@@ -194,6 +227,12 @@ private val DarkCycleColors = CycleColors(
         Phase.LUTEAL to (Color(0xFF3E2B84) to Color(0xFF553BAE)),
     ),
     onPhase = Color(0xFFFDF2F7),
+    // Unchanged from what dark mode already rendered — `onPhase` at 0.92 over a deep card came out
+    // here, and dark mode is where the character was designed. It reads as a pale cloud, correctly.
+    mascotBody = Color(0xFFFDF2F7),
+    // Was the card's own gradient bottom, which meant the eyes went teal on the follicular card.
+    // A stated deep plum works inside a pale body on all four.
+    mascotFace = Color(0xFF4A3573),
 )
 
 private val LocalCycleColors = staticCompositionLocalOf { LightCycleColors }

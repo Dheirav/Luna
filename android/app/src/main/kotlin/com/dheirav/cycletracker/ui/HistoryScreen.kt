@@ -5,6 +5,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -27,13 +29,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -347,7 +353,15 @@ private fun DayCell(
     }
     val content = when {
         observedBleed -> cycle.onBleeding
-        !enabled -> scheme.onSurfaceVariant.copy(alpha = 0.3f)
+        // A day in the window is in the future by definition, so the future dimming below used to
+        // apply to every cell of the forecast — the most useful information on this screen rendered
+        // as its least legible text, at 0.3 alpha over a lavender wash. Two rules were firing on the
+        // same cells and always would: the wash saying *look here*, the dimming saying *unavailable*.
+        // The wash already carries "expected, not certain". The number does not have to whisper too.
+        inPredictedWindow -> scheme.onSurface.copy(alpha = 0.8f)
+        // Still lighter than a past day, because a future day cannot be logged — but 0.3 was below
+        // anything readable on a pale ground, and it applied to a third of the month.
+        !enabled -> scheme.onSurfaceVariant.copy(alpha = 0.55f)
         else -> scheme.onSurface
     }
 
@@ -375,7 +389,7 @@ private fun DayCell(
             .background(fill)
             .then(
                 if (bleeding && summary?.isAssumed == true) {
-                    Modifier.border(1.5.dp, cycle.estimated, CircleShape)
+                    Modifier.estimatedRing(cycle.estimated)
                 } else {
                     Modifier
                 },
@@ -407,34 +421,67 @@ private fun DayCell(
     }
 }
 
+/**
+ * The dashed ring that marks an estimated bleeding day.
+ *
+ * Inset inside where today's ring lands, so a day that is **both** shows both. Before this, the two
+ * were `Modifier.border` calls on the same circle and the second one simply painted over the first —
+ * an estimated day that happened to be today lost its estimated marker with nothing to show it had.
+ * Rare, and precisely the distinction this app will not blur anywhere else.
+ *
+ * Drawn rather than bordered because `Modifier.border` has no dash. See `CycleColors.estimated` for
+ * why a dash and not another solid outline.
+ */
+private fun Modifier.estimatedRing(
+    color: Color,
+    inset: Dp = 3.dp,
+    // Scaled to the circle it goes round, not fixed. A 3dp dash reads as broken on a 56dp calendar
+    // cell — about 25 segments — and as a smudge on a 12dp legend swatch, where it manages five.
+    // A marker whose whole job is to look dashed has to look dashed at both sizes.
+    dash: Dp = 3.dp,
+): Modifier = drawBehind {
+    val stroke = 1.5.dp.toPx()
+    val dashPx = dash.toPx()
+    drawCircle(
+        color = color,
+        radius = (size.minDimension - stroke) / 2f - inset.toPx(),
+        style = Stroke(
+            width = stroke,
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(dashPx, dashPx), 0f),
+        ),
+    )
+}
+
+/** What a cell can be marked with. Five now, which is why this is not four booleans. */
+private enum class Marker { FILL, DASHED, WASH, DOT, RING }
+
+// `FlowRow` is still `ExperimentalLayoutApi` on Compose BOM 2024.12.01 — stable from 1.8, which this
+// project is not on yet. Opted in for the same reason as `TimePicker` in SettingsScreen: the
+// alternative is hand-rolling wrapping layout, and a hand-rolled one would be the thing that breaks.
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Legend() {
-    Row(
+    // FlowRow, not Row: five items no longer fit one line at 440dpi, and at a large font scale even
+    // four did not. A legend that runs off the edge documents nothing.
+    FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        LegendItem("Bleeding", filled = true)
-        LegendItem("Estimated", filled = false)
-        LegendItem("Expected", predicted = true)
-        LegendItem("Logged", dot = true)
+        LegendItem("Bleeding", Marker.FILL)
+        LegendItem("Estimated", Marker.DASHED)
+        LegendItem("Expected", Marker.WASH)
+        LegendItem("Logged", Marker.DOT)
+        // Today was drawn on the calendar and missing from the legend, so the legend's only ring
+        // entry was "Estimated" — teaching the wrong reading of the ring around today's date.
+        LegendItem("Today", Marker.RING)
     }
 }
 
 @Composable
-private fun LegendItem(
-    label: String,
-    filled: Boolean = false,
-    dot: Boolean = false,
-    predicted: Boolean = false,
-) {
+private fun LegendItem(label: String, marker: Marker) {
     val scheme = MaterialTheme.colorScheme
     val cycle = MaterialTheme.cycleColors
-    val swatch = when {
-        dot -> cycle.logged
-        filled -> cycle.bleeding
-        predicted -> cycle.predicted.copy(alpha = 0.30f)
-        else -> Color.Transparent
-    }
     Row(
         horizontalArrangement = Arrangement.spacedBy(5.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -442,14 +489,28 @@ private fun LegendItem(
         Box(
             modifier = Modifier
                 .clearAndSetSemantics { }
-                .size(if (dot) 6.dp else 12.dp)
+                .size(if (marker == Marker.DOT) 6.dp else 12.dp)
                 .clip(CircleShape)
-                .background(swatch)
+                .background(
+                    when (marker) {
+                        Marker.FILL -> cycle.bleeding
+                        Marker.DOT -> cycle.logged
+                        Marker.WASH -> cycle.predicted.copy(alpha = 0.30f)
+                        Marker.DASHED, Marker.RING -> Color.Transparent
+                    },
+                )
                 .then(
-                    if (!filled && !dot && !predicted) {
-                        Modifier.border(1.5.dp, cycle.estimated, CircleShape)
-                    } else {
-                        Modifier
+                    when (marker) {
+                        // The same function the calendar draws with, so the swatch is a sample
+                        // rather than an approximation of one. No inset: 12dp has none to spare,
+                        // and a shorter dash so a 12dp circle still reads as broken.
+                        Marker.DASHED -> Modifier.estimatedRing(
+                            cycle.estimated,
+                            inset = 0.dp,
+                            dash = 1.5.dp,
+                        )
+                        Marker.RING -> Modifier.border(1.5.dp, scheme.primary, CircleShape)
+                        else -> Modifier
                     },
                 ),
         )

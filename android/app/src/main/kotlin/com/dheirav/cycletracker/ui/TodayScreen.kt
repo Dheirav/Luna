@@ -252,9 +252,13 @@ private fun CycleHero(
         )
 
         // The mascot. Sits clear of the text column and carries no information of its own.
+        //
+        // Its colours are stated in the theme rather than taken from `ink` and `bottom` here. Those
+        // made it invert with the text, which is right in dark mode and wrong in light — see
+        // CycleColors.mascotBody.
         MascotCloud(
-            body = ink.copy(alpha = 0.92f),
-            face = bottom,
+            body = cycle.mascotBody,
+            face = cycle.mascotFace,
             blush = cycle.bleeding.copy(alpha = 0.45f),
             mood = mood,
             width = 84.dp,
