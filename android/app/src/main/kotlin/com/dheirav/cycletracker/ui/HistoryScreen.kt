@@ -359,7 +359,7 @@ private fun DayCell(
         if (isToday) append(", today")
         when {
             observedBleed -> append(", bleeding logged")
-            bleeding -> append(", bleeding estimated by backfill")
+            bleeding -> append(", bleeding estimated, not logged by you")
             summary != null -> append(", logged")
             else -> append(", nothing logged")
         }

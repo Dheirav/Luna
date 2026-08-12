@@ -194,8 +194,8 @@ private fun BackfillBanner(onConfirm: () -> Unit, onDiscard: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
             )
             Text(
-                "Backfill guessed this day by counting back 28 days. It is excluded from your " +
-                    "variability and confidence figures until you say otherwise.",
+                "Worked out by counting back 28 days. Left out of your variability and accuracy " +
+                    "figures until you confirm it.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
             )

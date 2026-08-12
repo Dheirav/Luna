@@ -447,7 +447,7 @@ private fun WhyCard(basis: PredictionBasis?, accuracy: PredictionAccuracy?, stat
                                 LengthSource.USER_STATED -> "as you stated"
                                 // Named for what it is. This branch means the figure is largely
                                 // the app repeating an assumption backfill made earlier.
-                                LengthSource.MEDIAN_WITH_ESTIMATES -> "mostly from estimates"
+                                LengthSource.MEDIAN_WITH_ESTIMATES -> "mostly estimated"
                                 LengthSource.APP_DEFAULT -> "app default"
                             },
                         )
@@ -455,7 +455,7 @@ private fun WhyCard(basis: PredictionBasis?, accuracy: PredictionAccuracy?, stat
                         Detail(
                             "Cycles estimated",
                             it.assumedCycles.toString() +
-                                if (it.mostlyAssumed) "  ← mostly guesswork" else "",
+                                if (it.mostlyAssumed) "  ← most of them" else "",
                         )
                         Detail(
                             "Your variability",
@@ -478,8 +478,16 @@ private fun WhyCard(basis: PredictionBasis?, accuracy: PredictionAccuracy?, stat
                         )
                         Detail("Within 2 days", "${(it.hitRate * 100).roundToInt()}% of the time")
                     }
+                    // The one place the vocabulary is defined.
+                    //
+                    // "Observed" and "estimated" appear on six surfaces — this panel, the window card,
+                    // the calendar's cells and month list, the log form's banner, and the doctor
+                    // summary. Each used to explain the distinction in its own words, which meant
+                    // learning it six times. It is explained here, in the panel whose whole job is the
+                    // working behind the numbers, and everywhere else is a label using those two words.
+                    // If the wording changes, it changes here and nowhere else.
                     Text(
-                        "Estimated cycles come from backfill counting backwards, not from anything " +
+                        "Estimated cycles were worked out by counting backwards, not from anything " +
                             "you logged. Correct them in History.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,

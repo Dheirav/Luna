@@ -82,7 +82,7 @@ fun SummarySection() {
             Text(
                 "Your cycle lengths, period lengths, anything the app flagged, and symptom " +
                     "averages — as plain text you can print or email. Estimated days are marked " +
-                    "as estimated so nobody reads backfill as measurement.",
+                    "as estimated.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

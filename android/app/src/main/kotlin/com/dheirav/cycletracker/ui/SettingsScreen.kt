@@ -141,8 +141,8 @@ private fun YourCyclesCard(settings: Settings, onChanged: () -> Unit) {
         )
         Text(
             "Used until three of your own cycles have been observed — after that the app goes by " +
-                "what it measured, and these stop applying. They still outrank the backfill's " +
-                "guesses, which assumed 28 and 5.",
+                "what it measured, and these stop applying. They still outrank the app's own " +
+                "estimates, which used 28 and 5.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -263,9 +263,7 @@ private fun ReminderCard(settings: Settings) {
             }
         }
         Text(
-            "It skips days you have already logged, so it only fires when it has something to ask " +
-                "for. It carries Bleeding / No bleeding buttons, so the usual answer takes one tap " +
-                "without opening the app.",
+            "Skips days you have already logged.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -300,10 +298,7 @@ private fun ReminderCard(settings: Settings) {
             )
         }
         Text(
-            "Fires once per cycle, $lead ${if (lead == 1) "day" else "days"} before the earliest " +
-                "date in the window — not once a day while the window is open, which is how a " +
-                "useful notification gets muted. It stays quiet once you have logged bleeding, " +
-                "since by then you know.",
+            "Once per cycle, before the window opens.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -330,11 +325,13 @@ private fun ReminderCard(settings: Settings) {
                 )
             }
         }
+        // Two claims survive the trim, and only two: what the test cannot establish, and that its
+        // buttons are live. Everything else about it — that it goes through WorkManager rather than
+        // posting directly, that it skips the bookkeeping — is in Reminders.kt, where the next person
+        // to touch this will actually be looking.
         Text(
-            "A test runs the real job through the same queue, so it proves the notification and " +
-                "its buttons work. It cannot prove the 21:00 one survives the night — only a few " +
-                "days of use can. It does not count as a reminder having fired, and its buttons " +
-                "write a real entry for today, exactly as the real one does.",
+            "Its buttons write a real entry for today. It cannot tell you whether the " +
+                "${time.format(clock)} one survives the night — only a few days can.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -342,8 +339,8 @@ private fun ReminderCard(settings: Settings) {
         status?.let { s ->
             if (!s.notificationsAllowed) {
                 FixRow(
-                    message = "Notifications are blocked for this app, so no reminder can arrive " +
-                        "however these switches are set.",
+                    message = "Notifications are blocked. No reminder can arrive however these " +
+                        "switches are set.",
                     action = "Open notification settings",
                     onClick = {
                         runCatching {
@@ -356,8 +353,8 @@ private fun ReminderCard(settings: Settings) {
             }
             if (!s.batteryUnrestricted) {
                 FixRow(
-                    message = "Battery use is restricted, which is what usually kills the reminder " +
-                        "on this phone. Autostart, if this ROM has it, has to be granted by hand too.",
+                    message = "Battery use is restricted. Autostart, if this ROM has it, needs " +
+                        "granting by hand too.",
                     action = "Open battery settings",
                     onClick = {
                         runCatching { context.startActivity(ReminderScheduler.batterySettingsIntent()) }
