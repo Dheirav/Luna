@@ -37,6 +37,7 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 
@@ -143,7 +144,7 @@ object ReminderScheduler {
     fun nextFireAt(context: Context): LocalDateTime? {
         val settings = Settings(context)
         if (!settings.reminderEnabled) return null
-        return LocalDateTime.now().plus(durationUntilNext(settings))
+        return nextOccurrence(settings.reminderTime, LocalDateTime.now())
     }
 
     /**
@@ -186,11 +187,32 @@ object ReminderScheduler {
         }.getOrNull()
     }
 
+    /**
+     * The next wall-clock moment the reminder is due, measured against a caller-supplied `now`.
+     *
+     * **It takes `now` rather than reading the clock, and that is the whole point.** [nextFireAt]
+     * used to be `LocalDateTime.now().plus(durationUntilNext(settings))`, which read the clock
+     * twice. Kotlin evaluates a receiver before the argument, so the outer read was the *earlier*
+     * of the two, and the result landed a few hundred microseconds *before* the target time.
+     *
+     * That is nothing as arithmetic and everything on screen, because `HH:mm` floors rather than
+     * rounds: 20:59:59.9998 rendered as "20:59" two rows under a setting that said 21:00. The app
+     * appeared to disagree with itself about when it would speak.
+     *
+     * One clock read, shared by both callers, is the only fix that cannot come back.
+     *
+     * Takes a [LocalTime] rather than [Settings] so it is pure `java.time` and can be tested
+     * without an emulator — the bug lived in two lines of arithmetic, and reaching them should not
+     * require Robolectric and a SharedPreferences fake.
+     */
+    internal fun nextOccurrence(reminderTime: LocalTime, now: LocalDateTime): LocalDateTime {
+        val todayAtTime = now.toLocalDate().atTime(reminderTime)
+        return if (todayAtTime.isAfter(now)) todayAtTime else todayAtTime.plusDays(1)
+    }
+
     private fun durationUntilNext(settings: Settings): Duration {
         val now = LocalDateTime.now()
-        var next = now.toLocalDate().atTime(settings.reminderTime)
-        if (!next.isAfter(now)) next = next.plusDays(1)
-        return Duration.between(now, next)
+        return Duration.between(now, nextOccurrence(settings.reminderTime, now))
     }
 
     /**

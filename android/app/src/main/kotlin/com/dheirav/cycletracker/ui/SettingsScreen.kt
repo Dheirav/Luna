@@ -412,9 +412,17 @@ private fun ReminderStatusBlock(status: ReminderStatus?) {
     StatusLine("Last fired", lastFired)
     StatusLine(
         "In the queue",
+        // These are `WorkInfo.State` names, and lowercasing one is not translating it — "enqueued"
+        // is Android's word, and next to the label it read "in the queue: in the queue". Only the
+        // unfinished states can appear here; `queuedWorkState` filters the rest out.
         when {
             !status.enabled -> "nothing — reminders are off"
             status.workState == null -> "nothing queued"
+            status.workState == "RUNNING" -> "running now"
+            status.workState == "BLOCKED" -> "waiting on another job"
+            status.workState == "ENQUEUED" -> "waiting"
+            // A state the filter was not expecting is worth seeing verbatim rather than smoothing
+            // into "waiting", which would claim more than is known.
             else -> status.workState.lowercase()
         },
     )
