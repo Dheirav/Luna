@@ -21,12 +21,13 @@
     tap target. What the action line uniquely carried, whether today is logged, moved into the
     detail line as a tick, because that is the one question this widget exists to answer quickly.
 
-    **Now 2x1, and that width does not fit every string.** "Day 16 · Follicular" is the longest
-    headline the app can produce and it will clip to an ellipsis at two cells on a dense launcher
-    grid. That is deliberate rather than overlooked: an ellipsis is visible truncation, so the reader
-    can see something was cut and drag the widget wider — `targetCellWidth` is a default, not a cap.
-    The alternative was dropping a fact to guarantee a fit, and clipping a label is cheaper than
-    losing the window date or the tick.
+    **3x1, after 2x1 was tried and rejected.** At two cells the longest headline the app can produce,
+    "Day 16 · Follicular", clipped to "Day 16 · Follicu…". That was defensible — visible truncation
+    beats silently dropping the window date or the tick — but three cells costs one grid column and
+    nothing clips at all, which is plainly better than choosing which compromise to accept.
+
+    `minWidth` stays at 110dp regardless, so anyone who wants it narrower can drag it there and take
+    the ellipsis knowingly. A default should not force that trade on someone who never asked for it.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
@@ -41,7 +42,7 @@
         android:id="@+id/widget_headline"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textSize="15sp"
+        android:textSize="16sp"
         android:textStyle="bold"
         android:textColor="@color/widget_text"
         android:maxLines="1"
