@@ -17,6 +17,7 @@ import com.dheirav.cycletracker.core.CycleStats
 import com.dheirav.cycletracker.core.Forecast
 import com.dheirav.cycletracker.core.ForecastConfig
 import com.dheirav.cycletracker.core.Phase
+import com.dheirav.cycletracker.core.PeriodWindow
 import com.dheirav.cycletracker.data.Settings
 import com.dheirav.cycletracker.reminder.EXTRA_OPEN_LOG
 import kotlinx.coroutines.CoroutineScope
@@ -37,7 +38,7 @@ private val dayMonth = DateTimeFormatter.ofPattern("d MMM")
  * fails. Tapping it opens the log form directly, not the app's front door.
  *
  * Built on [RemoteViews] rather than Glance: Glance would add a few hundred kilobytes to a 2.3 MB
- * app to render four text views.
+ * app to render two text views.
  */
 class CycleWidget : AppWidgetProvider() {
 
@@ -125,10 +126,8 @@ private suspend fun buildViews(context: Context): RemoteViews {
      * widget still works as a one-tap logging shortcut, which is its real purpose anyway.
      */
     if (!settings.widgetShowsDetails) {
-        views.setTextViewText(R.id.widget_label, "")
         views.setTextViewText(R.id.widget_headline, "Today")
-        views.setTextViewText(R.id.widget_detail, "")
-        views.setTextViewText(R.id.widget_action, "Tap to log")
+        views.setTextViewText(R.id.widget_detail, "Tap to log")
         return views
     }
 
@@ -147,10 +146,8 @@ private suspend fun buildViews(context: Context): RemoteViews {
 
     if (!state.hasData) {
         // §6 — never invent a cycle day for someone with no periods logged.
-        views.setTextViewText(R.id.widget_label, "")
         views.setTextViewText(R.id.widget_headline, "No periods yet")
-        views.setTextViewText(R.id.widget_detail, "Log one to begin")
-        views.setTextViewText(R.id.widget_action, "Tap to log")
+        views.setTextViewText(R.id.widget_detail, "Tap to log one")
         return views
     }
 
@@ -173,42 +170,67 @@ private suspend fun buildViews(context: Context): RemoteViews {
         ColorStateList.valueOf(context.getColor(phaseTint(phase))),
     )
 
-    views.setTextViewText(R.id.widget_label, "DAY ${state.cycleDay}")
-    views.setTextViewText(
-        R.id.widget_headline,
-        if (state.isBleeding) {
-            "Period"
-        } else {
-            state.phase?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "—"
-        },
-    )
+    val phaseName = if (state.isBleeding) {
+        "Period"
+    } else {
+        state.phase?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "—"
+    }
+    // The eyebrow and the phase name used to be separate views, stacked. One cell tall has room for
+    // two lines, and the phase means little without the day beside it.
+    views.setTextViewText(R.id.widget_headline, "Day ${state.cycleDay} · $phaseName")
+
+    val loggedToday = dao.logFor(today) != null
     views.setTextViewText(
         R.id.widget_detail,
-        when {
-            // Lateness beats the window: once a period is overdue, the range it was due in is no
-            // longer the useful fact.
-            state.daysLate > 0 ->
-                "${state.daysLate} day${if (state.daysLate == 1) "" else "s"} late"
-            window != null ->
-                "Next ${window.earliest.format(dayMonth)} – ${window.latest.format(dayMonth)}"
-            else -> ""
+        buildString {
+            when {
+                // Lateness beats the window: once a period is overdue, the range it was due in is
+                // no longer the useful fact.
+                state.daysLate > 0 ->
+                    append("${state.daysLate} day${if (state.daysLate == 1) "" else "s"} late")
+                window != null -> append("Next ${windowLabel(window)}")
+                else -> append("Tap to log")
+            }
+            // The tick is what the removed action line uniquely carried. "Tap to log today" was
+            // instruction — the whole widget has always been the tap target — but "have I logged
+            // today" is the question this widget exists to answer at a glance, and adherence is the
+            // constraint everything analytical here depends on. So the tick survives the shrink.
+            if (loggedToday) append(" · logged ✓")
         },
     )
-    val action = if (dao.logFor(today) != null) "Logged today ✓" else "Tap to log today"
-    views.setTextViewText(R.id.widget_action, action)
 
-    // Without this a screen reader reads four disconnected fragments — "DAY 16", "Luteal",
-    // "Next 1 Jan – 9 Jan", "Tap to log today" — with no indication they are one tappable card.
+    // Without this a screen reader reads the lines as disconnected fragments — "Day 16 · Luteal",
+    // "Next 1–9 Jan" — with no indication they are one tappable card.
+    //
+    // It spells the window out in full rather than reusing [windowLabel]. That function drops the
+    // repeated month to save horizontal space, which a screen reader does not have to care about,
+    // and "21 to 29 Aug" spoken aloud is worse than the two complete dates.
     views.setContentDescription(
         R.id.widget_root,
         "Luna. Day ${state.cycleDay}, ${state.phase?.name?.lowercase() ?: "phase unknown"}. " +
             (window?.let {
                 "Period expected between ${it.earliest.format(dayMonth)} and " +
                     "${it.latest.format(dayMonth)}. "
-            } ?: "") + action,
+            } ?: "") +
+            (if (loggedToday) "Today is logged. " else "") +
+            "Tap to log today.",
     )
     return views
 }
+
+/**
+ * "Next 1–9 Jan" inside one month, "Next 28 Jan – 3 Feb" across two.
+ *
+ * Naming the month twice cost roughly a third of the line, which a one-cell-tall widget cannot
+ * spare. The spaces around the dash are kept only when both sides carry a month, so a same-month
+ * range never reads as one hyphenated date.
+ */
+private fun windowLabel(window: PeriodWindow): String =
+    if (window.earliest.month == window.latest.month) {
+        "${window.earliest.dayOfMonth}–${window.latest.format(dayMonth)}"
+    } else {
+        "${window.earliest.format(dayMonth)} – ${window.latest.format(dayMonth)}"
+    }
 
 /** Day/night resolution comes from the resource qualifier, so this needs no theme lookup. */
 private fun phaseTint(phase: Phase?): Int = when (phase) {

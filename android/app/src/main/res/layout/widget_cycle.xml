@@ -13,6 +13,13 @@
 
     So: no `Space` (a weighted TextView does the same job), no `android:theme`, no custom views.
     Before adding anything here, check it is annotated `@RemoteView` in the framework.
+
+    **Two lines, not four.** This was a 3×2 widget with a DAY eyebrow, a large phase name, a detail
+    line and an action line. At one cell tall there is room for about 40dp of text, so the eyebrow
+    is folded into the headline ("Day 16 · Luteal") and the action line is gone — it read "Tap to
+    log today", which is instruction rather than information, and the whole widget was already the
+    tap target. What the action line uniquely carried, whether today is logged, moved into the
+    detail line as a tick, because that is the one question this widget exists to answer quickly.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
@@ -21,52 +28,27 @@
     android:orientation="vertical"
     android:gravity="center_vertical"
     android:background="@drawable/widget_background"
-    android:padding="14dp">
-
-    <TextView
-        android:id="@+id/widget_label"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textSize="10sp"
-        android:textStyle="bold"
-        android:textColor="@color/widget_muted"
-        android:maxLines="1"
-        android:text="DAY 15" />
+    android:padding="12dp">
 
     <TextView
         android:id="@+id/widget_headline"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="1dp"
-        android:textSize="21sp"
+        android:textSize="16sp"
         android:textStyle="bold"
         android:textColor="@color/widget_text"
         android:maxLines="1"
         android:ellipsize="end"
-        android:text="Ovulation" />
+        android:text="Day 16 · Luteal" />
 
-    <!-- No weight. An earlier version weighted this to pin the action line to the bottom, which
-         on a resized widget stranded the text at the top above a large dead area. The root
-         centres its children vertically instead, so the block stays balanced at any cell size. -->
     <TextView
         android:id="@+id/widget_detail"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="3dp"
+        android:layout_marginTop="2dp"
         android:textSize="12sp"
         android:textColor="@color/widget_muted"
-        android:maxLines="2"
+        android:maxLines="1"
         android:ellipsize="end"
         android:text="Next 1–9 Jan" />
-
-    <TextView
-        android:id="@+id/widget_action"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:textSize="12sp"
-        android:textStyle="bold"
-        android:textColor="@color/widget_accent"
-        android:maxLines="1"
-        android:text="Tap to log today" />
 </LinearLayout>
