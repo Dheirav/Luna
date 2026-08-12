@@ -152,33 +152,31 @@ object Forecast {
     /**
      * The receipt: what the expected length was built from.
      *
-     * Mirrors the branch structure of [CycleStats.expectedCycleLength] rather than re-deriving it,
-     * so the explanation cannot drift away from the number it claims to explain. If that function
-     * gains a branch, this must gain one too — [FixtureTest] will not catch it.
+     * **Asks [CycleStats.expectedLength] rather than deciding anything.** It used to mirror that
+     * function's branch structure by hand — with the comment "so the explanation cannot drift away
+     * from the number it claims to explain", which is the right goal and was not what mirroring
+     * achieved. The two copies built their samples differently, so a new branch was never the real
+     * risk; the existing ones already disagreed on any history where assumed cycles were the recent
+     * ones. `ExpectedLengthTest` holds both properties now, and fails against the mirrored version.
      */
     fun basis(
         cycles: List<Cycle>,
         userTypicalCycleLength: Int? = null,
         config: CycleConfig = CycleConfig.Default,
     ): PredictionBasis {
-        val plausible = cycles
-            .filter { it.length != null && it.length in config.plausibleCycleRange }
-            .takeLast(config.cycleLengthSampleSize)
-        val observed = plausible.count { it.source == Source.OBSERVED }
-
-        val source = when {
-            observed >= 3 -> LengthSource.MEDIAN_OF_OBSERVED
-            userTypicalCycleLength != null -> LengthSource.USER_STATED
-            plausible.size >= 3 -> LengthSource.MEDIAN_WITH_ESTIMATES
-            else -> LengthSource.APP_DEFAULT
-        }
+        // The branch is not re-derived here. This used to reimplement the precedence rule in order to
+        // name it, with its own copy of the sample selection that ordered the source filter and the
+        // last-N window the other way round — so the label could describe a branch the number had not
+        // taken. One call now yields both, and the counts below are taken from the samples that call
+        // actually consulted. See CycleStats.expectedLength.
+        val expected = CycleStats.expectedLength(cycles, userTypicalCycleLength, config)
 
         return PredictionBasis(
-            expectedCycleLength = CycleStats.expectedCycleLength(cycles, userTypicalCycleLength, config),
-            source = source,
-            cyclesUsed = plausible.size,
-            observedCycles = observed,
-            assumedCycles = plausible.count { it.source == Source.ASSUMED },
+            expectedCycleLength = expected.days,
+            source = expected.source,
+            cyclesUsed = expected.allSample.size,
+            observedCycles = expected.observedSample.size,
+            assumedCycles = expected.allSample.count { it.source == Source.ASSUMED },
             medianCycleLength = CycleStats.medianCycleLength(cycles, config),
             variability = CycleStats.cycleLengthVariability(cycles, config),
         )
