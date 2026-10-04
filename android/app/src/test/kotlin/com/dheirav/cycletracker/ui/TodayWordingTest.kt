@@ -53,4 +53,27 @@ class TodayWordingTest {
         assertEquals(MascotMood.RESTING, mascotMoodFor(MoodFace.STEADY))
         assertEquals(MascotMood.TENDER, mascotMoodFor(MoodFace.HEAVY))
     }
+
+    // -- the gap question ------------------------------------------------------
+
+    private fun d(iso: String) = java.time.LocalDate.parse(iso)
+
+    @Test
+    fun `the gap question names each day, with the month once`() {
+        java.util.Locale.setDefault(java.util.Locale.UK)
+        assertEquals("Were you bleeding on Sat 4 and Sun 5 Oct?", gapQuestion(listOf(d("2025-10-04"), d("2025-10-05"))))
+        assertEquals(
+            "Were you bleeding on Sat 4, Sun 5 and Mon 6 Oct?",
+            gapQuestion(listOf(d("2025-10-04"), d("2025-10-05"), d("2025-10-06"))),
+        )
+    }
+
+    @Test
+    fun `a gap across a month end names both months`() {
+        java.util.Locale.setDefault(java.util.Locale.UK)
+        assertEquals(
+            "Were you bleeding on Fri 31 Jan and Sat 1 Feb?",
+            gapQuestion(listOf(d("2025-01-31"), d("2025-02-01"))),
+        )
+    }
 }

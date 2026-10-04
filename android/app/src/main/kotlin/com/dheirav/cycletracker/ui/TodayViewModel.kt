@@ -14,6 +14,7 @@ import com.dheirav.cycletracker.core.PeriodWindow
 import com.dheirav.cycletracker.core.PredictionAccuracy
 import com.dheirav.cycletracker.core.PredictionBasis
 import com.dheirav.cycletracker.core.Projection
+import com.dheirav.cycletracker.core.UnloggedGap
 import com.dheirav.cycletracker.data.DaySummary
 import com.dheirav.cycletracker.data.LogRepository
 import com.dheirav.cycletracker.data.PredictionLedger
@@ -65,6 +66,8 @@ data class TodayUiState(
      * the app predicting how someone feels, which is the thing the mascot used to do from the phase.
      */
     val todayMood: MoodFace? = null,
+    /** The most recent unanswered gap inside a period, asked about on Today. One at a time. */
+    val gap: UnloggedGap? = null,
 )
 
 /**
@@ -117,6 +120,11 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** "Were you bleeding on …?" Either answer fills the gap, so the question does not come back. */
+    fun answerGap(gap: UnloggedGap, bleeding: Boolean) {
+        viewModelScope.launch { repo.answerBleeding(gap.days, bleeding) }
+    }
+
     /**
      * Renders one snapshot. The projection is rebuilt whole upstream (§1.1), never patched here.
      */
@@ -147,6 +155,7 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
                 observations = emptyList(),
                 phase = snapshot.state.phase,
             ).takeIf { it.source == MoodSource.TODAY }?.face,
+            gap = snapshot.unloggedGaps.lastOrNull(),
         )
     }
 }

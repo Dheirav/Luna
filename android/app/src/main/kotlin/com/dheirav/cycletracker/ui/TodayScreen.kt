@@ -78,6 +78,60 @@ fun cycleLengthPhrase(length: Int, source: LengthSource?): String = when (source
 }
 
 /**
+ * "Were you bleeding on Sat 4 and Sun 5 Oct?" Each day by weekday and date, the month written once
+ * unless the gap crosses a month end. Weekdays are kept so the person can place the days in their
+ * week, which is how they will remember them.
+ */
+fun gapQuestion(days: List<java.time.LocalDate>): String {
+    val dayOnly = DateTimeFormatter.ofPattern("EEE d")
+    val withMonth = DateTimeFormatter.ofPattern("EEE d MMM")
+    val oneMonth = days.map { it.month }.distinct().size == 1
+    val names = days.mapIndexed { i, day ->
+        if (!oneMonth || i == days.lastIndex) day.format(withMonth) else day.format(dayOnly)
+    }
+    val joined = if (names.size == 1) names.single()
+    else names.dropLast(1).joinToString(", ") + " and " + names.last()
+    return "Were you bleeding on $joined?"
+}
+
+/**
+ * Asks about days left unlogged in the middle of a period.
+ *
+ * Two or three forgotten days split a period under CYCLE_RULES §2.1, so a one-day period appears
+ * followed by "spotting". Asking costs one tap and keeps the rule honest, where guessing either way
+ * would put a claim in the record the person never made. Either answer writes those days, so the
+ * question does not come back.
+ */
+@Composable
+private fun GapQuestionCard(question: String, onYes: () -> Unit, onNo: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                question,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            Text(
+                "These days were not logged, so the period around them looks split in two.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onYes) { Text("Yes, bleeding") }
+                TextButton(onClick = onNo) { Text("No") }
+            }
+        }
+    }
+}
+
+/**
  * How long after the window closes the hero suggests raising a late period with a doctor.
  *
  * Guidance, not a measurement: the app has no basis for its own threshold here, and six weeks is
@@ -160,6 +214,16 @@ fun TodayScreen(
 
         TextButton(onClick = onHistory, modifier = Modifier.fillMaxWidth()) {
             Text("History")
+        }
+
+        // A question only the person can answer, so it sits with the actions rather than below the
+        // forecast it changes.
+        ui.gap?.let { gap ->
+            GapQuestionCard(
+                question = gapQuestion(gap.days),
+                onYes = { viewModel.answerGap(gap, bleeding = true) },
+                onNo = { viewModel.answerGap(gap, bleeding = false) },
+            )
         }
 
         // A reminder that has stopped is a fault with something to do about it, so it comes before

@@ -118,6 +118,12 @@ object HealthFlags {
          * reaches the doctor summary verbatim.
          */
         lengthSource: LengthSource? = null,
+        /**
+         * Starts of spotting events that sit just after an unanswered gap (see [UnloggedGaps]). Their
+         * flag waits for the answer, since the "spotting" may be day 4 of a period whose middle days
+         * were simply not logged.
+         */
+        heldSpotting: Set<LocalDate> = emptySet(),
     ): List<HealthFlag> {
         val flags = mutableListOf<HealthFlag>()
 
@@ -201,7 +207,7 @@ object HealthFlags {
                 flags += HealthFlag(
                     kind = HealthFlagKind.BLEEDING_PROLONGED,
                     headline = "A period lasted ${period.spanDays} days",
-                    detail = "Starting ${period.start}. Bleeding beyond " +
+                    detail = "Starting ${period.start.format(FLAG_DATE)}. Bleeding beyond " +
                         "${config.prolongedBleedDays} days is outside the usual range and is " +
                         "worth raising, particularly if it is heavy.",
                     on = period.start,
@@ -209,11 +215,11 @@ object HealthFlags {
             }
 
         // -- bleeding between periods ---------------------------------------
-        projection.spotting.maxByOrNull { it.start }?.let { event ->
+        projection.spotting.filter { it.start !in heldSpotting }.maxByOrNull { it.start }?.let { event ->
             flags += HealthFlag(
                 kind = HealthFlagKind.SPOTTING_BETWEEN_PERIODS,
                 headline = "Bleeding logged between periods",
-                detail = "On ${event.start}" +
+                detail = "On ${event.start.format(FLAG_DATE)}" +
                     (if (event.spanDays > 1) " for ${event.spanDays} days" else "") +
                     ". Occasional spotting is common, including around ovulation. Worth " +
                     "mentioning if it happens repeatedly.",

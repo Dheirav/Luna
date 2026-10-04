@@ -43,6 +43,8 @@ class CycleSnapshot private constructor(
     /** Why the expected length is what it is: the observed/assumed split behind it. */
     val basis: PredictionBasis,
     val flags: List<HealthFlag>,
+    /** Never-logged stretches that split a period, oldest first; see [UnloggedGaps]. */
+    val unloggedGaps: List<UnloggedGap>,
     private val engine: CycleEngine,
 ) {
 
@@ -70,6 +72,8 @@ class CycleSnapshot private constructor(
             today: LocalDate,
             config: CycleConfig = CycleConfig.Default,
             noBleedingDays: Set<LocalDate> = emptySet(),
+            /** Every day with a row. Needed to tell a forgotten day from one answered "no". */
+            loggedDays: Set<LocalDate> = bleedingDays.toSet() + noBleedingDays,
         ): CycleSnapshot {
             val engine = CycleEngine(config)
             val bleeding = bleedingDays.toSet()
@@ -84,6 +88,7 @@ class CycleSnapshot private constructor(
             )
 
             val basis = Forecast.basis(projection.cycles, settings.typicalCycleLength, config)
+            val gaps = UnloggedGaps.find(bleeding, loggedDays, config)
 
             return CycleSnapshot(
                 today = today,
@@ -106,7 +111,9 @@ class CycleSnapshot private constructor(
                     expectedCycleLength = state.expectedCycleLength,
                     cycleConfig = config,
                     lengthSource = basis.source,
+                    heldSpotting = gaps.map { it.resumesOn }.toSet(),
                 ),
+                unloggedGaps = gaps,
                 engine = engine,
             )
         }

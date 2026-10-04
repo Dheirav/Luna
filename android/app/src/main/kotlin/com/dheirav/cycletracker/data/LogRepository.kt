@@ -210,6 +210,11 @@ class LogRepository(private val dao: LogDao) {
         }
     }
 
+    /** Answers the bleeding question for several days at once, keeping whatever else each holds. */
+    suspend fun answerBleeding(days: List<LocalDate>, bleeding: Boolean) {
+        days.forEach { day -> save(load(day).answeringBleeding(bleeding)) }
+    }
+
     /** Throws a backfilled guess away entirely, rather than leaving it to pollute the statistics. */
     suspend fun discard(date: LocalDate) = dao.deleteDay(date)
 }
