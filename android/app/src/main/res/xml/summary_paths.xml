@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The single folder the share sheet may read from: the doctor-summary PDF. See the provider's
+     comment in AndroidManifest.xml. -->
+<paths>
+    <cache-path name="summary" path="summary/" />
+</paths>

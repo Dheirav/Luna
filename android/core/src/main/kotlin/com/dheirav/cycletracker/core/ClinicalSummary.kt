@@ -4,6 +4,52 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 /**
+ * The summary as structure: sections of figures, rows, notes and flags.
+ *
+ * Built once by [ClinicalSummary.document] and drawn three ways: as plain text ([ClinicalSummary.text]),
+ * as the in-app preview, and as a PDF. It used to exist only as text, so a better-looking preview or a
+ * PDF would have meant parsing the text back apart or computing the content twice, and two copies of
+ * a medical summary are two chances to disagree. One structure means every rendering says the same.
+ */
+data class SummaryDocument(
+    val title: String,
+    val generatedOn: LocalDate,
+    /** Provenance, stated before anything else: self-reported, and what ESTIMATED means. */
+    val preamble: List<String>,
+    val sections: List<SummarySection>,
+)
+
+data class SummarySection(val title: String, val items: List<SummaryItem>)
+
+sealed interface SummaryItem {
+    /** A labelled figure: "Median observed length: 28 days". [note] qualifies the value. */
+    data class Figure(
+        val label: String,
+        val value: String,
+        val note: String? = null,
+        val tags: List<String> = emptyList(),
+        val indent: Int = 2,
+    ) : SummaryItem
+
+    /** One row of a list: a date or range, its detail, and tags such as ESTIMATED. */
+    data class Row(
+        val primary: String,
+        val secondary: String? = null,
+        val tags: List<String> = emptyList(),
+        val indent: Int = 2,
+    ) : SummaryItem
+
+    /** A plain statement, a "none recorded", or a note such as a truncation. */
+    data class Note(val text: String, val indent: Int = 2) : SummaryItem
+
+    /** A flagged pattern with its evidence. */
+    data class Flag(val headline: String, val detail: String) : SummaryItem
+
+    /** A subheading inside a section, such as a phase name. */
+    data class Group(val title: String) : SummaryItem
+}
+
+/**
  * A plain-text summary to hand to a clinician.
  *
  * The health flags tell the user something is "worth mentioning to a doctor" and then give them
@@ -25,11 +71,16 @@ import java.time.format.DateTimeFormatter
  */
 object ClinicalSummary {
 
-    private val long = DateTimeFormatter.ofPattern("d MMM yyyy")
     private val short = DateTimeFormatter.ofPattern("d MMM yyyy")
 
     /** How many recent cycles and periods to list individually. */
     private const val DETAIL_ROWS = 12
+
+    /** Pain at or above this level (Severe) counts as severe. */
+    private const val SEVERE_PAIN = 3
+
+    const val ESTIMATED = "ESTIMATED"
+    const val IN_PROGRESS = "IN PROGRESS"
 
     /**
      * Says a section is empty, rather than leaving the section out.
@@ -44,7 +95,7 @@ object ClinicalSummary {
      * A heading with "none recorded" under it is a finding. A missing heading is an unanswered
      * question the reader does not know they should be asking.
      */
-    private fun StringBuilder.none(reason: String) = appendLine("  $reason")
+    private fun none(reason: String) = SummaryItem.Note(reason)
 
     /**
      * Notes when a list was cut short.
@@ -53,11 +104,31 @@ object ClinicalSummary {
      * everything". A clinician counting twelve cycles in a summary built from twenty would be
      * counting the wrong number.
      */
-    private fun StringBuilder.truncationNote(shown: Int, total: Int) {
-        if (total > shown) appendLine("  (most recent $shown of $total shown)")
+    private fun MutableList<SummaryItem>.truncationNote(shown: Int, total: Int) {
+        if (total > shown) add(SummaryItem.Note("(most recent $shown of $total shown)"))
     }
 
+    /** The summary as plain text. Same arguments as [document]; see there. */
     fun build(
+        projection: Projection,
+        today: LocalDate,
+        expectedCycleLength: Int,
+        flags: List<HealthFlag> = emptyList(),
+        symptomSummaries: List<PhaseSymptomSummary> = emptyList(),
+        anySymptomsLogged: Boolean = false,
+        config: CycleConfig = CycleConfig.Default,
+        symptomsByPhase: Map<Phase, List<PhaseSymptomSummary>> = emptyMap(),
+        flowByDate: Map<LocalDate, FlowLevel> = emptyMap(),
+        painByDate: Map<LocalDate, Int> = emptyMap(),
+        lengthSource: LengthSource? = null,
+    ): String = text(
+        document(
+            projection, today, expectedCycleLength, flags, symptomSummaries, anySymptomsLogged,
+            config, symptomsByPhase, flowByDate, painByDate, lengthSource,
+        ),
+    )
+
+    fun document(
         projection: Projection,
         today: LocalDate,
         expectedCycleLength: Int,
@@ -81,187 +152,259 @@ object ClinicalSummary {
         painByDate: Map<LocalDate, Int> = emptyMap(),
         /** Where [expectedCycleLength] came from, so the working estimate is not read as measured. */
         lengthSource: LengthSource? = null,
-    ): String = buildString {
-        appendLine("CYCLE SUMMARY")
-        appendLine("Generated ${today.format(long)} from the Luna app")
-        appendLine()
-        appendLine(
-            "Self-reported data recorded by the patient on their own phone. Not a medical record.",
-        )
-        appendLine("Days marked ESTIMATED were extrapolated by the app, not observed or recalled.")
-        appendLine()
+    ): SummaryDocument {
+        val sections = mutableListOf<SummarySection>()
 
+        // -- overview -------------------------------------------------------
         val observed = projection.cycles.filter { it.source == Source.OBSERVED && it.length != null }
         val assumed = projection.cycles.filter { it.source == Source.ASSUMED && it.length != null }
+        sections += SummarySection(
+            "OVERVIEW",
+            buildList {
+                add(SummaryItem.Figure("Completed cycles recorded", "${observed.size + assumed.size}"))
+                add(SummaryItem.Figure("of which observed", "${observed.size}", indent = 4))
+                add(SummaryItem.Figure("of which estimated", "${assumed.size}", indent = 4))
 
-        appendLine("OVERVIEW")
-        appendLine("  Completed cycles recorded ... ${observed.size + assumed.size}")
-        appendLine("    of which observed ........ ${observed.size}")
-        appendLine("    of which estimated ....... ${assumed.size}")
+                val lengths = observed.mapNotNull { it.length }.filter { it in config.plausibleCycleRange }
+                if (lengths.size >= 2) {
+                    add(SummaryItem.Figure("Observed cycle length", "${lengths.min()}–${lengths.max()} days"))
+                }
+                if (lengths.size >= 3) {
+                    add(
+                        SummaryItem.Figure(
+                            "Median observed length",
+                            "${CycleStats.roundHalfUp(CycleStats.median(lengths))} days",
+                        ),
+                    )
+                    CycleStats.cycleLengthVariability(projection.cycles, config)?.let {
+                        add(SummaryItem.Figure("Standard deviation", "%.1f days".format(it)))
+                    }
+                } else {
+                    add(SummaryItem.Figure("Median observed length", "not enough observed cycles"))
+                }
+                add(SummaryItem.Figure("App's working estimate", "$expectedCycleLength days", note = sourceNote(lengthSource)))
 
-        val lengths = observed.mapNotNull { it.length }.filter { it in config.plausibleCycleRange }
-        if (lengths.size >= 2) {
-            appendLine("  Observed cycle length ...... ${lengths.min()}–${lengths.max()} days")
-        }
-        if (lengths.size >= 3) {
-            appendLine(
-                "  Median observed length ..... ${CycleStats.roundHalfUp(CycleStats.median(lengths))} days",
-            )
-            CycleStats.cycleLengthVariability(projection.cycles, config)?.let {
-                appendLine("  Standard deviation ......... %.1f days".format(it))
-            }
-        } else {
-            appendLine("  Median observed length ..... not enough observed cycles")
-        }
-        appendLine("  App's working estimate ..... $expectedCycleLength days" + sourceNote(lengthSource))
-
-        projection.periods.lastOrNull()?.let {
-            appendLine(
-                "  Most recent period began ... ${it.start.format(short)}" +
-                    if (it.source == Source.ASSUMED) "   ESTIMATED" else "",
-            )
-            appendLine("  Days since ................. ${daysBetween(it.start, today)}")
-        }
-        appendLine()
+                projection.periods.lastOrNull()?.let {
+                    add(
+                        SummaryItem.Figure(
+                            "Most recent period began",
+                            it.start.format(short),
+                            tags = if (it.source == Source.ASSUMED) listOf(ESTIMATED) else emptyList(),
+                        ),
+                    )
+                    add(SummaryItem.Figure("Days since", "${daysBetween(it.start, today)}"))
+                }
+            },
+        )
 
         // -- cycles ---------------------------------------------------------
-        val completed = projection.cycles.filter { it.length != null }
-        val recentCycles = completed.takeLast(DETAIL_ROWS)
-        appendLine("CYCLES (most recent last)")
-        if (recentCycles.isEmpty()) {
-            none("No completed cycles recorded.")
-        } else {
-            recentCycles.forEach { cycle ->
-                appendLine(
-                    "  ${cycle.start.format(short)} to ${cycle.end?.format(short)}" +
-                        "  ${cycle.length} days" +
-                        if (cycle.source == Source.ASSUMED) "   ESTIMATED" else "",
-                )
-            }
-            truncationNote(recentCycles.size, completed.size)
-        }
-        projection.currentCycle?.takeIf { it.isOpen }?.let {
-            appendLine(
-                "  ${it.start.format(short)} to present" +
-                    "  ${daysBetween(it.start, today) + 1} days so far   IN PROGRESS" +
-                    if (it.source == Source.ASSUMED) "   ESTIMATED" else "",
-            )
-        }
-        appendLine()
+        sections += SummarySection(
+            "CYCLES (most recent last)",
+            buildList {
+                val completed = projection.cycles.filter { it.length != null }
+                val recentCycles = completed.takeLast(DETAIL_ROWS)
+                if (recentCycles.isEmpty()) {
+                    add(none("No completed cycles recorded."))
+                } else {
+                    recentCycles.forEach { cycle ->
+                        add(
+                            SummaryItem.Row(
+                                "${cycle.start.format(short)} to ${cycle.end?.format(short)}",
+                                "${cycle.length} days",
+                                tags = if (cycle.source == Source.ASSUMED) listOf(ESTIMATED) else emptyList(),
+                            ),
+                        )
+                    }
+                    truncationNote(recentCycles.size, completed.size)
+                }
+                projection.currentCycle?.takeIf { it.isOpen }?.let {
+                    add(
+                        SummaryItem.Row(
+                            "${it.start.format(short)} to present",
+                            "${daysBetween(it.start, today) + 1} days so far",
+                            tags = listOf(IN_PROGRESS) + if (it.source == Source.ASSUMED) listOf(ESTIMATED) else emptyList(),
+                        ),
+                    )
+                }
+            },
+        )
 
         // -- periods --------------------------------------------------------
-        val recentPeriods = projection.periods.takeLast(DETAIL_ROWS)
-        appendLine("PERIODS (bleeding days per episode)")
-        if (recentPeriods.isEmpty()) {
-            none("No periods recorded.")
-        } else {
-            recentPeriods.forEach { period ->
-                val heaviest = period.days().mapNotNull { flowByDate[it] }.maxByOrNull { it.ordinal }
-                appendLine(
-                    "  ${period.start.format(short)}" +
-                        "  ${period.spanDays} days span, ${period.bleedingDayCount} bleeding, " +
-                        (heaviest?.let { "heaviest flow ${it.name.lowercase()}" } ?: "flow not logged") +
-                        if (period.source == Source.ASSUMED) "   ESTIMATED" else "",
-                )
-            }
-            truncationNote(recentPeriods.size, projection.periods.size)
-        }
-        appendLine()
+        sections += SummarySection(
+            "PERIODS (bleeding days per episode)",
+            buildList {
+                val recentPeriods = projection.periods.takeLast(DETAIL_ROWS)
+                if (recentPeriods.isEmpty()) {
+                    add(none("No periods recorded."))
+                } else {
+                    recentPeriods.forEach { period ->
+                        val heaviest = period.days().mapNotNull { flowByDate[it] }.maxByOrNull { it.ordinal }
+                        add(
+                            SummaryItem.Row(
+                                period.start.format(short),
+                                "${period.spanDays} days span, ${period.bleedingDayCount} bleeding, " +
+                                    (heaviest?.let { "heaviest flow ${it.name.lowercase()}" } ?: "flow not logged"),
+                                tags = if (period.source == Source.ASSUMED) listOf(ESTIMATED) else emptyList(),
+                            ),
+                        )
+                    }
+                    truncationNote(recentPeriods.size, projection.periods.size)
+                }
+            },
+        )
 
         // -- pain during periods --------------------------------------------
         // Painful periods are among the commonest reasons to see someone, and pain was logged daily
         // and never reported. Counts only, over observed periods; no interpretation.
-        appendLine("PAIN DURING PERIODS")
-        val observedPeriods = projection.periods.filter { it.source == Source.OBSERVED }.takeLast(DETAIL_ROWS)
-        val painDays = observedPeriods.flatMap { p -> p.days().mapNotNull { painByDate[it] } }
-        if (painDays.isEmpty()) {
-            none("No pain logged during a period.")
-        } else {
-            val severe = painDays.count { it >= SEVERE_PAIN }
-            appendLine(
-                "  Pain logged on ${painDays.size} period day${if (painDays.size == 1) "" else "s"}; " +
-                    "severe or worse on $severe of ${painDays.size}.",
-            )
-            observedPeriods.forEach { p ->
-                val logged = p.days().mapNotNull { painByDate[it] }
-                if (logged.isNotEmpty()) {
-                    val worst = Symptom.PAIN.levelLabel(logged.max()) ?: logged.max().toString()
-                    appendLine("  ${p.start.format(short)}  worst: $worst, on ${logged.size} day(s) logged")
+        sections += SummarySection(
+            "PAIN DURING PERIODS",
+            buildList {
+                val observedPeriods = projection.periods.filter { it.source == Source.OBSERVED }.takeLast(DETAIL_ROWS)
+                val painDays = observedPeriods.flatMap { p -> p.days().mapNotNull { painByDate[it] } }
+                if (painDays.isEmpty()) {
+                    add(none("No pain logged during a period."))
+                } else {
+                    val severe = painDays.count { it >= SEVERE_PAIN }
+                    add(
+                        SummaryItem.Note(
+                            "Pain logged on ${painDays.size} period day${if (painDays.size == 1) "" else "s"}; " +
+                                "severe or worse on $severe of ${painDays.size}.",
+                        ),
+                    )
+                    observedPeriods.forEach { p ->
+                        val logged = p.days().mapNotNull { painByDate[it] }
+                        if (logged.isNotEmpty()) {
+                            val worst = Symptom.PAIN.levelLabel(logged.max()) ?: logged.max().toString()
+                            add(SummaryItem.Row(p.start.format(short), "worst: $worst, on ${logged.size} day(s) logged"))
+                        }
+                    }
                 }
-            }
-        }
-        appendLine()
+            },
+        )
 
         // -- spotting -------------------------------------------------------
-        appendLine("BLEEDING BETWEEN PERIODS")
-        if (projection.spotting.isEmpty()) {
-            // Stated, not omitted: "none" here is a clinical finding, and a missing heading would
-            // read as the app not looking for it.
-            none("None recorded. The app derives these from bleeding logged outside a period.")
-        } else {
-            val recentSpotting = projection.spotting.takeLast(DETAIL_ROWS)
-            recentSpotting.forEach {
-                appendLine("  ${it.start.format(short)}  ${it.spanDays} day(s)")
-            }
-            truncationNote(recentSpotting.size, projection.spotting.size)
-        }
-        appendLine()
+        sections += SummarySection(
+            "BLEEDING BETWEEN PERIODS",
+            buildList {
+                if (projection.spotting.isEmpty()) {
+                    // Stated, not omitted: "none" here is a clinical finding, and a missing heading
+                    // would read as the app not looking for it.
+                    add(none("None recorded. The app derives these from bleeding logged outside a period."))
+                } else {
+                    val recentSpotting = projection.spotting.takeLast(DETAIL_ROWS)
+                    recentSpotting.forEach { add(SummaryItem.Row(it.start.format(short), "${it.spanDays} day(s)")) }
+                    truncationNote(recentSpotting.size, projection.spotting.size)
+                }
+            },
+        )
 
         // -- flags ----------------------------------------------------------
-        appendLine("PATTERNS THE APP FLAGGED")
-        if (flags.isEmpty()) {
-            // The most important of the five. An empty flag list is good news, and omitting the
-            // section turns good news into an unanswered question about whether anything was checked.
-            none("Nothing flagged. The app's checks ran and matched no pattern.")
-        } else {
-            flags.forEach { flag ->
-                appendLine("  - ${flag.headline}")
-                appendLine("      ${flag.detail}")
-            }
-        }
-        appendLine()
+        sections += SummarySection(
+            "PATTERNS THE APP FLAGGED",
+            if (flags.isEmpty()) {
+                // The most important of the five. An empty flag list is good news, and omitting the
+                // section turns good news into an unanswered question about whether anything was
+                // checked.
+                listOf(none("Nothing flagged. The app's checks ran and matched no pattern."))
+            } else {
+                flags.map { SummaryItem.Flag(it.headline, it.detail) }
+            },
+        )
 
         // -- symptoms -------------------------------------------------------
-        appendLine("SYMPTOMS BY PHASE")
-        val phased = symptomsByPhase.filterValues { it.isNotEmpty() }
-        if (phased.isNotEmpty()) {
-            appendLine("  Averages of what was logged, by phases worked out by the app. Scales run 0–4.")
-            Phase.entries.filter { it in phased }.forEach { phase ->
-                appendLine("  ${phase.name.lowercase().replaceFirstChar { it.uppercase() }}:")
-                phased.getValue(phase).forEach { s -> appendLine("    " + symptomLine(s)) }
-            }
-        } else if (symptomSummaries.isEmpty()) {
-            // Two different absences, and the caller is the only one who can tell them apart —
-            // hence [anySymptomsLogged]. "No symptoms logged" and "logged but unattributable" would
-            // mean the same blank otherwise, and they are not the same fact.
-            if (anySymptomsLogged) {
-                none("Symptoms were logged, but there is not enough cycle history to place them in a phase.")
-            } else {
-                none("No symptoms logged.")
-            }
-        } else {
-            appendLine("  Averages of what was logged. Scales run 0–4.")
-            symptomSummaries.forEach { s -> appendLine("  " + symptomLine(s)) }
-        }
+        sections += SummarySection(
+            "SYMPTOMS BY PHASE",
+            buildList {
+                val phased = symptomsByPhase.filterValues { it.isNotEmpty() }
+                if (phased.isNotEmpty()) {
+                    add(SummaryItem.Note("Averages of what was logged, by phases worked out by the app. Scales run 0–4."))
+                    Phase.entries.filter { it in phased }.forEach { phase ->
+                        add(SummaryItem.Group(phase.name.lowercase().replaceFirstChar { it.uppercase() }))
+                        phased.getValue(phase).forEach { add(SummaryItem.Note(symptomLine(it), indent = 4)) }
+                    }
+                } else if (symptomSummaries.isEmpty()) {
+                    // Two different absences, and the caller is the only one who can tell them apart —
+                    // hence [anySymptomsLogged]. "No symptoms logged" and "logged but unattributable"
+                    // would mean the same blank otherwise, and they are not the same fact.
+                    if (anySymptomsLogged) {
+                        add(none("Symptoms were logged, but there is not enough cycle history to place them in a phase."))
+                    } else {
+                        add(none("No symptoms logged."))
+                    }
+                } else {
+                    add(SummaryItem.Note("Averages of what was logged. Scales run 0–4."))
+                    symptomSummaries.forEach { add(SummaryItem.Note(symptomLine(it))) }
+                }
+            },
+        )
+
+        return SummaryDocument(
+            title = "Cycle summary",
+            generatedOn = today,
+            preamble = listOf(
+                "Self-reported data recorded by the patient on their own phone. Not a medical record.",
+                "Days marked ESTIMATED were extrapolated by the app, not observed or recalled.",
+            ),
+            sections = sections,
+        )
+    }
+
+    /**
+     * The document as plain text, laid out for a monospaced reader with dot leaders.
+     *
+     * The leader rule (at least three dots, values from column 31) reproduces the layout this text had
+     * before the summary became structured, character for character, so nothing that already read it
+     * sees a change.
+     */
+    fun text(document: SummaryDocument): String = buildString {
+        appendLine(document.title.uppercase())
+        appendLine("Generated ${document.generatedOn.format(short)} from the Luna app")
+        appendLine()
+        document.preamble.forEach { appendLine(it) }
         appendLine()
 
+        document.sections.forEach { section ->
+            appendLine(section.title)
+            section.items.forEach { item ->
+                when (item) {
+                    is SummaryItem.Figure -> {
+                        val pad = " ".repeat(item.indent)
+                        val dots = ".".repeat(maxOf(3, 29 - item.indent - item.label.length))
+                        appendLine(
+                            "$pad${item.label} $dots ${item.value}" +
+                                (item.note?.let { " ($it)" } ?: "") + tagText(item.tags),
+                        )
+                    }
+                    is SummaryItem.Row -> appendLine(
+                        " ".repeat(item.indent) + item.primary +
+                            (item.secondary?.let { "  $it" } ?: "") + tagText(item.tags),
+                    )
+                    is SummaryItem.Note -> appendLine(" ".repeat(item.indent) + item.text)
+                    is SummaryItem.Flag -> {
+                        appendLine("  - ${item.headline}")
+                        appendLine("      ${item.detail}")
+                    }
+                    is SummaryItem.Group -> appendLine("  ${item.title}:")
+                }
+            }
+            appendLine()
+        }
         appendLine("END OF SUMMARY")
     }
 
-    /** Pain at or above this level (Severe) counts as severe. */
-    private const val SEVERE_PAIN = 3
+    private fun tagText(tags: List<String>) = tags.joinToString("") { "   $it" }
 
     private fun symptomLine(s: PhaseSymptomSummary): String =
         "${s.symptom.label}: ${s.label()} (%.1f) across ${s.daysObserved} days".format(s.phaseMean) +
             (s.elsewhereMean?.let { " vs %.1f in other phases".format(it) } ?: "")
 
     /** Where the working estimate came from, in a doctor's terms. */
-    private fun sourceNote(source: LengthSource?): String = when (source) {
-        LengthSource.MEDIAN_OF_OBSERVED -> " (median of observed cycles)"
-        LengthSource.USER_STATED -> " (as stated by the patient)"
-        LengthSource.MEDIAN_WITH_ESTIMATES -> " (mostly from estimated cycles)"
-        LengthSource.APP_DEFAULT -> " (app default, not measured)"
-        null -> ""
+    private fun sourceNote(source: LengthSource?): String? = when (source) {
+        LengthSource.MEDIAN_OF_OBSERVED -> "median of observed cycles"
+        LengthSource.USER_STATED -> "as stated by the patient"
+        LengthSource.MEDIAN_WITH_ESTIMATES -> "mostly from estimated cycles"
+        LengthSource.APP_DEFAULT -> "app default, not measured"
+        null -> null
     }
 
     private fun Period.days(): List<LocalDate> = (0 until spanDays).map { start.plusDays(it.toLong()) }

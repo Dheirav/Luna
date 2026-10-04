@@ -46,6 +46,7 @@ import com.dheirav.cycletracker.ui.HistoryScreen
 import com.dheirav.cycletracker.ui.HistoryViewModel
 import com.dheirav.cycletracker.ui.LogScreen
 import com.dheirav.cycletracker.ui.OnboardingScreen
+import com.dheirav.cycletracker.ui.SummaryScreen
 import com.dheirav.cycletracker.ui.PhaseGuideScreen
 import com.dheirav.cycletracker.ui.LogViewModel
 import com.dheirav.cycletracker.ui.SettingsScreen
@@ -81,7 +82,7 @@ class CycleTrackerApp : Application() {
 
 /** Five screens, one back destination, no deep links beyond the reminder's. Still less code than
  *  wiring a navigation library, and every transition is visible in one `when`. */
-private enum class Screen { TODAY, LOG, HISTORY, SETTINGS, PHASE_GUIDE, ONBOARDING }
+private enum class Screen { TODAY, LOG, HISTORY, SETTINGS, PHASE_GUIDE, ONBOARDING, SUMMARY }
 
 class MainActivity : ComponentActivity() {
 
@@ -208,7 +209,12 @@ class MainActivity : ComponentActivity() {
             }
 
             BackHandler(enabled = screen != Screen.TODAY) {
-                screen = if (screen == Screen.LOG) logOrigin else Screen.TODAY
+                screen = when (screen) {
+                    Screen.LOG -> logOrigin
+                    // Opened from Settings, so it goes back there.
+                    Screen.SUMMARY -> Screen.SETTINGS
+                    else -> Screen.TODAY
+                }
             }
 
             Box(Modifier.padding(padding)) {
@@ -246,7 +252,10 @@ class MainActivity : ComponentActivity() {
                             onboardingReplay = true
                             screen = Screen.ONBOARDING
                         },
+                        onSummary = { screen = Screen.SUMMARY },
                     )
+
+                    Screen.SUMMARY -> SummaryScreen()
 
                     Screen.ONBOARDING -> OnboardingScreen(
                         replay = onboardingReplay,

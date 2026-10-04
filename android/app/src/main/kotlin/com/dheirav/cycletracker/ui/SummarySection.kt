@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dheirav.cycletracker.CycleTrackerApp
 import com.dheirav.cycletracker.core.ClinicalSummary
+import com.dheirav.cycletracker.core.SummaryDocument
 import com.dheirav.cycletracker.core.FlowLevel
 import com.dheirav.cycletracker.core.Phase
 import com.dheirav.cycletracker.core.PhaseObservation
@@ -44,47 +45,14 @@ import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
 /**
- * A plain-text summary a clinician can read, previewed in the app and shared from there.
- *
- * The health flags say a pattern is "worth mentioning to a doctor" and then leave you with
- * nothing to bring: the only export was an encrypted blob no other software can open. This closes
- * that loop.
+ * The doctor summary's entry in Settings. The summary itself is [SummaryScreen].
  *
  * **Deliberately unencrypted, unlike the backup.** A file only this app can decrypt is useless in
  * an appointment. The trade is real and stated in the card rather than buried — the user chooses
- * where it lands, and it is readable by anything that opens text.
- *
- * Since 5 Oct 2026 it is shown before it goes anywhere, and shared through Android's share sheet
- * (print, email, a notes app) as well as saved to a file. It used to go straight to a file picker,
- * unseen. Sharing uses no permission of this app's: the person picks where the text goes.
+ * where it lands, and it is readable by anything that opens it.
  */
 @Composable
-fun SummarySection() {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var preview by remember { mutableStateOf<String?>(null) }
-
-    val save = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("text/plain"),
-    ) { uri ->
-        val text = preview
-        if (uri == null || text == null) return@rememberLauncherForActivityResult
-        scope.launch {
-            val result = runCatching {
-                withContext(Dispatchers.IO) {
-                    context.contentResolver.openOutputStream(uri)?.use {
-                        it.write(text.toByteArray())
-                    } ?: error("Could not open the file for writing")
-                }
-            }
-            Toast.makeText(
-                context,
-                result.fold({ "Summary saved" }, { "Could not save: ${it.message}" }),
-                Toast.LENGTH_LONG,
-            ).show()
-        }
-    }
-
+fun SummarySection(onOpen: () -> Unit) {
     SettingsCard(
         "Summary for a doctor",
         about = "Cycle and period lengths, flow, pain during periods, anything the app flagged, and " +
@@ -95,56 +63,12 @@ fun SummarySection() {
             // asks you to accept before pressing it.
             Text(
                 "Not encrypted, unlike a backup — a file only this app can open is no use in an " +
-                    "appointment. Share or save it somewhere you are happy for it to be readable.",
+                    "appointment. Share it as a PDF only where you are happy for it to be read.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            OutlinedButton(
-                onClick = {
-                    scope.launch {
-                        preview = runCatching { withContext(Dispatchers.IO) { buildSummary(context) } }
-                            .getOrElse { "Could not build the summary: ${it.message}" }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text("Preview summary") }
+            OutlinedButton(onClick = onOpen, modifier = Modifier.fillMaxWidth()) { Text("Open summary") }
         }
-    }
-
-    preview?.let { text ->
-        AlertDialog(
-            onDismissRequest = { preview = null },
-            title = { Text("Summary for a doctor") },
-            text = {
-                // Monospaced, because the summary lines up its figures with dot leaders, and
-                // scrollable both ways so no line wraps out of alignment on a narrow screen.
-                Text(
-                    text,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp,
-                    lineHeight = 15.sp,
-                    modifier = Modifier
-                        .heightIn(max = 480.dp)
-                        .verticalScroll(rememberScrollState())
-                        .horizontalScroll(rememberScrollState()),
-                )
-            },
-            confirmButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = {
-                        val send = Intent(Intent.ACTION_SEND)
-                            .setType("text/plain")
-                            .putExtra(Intent.EXTRA_SUBJECT, "Cycle summary")
-                            .putExtra(Intent.EXTRA_TEXT, text)
-                        context.startActivity(Intent.createChooser(send, "Share summary"))
-                    }) { Text("Share") }
-                    TextButton(onClick = { save.launch("cycle-summary-${LocalDate.now()}.txt") }) {
-                        Text("Save as file")
-                    }
-                }
-            },
-            dismissButton = { TextButton(onClick = { preview = null }) { Text("Close") } },
-        )
     }
 }
 
@@ -154,7 +78,7 @@ fun SummarySection() {
  * Nothing is recomputed with its own rules here — if the summary disagreed with the app screen it
  * was generated from, the app would be handing a doctor a contradiction.
  */
-private suspend fun buildSummary(context: android.content.Context): String {
+internal suspend fun buildSummaryDocument(context: android.content.Context): SummaryDocument {
     val app = context.applicationContext as CycleTrackerApp
     val dao = app.database.logDao()
     val today = LocalDate.now()
@@ -177,7 +101,7 @@ private suspend fun buildSummary(context: android.content.Context): String {
         )
     }
 
-    return ClinicalSummary.build(
+    return ClinicalSummary.document(
         projection = snapshot.projection,
         today = today,
         expectedCycleLength = state.expectedCycleLength,

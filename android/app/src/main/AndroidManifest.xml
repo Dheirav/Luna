@@ -86,5 +86,20 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+        <!--
+            Lets the share sheet read the doctor-summary PDF, and nothing else. Not exported: access
+            is granted per share, to the one file, for as long as the receiving app needs it. The
+            only path it covers is the cache folder the summary is written to, which the app empties
+            before each new summary so no older copy lingers.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/summary_paths" />
+        </provider>
     </application>
 </manifest>

@@ -80,7 +80,7 @@ private val stamp = DateTimeFormatter.ofPattern("d MMM, HH:mm")
  * reasoning was always on screen, and after the first read it was only scrolling between switches.
  */
 @Composable
-fun SettingsScreen(onHowItWorks: () -> Unit) {
+fun SettingsScreen(onHowItWorks: () -> Unit, onSummary: () -> Unit) {
     val context = LocalContext.current
     val settings = remember { Settings(context) }
 
@@ -108,7 +108,7 @@ fun SettingsScreen(onHowItWorks: () -> Unit) {
         SettingsGroup("Privacy and data")
         AppLockSection()
         BackupSection()
-        SummarySection()
+        SummarySection(onOpen = onSummary)
 
         SettingsGroup("Help")
         SettingsCard("How Luna works") {
