@@ -460,9 +460,14 @@ anything personal, and Phase 4's correlation half. One of the four rather than a
 would break the form's ten-second constraint, which rule 4 makes load-bearing. `MoodReadingTest` fails
 if the last core mood symptom is ever demoted, because nothing else would notice.
 
-**No licence, decided rather than deferred.** All rights reserved, recorded in the README with the
-reasoning. Not "none yet". The concern is not commercial: a fork that kept the interface and dropped
-"absent is not zero", or quietly widened a window, would carry the name and none of the care.
+**Licence: Apache 2.0, since 2026-10-05.** The history matters because the README once contradicted
+`LICENSE`: "all rights reserved" was decided on 2026-08-12, `LICENSE` became MIT on 2026-08-15 without
+the README changing, and Apache 2.0 replaced both on 2026-10-05. The concern was never commercial: a
+fork that kept the interface and dropped "absent is not zero", or quietly widened a window, would carry
+the name and none of the care. Apache answers that better than either earlier choice, since it grants
+no trademark rights (s6) and requires modified files to be marked (s4b). The naming request is in
+`NOTICE`. Versions published between 2026-08-15 and 2026-10-05 remain available under MIT to anyone
+who took them then; a licence on a published version cannot be withdrawn.
 
 ### A gate of mine that did not do what its comment claimed (2026-08-13)
 

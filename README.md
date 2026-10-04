@@ -151,15 +151,17 @@ a dependency can contribute a permission during manifest merge without anyone wr
 
 ## Licence
 
-**None, deliberately — all rights reserved.** Not an oversight, and not "not yet": the choice was made
-on 2026-08-12 and this line exists so nobody has to wonder.
+**Apache License 2.0** (`LICENSE`, with `NOTICE`). Chosen on 2026-10-05, replacing the MIT licence
+added on 2026-08-15, which had in turn replaced an earlier "all rights reserved" decision.
 
-You can read all of it. The engine in `core/` is dependency-free, spec-driven and reasonably well
-tested, and the comments explain the reasoning rather than the mechanics, so it may be worth reading
-even though you cannot reuse it. If you want to use something here, ask.
+You can use, change and redistribute this, commercially or not. The engine in `core/` is
+dependency-free, spec-driven and reasonably well tested, and the comments explain the reasoning
+rather than the mechanics, so it may be worth reading even if you only want the cycle logic.
 
-The reason is not proprietary interest. This is one person's medical tool, built to a specific spec
-with rules that only make sense together — a fork that kept the interface and dropped "absent is not
-zero", or that quietly widened a prediction window, would carry the same name and none of the care.
-Nobody is harmed by an unlicensed hobby project; someone could be harmed by a cycle tracker that
-looks trustworthy and is not.
+Apache rather than MIT because of the one worry that made this a careful decision. This is one
+person's medical tool, built to a spec whose rules only make sense together, and a fork that kept the
+interface but dropped "absent is not zero", or quietly widened a prediction window, could look just as
+trustworthy while not being so. Apache 2.0 addresses that in two ways MIT does not: it grants no right
+to the project's name (section 6), and anyone distributing modified files has to mark them as changed
+(section 4b). So the code is free to reuse, while a modified version cannot pass itself off as this
+one. If you fork it, please give it a different name.
