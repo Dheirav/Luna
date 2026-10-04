@@ -196,23 +196,28 @@ fun TodayScreen(
             return@Column
         }
 
-        CycleHero(
-            cycleDay = state.cycleDay ?: 0,
-            lengthPhrase = cycleLengthPhrase(state.expectedCycleLength, ui.basis?.source),
-            phase = state.phase,
-            isBleeding = state.isBleeding,
-            daysPast = ui.window?.daysPast(ui.today) ?: 0,
-            doctorBy = ui.window?.latest?.plusWeeks(DOCTOR_AFTER_WEEKS),
-            mood = mascotMoodFor(ui.todayMood),
-            onClick = onPhaseGuide,
-        )
+        // Each tour target is tagged where it is drawn; the tag does nothing unless a tour is running.
+        Box(Modifier.tourTarget(TourTarget.HERO)) {
+            CycleHero(
+                cycleDay = state.cycleDay ?: 0,
+                lengthPhrase = cycleLengthPhrase(state.expectedCycleLength, ui.basis?.source),
+                phase = state.phase,
+                isBleeding = state.isBleeding,
+                daysPast = ui.window?.daysPast(ui.today) ?: 0,
+                doctorBy = ui.window?.latest?.plusWeeks(DOCTOR_AFTER_WEEKS),
+                mood = mascotMoodFor(ui.todayMood),
+                onClick = onPhaseGuide,
+            )
+        }
 
         // The daily action sits directly under the hero, ahead of every card that can appear. Cards
         // used to come first, and on the Redmi Note 15 Pro a reminder warning plus one health flag
         // pushed "Log today" below the fold, so the one thing this screen is for needed a scroll.
-        LogTodayButton(logged = ui.loggedToday, onClick = onLog)
+        Box(Modifier.tourTarget(TourTarget.LOG_BUTTON)) {
+            LogTodayButton(logged = ui.loggedToday, onClick = onLog)
+        }
 
-        TextButton(onClick = onHistory, modifier = Modifier.fillMaxWidth()) {
+        TextButton(onClick = onHistory, modifier = Modifier.fillMaxWidth().tourTarget(TourTarget.HISTORY_BUTTON)) {
             Text("History")
         }
 
@@ -231,14 +236,18 @@ fun TodayScreen(
         // at the bottom instead of a card on every launch.
         if (ui.reminderBroken) ReminderStopped()
 
-        ui.window?.let { NextPeriodCard(it, today = ui.today) }
+        ui.window?.let {
+            Box(Modifier.tourTarget(TourTarget.WINDOW_CARD)) { NextPeriodCard(it, today = ui.today) }
+        }
 
         // The late-period flag is not repeated as a card here. The hero already says how late, and
         // the card's opening line restated the hero's day and cycle length; its reassurance moved
         // into the hero instead. The flag itself is unchanged and still reaches the doctor summary.
         ui.flags.filter { it.kind != HealthFlagKind.PERIOD_LATE }.forEach { HealthFlagCard(it) }
 
-                WhyCard(basis = ui.basis, accuracy = ui.accuracy, state = state)
+        Box(Modifier.tourTarget(TourTarget.WHY_CARD)) {
+            WhyCard(basis = ui.basis, accuracy = ui.accuracy, state = state)
+        }
 
         if (!ui.reminderBroken && ui.batteryRestricted) ReminderAtRisk()
 
@@ -263,7 +272,7 @@ private fun Header(today: java.time.LocalDate, onSettings: () -> Unit) {
         }
         // The header sparkles moved to the hero, where the mascot now anchors them. Two decorated
         // areas stacked was the start of the clutter the brief warned about.
-        TextButton(onClick = onSettings) { Text("Settings") }
+        TextButton(onClick = onSettings, modifier = Modifier.tourTarget(TourTarget.SETTINGS_BUTTON)) { Text("Settings") }
     }
 }
 
@@ -699,13 +708,13 @@ private fun EmptyState(onLog: () -> Unit, onHistory: () -> Unit) {
         Button(
             onClick = onLog,
             shape = MaterialTheme.shapes.large,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 58.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 58.dp).tourTarget(TourTarget.LOG_BUTTON),
         ) {
             Text("Log today", style = MaterialTheme.typography.titleMedium)
         }
         // Reachable with no data on purpose — an empty database is exactly when someone wants to
         // enter the periods they already remember.
-        TextButton(onClick = onHistory, modifier = Modifier.fillMaxWidth()) {
+        TextButton(onClick = onHistory, modifier = Modifier.fillMaxWidth().tourTarget(TourTarget.HISTORY_BUTTON)) {
             Text("Add past periods")
         }
     }

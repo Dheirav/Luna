@@ -38,7 +38,7 @@ fun BackBar(title: String?, modifier: Modifier = Modifier, tint: Color = Color.U
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = { dispatcher?.onBackPressed() }) {
+        IconButton(onClick = { dispatcher?.onBackPressed() }, modifier = Modifier.tourTarget(TourTarget.BACK)) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = color)
         }
         if (title != null) {

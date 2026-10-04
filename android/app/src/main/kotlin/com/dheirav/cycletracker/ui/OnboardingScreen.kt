@@ -46,65 +46,60 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
-/** The walkthrough's pages, in order. */
-enum class OnboardingPage { PRIVATE, LOGGING, WINDOW, OBSERVED, REMINDER, SETUP }
+/** The pages before the tour, in order. */
+enum class OnboardingPage { PRIVATE, SETUP }
 
 /**
- * Which pages to show.
+ * Which pages to show before the tour.
  *
- * [OnboardingPage.SETUP] writes data, so it appears only on a first run with no periods logged. A
- * replay from Settings, or a first run on a phone that already has history (an update, a restore),
- * would otherwise invite entering a period twice.
+ * [OnboardingPage.SETUP] writes data, so it appears only when no periods are logged. On a phone that
+ * already has history (an update, a restore) it would invite entering a period twice.
  */
-fun onboardingPages(replay: Boolean, hasPeriods: Boolean): List<OnboardingPage> =
-    OnboardingPage.entries.filter { it != OnboardingPage.SETUP || (!replay && !hasPeriods) }
+fun onboardingPages(hasPeriods: Boolean): List<OnboardingPage> =
+    OnboardingPage.entries.filter { it != OnboardingPage.SETUP || !hasPeriods }
 
 private val rangeLabel = DateTimeFormatter.ofPattern("d MMM")
 
 /**
- * How Luna works, as a short walkthrough: on first run, and again from Settings.
+ * The welcome before the tour: one page on privacy and, with no data yet, one optional setup page.
  *
- * It exists because nothing in the app explained itself. The council review of 5 Oct found that a
- * first open was two system prompts over a screen saying "No periods logged yet", with no mention of
- * the reminder, the widget, or why the prediction is a range. Each page is one idea, said once, in
- * the words the screens themselves use, so what it teaches is what the user then sees.
- *
- * Two things moved here from elsewhere, deliberately:
- *  - **The notification permission.** It was requested on the first frame of the app, before anyone
- *    knew what it was for. It is asked on the reminder page now, behind a button that says why.
- *  - **The first period.** Entering past periods cost a tap per day in History. The optional setup
- *    page takes a date range and a usual cycle length, which makes the first prediction useful on
- *    day one rather than after three cycles of logging.
+ * Everything else that was explained here in paragraphs is now shown in the app itself by the guided
+ * tour ([TourOverlay]), asked for on 5 Oct 2026 as "show where to click, not a lot of tell". What is
+ * left here is what cannot be pointed at: that nothing leaves the phone, and the first period, which
+ * would otherwise cost a tap per day in History. The notification permission moved to the tour's
+ * reminder step, next to the reminder it is for.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OnboardingScreen(
-    replay: Boolean,
     hasPeriods: Boolean,
-    onRequestNotifications: () -> Unit,
     onLogPeriod: (LocalDate, LocalDate) -> Unit,
-    onFinish: () -> Unit,
+    /** True to go on into the tour, false to skip it. */
+    onFinish: (startTour: Boolean) -> Unit,
 ) {
-    val pages = onboardingPages(replay, hasPeriods)
+    val pages = onboardingPages(hasPeriods)
     var index by rememberSaveable { mutableIntStateOf(0) }
     val page = pages[index.coerceIn(0, pages.lastIndex)]
     val last = index >= pages.lastIndex
 
-    // Back steps through the pages, and from the first page leaves, the same as Skip.
-    BackHandler { if (index > 0) index-- else onFinish() }
-
-    // The setup page's answers, held until Done so that Skip writes nothing.
+    // The setup page's answers, held until the walkthrough ends.
     var range by rememberSaveable { mutableStateOf<Pair<Long, Long>?>(null) }
+
+    // A period chosen on the setup page is kept whether or not the tour follows: skipping a tour is
+    // not a reason to lose an answer.
+    fun finish(startTour: Boolean) {
+        range?.let { (from, to) -> onLogPeriod(fromUtc(from), fromUtc(to)) }
+        onFinish(startTour)
+    }
+
+    // Back steps through the pages, and from the first page leaves without the tour.
+    BackHandler { if (index > 0) index-- else onFinish(false) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 24.dp, vertical = 12.dp),
     ) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            if (!last) TextButton(onClick = onFinish) { Text(if (replay) "Close" else "Skip") }
-        }
-
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -112,51 +107,14 @@ fun OnboardingScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Spacer(Modifier.heightIn(min = 24.dp))
+            Spacer(Modifier.heightIn(min = 48.dp))
             when (page) {
                 OnboardingPage.PRIVATE -> Page(
-                    "Private by design",
-                    "Luna has no account and no internet permission. Everything you log stays on " +
-                        "this phone unless you export it yourself.",
-                    "An app lock, a blank card in recent apps and a discreet widget keep it off " +
-                        "screens other people can see.",
+                    "Welcome to Luna",
+                    "No account and no internet. Everything you log stays on this phone unless you " +
+                        "export it yourself.",
+                    "Next, a short tour shows you where everything is, on the real screens.",
                 )
-                OnboardingPage.LOGGING -> Page(
-                    "Log in ten seconds",
-                    "Tap Log today, answer what you know and save. Every field is optional: " +
-                        "anything you leave blank is recorded as unknown, never as zero.",
-                    "The evening reminder has Bleeding and No bleeding buttons, so most days take " +
-                        "one tap. Undo appears after every save, and any past day can be fixed " +
-                        "from History.",
-                )
-                OnboardingPage.WINDOW -> Page(
-                    "A window, not a date",
-                    "The next period is shown as a range of days, because cycles vary. With few " +
-                        "cycles logged the range is wide, and it says so. It narrows as your own " +
-                        "cycles are observed.",
-                    "If a period runs past the window, Today says how many days past, and when it " +
-                        "would be worth raising with a doctor.",
-                )
-                OnboardingPage.OBSERVED -> Page(
-                    "What you logged, and what was worked out",
-                    "Days you logged are filled in. Anything the app estimated is marked as " +
-                        "estimated, on the calendar, on Today and in the doctor summary.",
-                    "Tap the cycle card on Today to read about your phase, and \"Why these " +
-                        "numbers?\" to see exactly what each figure is based on.",
-                )
-                OnboardingPage.REMINDER -> {
-                    Page(
-                        "A nudge, if you want one",
-                        "Luna can remind you at 21:00 each evening, and skips days you have " +
-                            "already logged. You can change the time in Settings.",
-                        "The home-screen widget is a one-tap shortcut that keeps working even if " +
-                            "the phone stops the reminder. It shows nothing about your cycle " +
-                            "unless you turn details on.",
-                    )
-                    OutlinedButton(onClick = onRequestNotifications, modifier = Modifier.fillMaxWidth()) {
-                        Text("Allow the reminder")
-                    }
-                }
                 OnboardingPage.SETUP -> SetupPage(
                     range = range,
                     onRange = { range = it },
@@ -164,53 +122,39 @@ fun OnboardingScreen(
             }
         }
 
-        // Progress, so the walkthrough visibly has an end.
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp)
-                .semantics { contentDescription = "Page ${index + 1} of ${pages.size}" },
-            horizontalArrangement = Arrangement.Center,
-        ) {
-            pages.indices.forEach { i ->
-                Box(
-                    modifier = Modifier
-                        .padding(horizontal = 4.dp)
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (i == index) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.outline,
-                        ),
-                )
+        if (pages.size > 1) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp)
+                    .semantics { contentDescription = "Page ${index + 1} of ${pages.size}" },
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                pages.indices.forEach { i ->
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 4.dp)
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (i == index) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.outline,
+                            ),
+                    )
+                }
             }
         }
 
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (index > 0) TextButton(onClick = { index-- }) { Text("Back") } else Spacer(Modifier)
+            TextButton(onClick = { finish(startTour = false) }) { Text("Skip the tour") }
             Button(
-                onClick = {
-                    if (!last) {
-                        index++
-                    } else {
-                        range?.let { (from, to) -> onLogPeriod(fromUtc(from), fromUtc(to)) }
-                        onFinish()
-                    }
-                },
+                onClick = { if (!last) index++ else finish(startTour = true) },
                 modifier = Modifier.heightIn(min = 48.dp),
-            ) {
-                Text(
-                    when {
-                        !last -> "Next"
-                        replay -> "Close"
-                        else -> "Start"
-                    },
-                )
-            }
+            ) { Text(if (!last) "Next" else "Show me around") }
         }
     }
 }

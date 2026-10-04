@@ -17,13 +17,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,7 +48,12 @@ import com.dheirav.cycletracker.ui.GuideViewModel
 import com.dheirav.cycletracker.ui.HistoryScreen
 import com.dheirav.cycletracker.ui.HistoryViewModel
 import com.dheirav.cycletracker.ui.LogScreen
+import com.dheirav.cycletracker.ui.LocalTour
 import com.dheirav.cycletracker.ui.OnboardingScreen
+import com.dheirav.cycletracker.ui.TourController
+import com.dheirav.cycletracker.ui.TourOverlay
+import com.dheirav.cycletracker.ui.TourScreen
+import com.dheirav.cycletracker.ui.TourTarget
 import com.dheirav.cycletracker.ui.SummaryScreen
 import com.dheirav.cycletracker.ui.PhaseGuideScreen
 import com.dheirav.cycletracker.ui.LogViewModel
@@ -143,6 +151,10 @@ class MainActivity : ComponentActivity() {
         // Hosted here rather than on the log form, because the form closes on save and the
         // confirmation has to outlive it.
         val snackbar = remember { SnackbarHostState() }
+        // The guided tour. Provided to every screen so their elements can tag themselves as places
+        // it points at; idle, it costs nothing.
+        val tour = remember { TourController() }
+        CompositionLocalProvider(LocalTour provides tour) {
         Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { padding ->
             val todayVm: TodayViewModel = viewModel()
             val logVm: LogViewModel = viewModel()
@@ -168,8 +180,6 @@ class MainActivity : ComponentActivity() {
             var screen by rememberSaveable {
                 mutableStateOf(if (settings.onboardingDone) Screen.TODAY else Screen.ONBOARDING)
             }
-            // True when the walkthrough was opened from Settings to reread, not as a first run.
-            var onboardingReplay by rememberSaveable { mutableStateOf(false) }
 
             // Where the log form was opened from, so leaving it goes back there.
             //
@@ -179,7 +189,7 @@ class MainActivity : ComponentActivity() {
             // bulk correction.
             var logOrigin by rememberSaveable { mutableStateOf(Screen.TODAY) }
 
-            // Asked from the walkthrough's reminder page, behind a button that says what it is for.
+            // Asked from the tour's reminder step, behind a button that says what it is for.
             // It used to be launched on the first frame of the app, before anyone knew why, and again
             // whenever the screen was rebuilt. Without it the reminder posts nothing, so a denial is
             // also surfaced in Settings, with a route to fix it.
@@ -207,6 +217,9 @@ class MainActivity : ComponentActivity() {
                     openLogOnLaunch = false
                 }
             }
+
+            // The tour follows the person: arriving where a tap-step leads moves it on.
+            LaunchedEffect(screen) { screen.forTour()?.let(tour::onScreen) }
 
             BackHandler(enabled = screen != Screen.TODAY) {
                 screen = when (screen) {
@@ -248,9 +261,10 @@ class MainActivity : ComponentActivity() {
 
                     // No refresh hook: a settings change reaches every screen through the snapshot.
                     Screen.SETTINGS -> SettingsScreen(
+                        // Replaying the walkthrough is the tour itself, from Today.
                         onHowItWorks = {
-                            onboardingReplay = true
-                            screen = Screen.ONBOARDING
+                            screen = Screen.TODAY
+                            tour.start()
                         },
                         onSummary = { screen = Screen.SUMMARY },
                     )
@@ -258,18 +272,12 @@ class MainActivity : ComponentActivity() {
                     Screen.SUMMARY -> SummaryScreen()
 
                     Screen.ONBOARDING -> OnboardingScreen(
-                        replay = onboardingReplay,
                         hasPeriods = todayUi.state?.hasData == true,
-                        onRequestNotifications = requestNotifications,
                         onLogPeriod = logVm::logPeriod,
-                        onFinish = {
-                            if (onboardingReplay) {
-                                onboardingReplay = false
-                                screen = Screen.SETTINGS
-                            } else {
-                                settings.onboardingDone = true
-                                screen = Screen.TODAY
-                            }
+                        onFinish = { startTour ->
+                            settings.onboardingDone = true
+                            screen = Screen.TODAY
+                            if (startTour) tour.start()
                         },
                     )
 
@@ -278,7 +286,47 @@ class MainActivity : ComponentActivity() {
                     Screen.PHASE_GUIDE -> PhaseGuideScreen(guideVm, initialPhase = null)
                 }
             }
+
+            // Drawn over everything, in the same coordinates the targets report theirs in.
+            if (tour.active) {
+                TourOverlay(
+                    tour = tour,
+                    // A tap-step whose button is not on screen (an empty state, or the person went
+                    // elsewhere): do its navigation, or just move on if they are already there.
+                    onMissing = { step ->
+                        when (step.leadsTo) {
+                            screen.forTour() -> tour.next()
+                            TourScreen.TODAY -> screen = Screen.TODAY
+                            TourScreen.LOG -> if (logVm.open(LocalDate.now())) {
+                                logOrigin = Screen.TODAY
+                                screen = Screen.LOG
+                            }
+                            TourScreen.HISTORY -> {
+                                historyVm.showCurrentMonth()
+                                screen = Screen.HISTORY
+                            }
+                            TourScreen.SETTINGS -> screen = Screen.SETTINGS
+                            null -> tour.next()
+                        }
+                    },
+                    action = { step ->
+                        if (step.target == TourTarget.REMINDER_CARD) {
+                            OutlinedButton(onClick = requestNotifications) { Text("Allow the reminder") }
+                        }
+                    },
+                )
+            }
         }
+        }
+    }
+
+    /** Which tour screen this is, or null for screens the tour does not visit. */
+    private fun Screen.forTour(): TourScreen? = when (this) {
+        Screen.TODAY -> TourScreen.TODAY
+        Screen.LOG -> TourScreen.LOG
+        Screen.HISTORY -> TourScreen.HISTORY
+        Screen.SETTINGS -> TourScreen.SETTINGS
+        else -> null
     }
 
     override fun onNewIntent(intent: Intent) {

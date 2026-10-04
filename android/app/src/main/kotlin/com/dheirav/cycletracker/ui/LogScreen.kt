@@ -153,6 +153,7 @@ fun LogScreen(viewModel: LogViewModel, onDone: () -> Unit) {
             Text("Bleeding", style = MaterialTheme.typography.titleSmall)
             // Wraps rather than squeezing: four chips need about 480dp at 200% text size.
             FlowRow(
+                modifier = Modifier.tourTarget(TourTarget.LOG_BLEEDING),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
@@ -247,7 +248,8 @@ fun LogScreen(viewModel: LogViewModel, onDone: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 10.dp)
-                    .heightIn(min = 52.dp),
+                    .heightIn(min = 52.dp)
+                    .tourTarget(TourTarget.LOG_SAVE),
             ) {
                 // Names the day, so a save after the date arrows were tapped says where it is going.
                 Text("Save · ${dayLabel(entry.date)}", style = MaterialTheme.typography.titleMedium)
@@ -350,7 +352,7 @@ private fun DayHeader(date: LocalDate, onPick: (LocalDate) -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Presses the system Back, so the unsaved-changes prompt applies to it as to a gesture.
-        IconButton(onClick = { dispatcher?.onBackPressed() }) {
+        IconButton(onClick = { dispatcher?.onBackPressed() }, modifier = Modifier.tourTarget(TourTarget.BACK)) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
         }
         Spacer(Modifier.weight(1f))

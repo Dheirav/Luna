@@ -87,13 +87,15 @@ fun HistoryScreen(viewModel: HistoryViewModel, onPickDate: (LocalDate) -> Unit) 
 
         WeekdayLabels()
 
-        MonthGrid(
-            month = ui.month,
-            days = ui.days,
-            window = ui.window,
-            today = ui.today,
-            onPickDate = onPickDate,
-        )
+        Box(Modifier.tourTarget(TourTarget.CALENDAR)) {
+            MonthGrid(
+                month = ui.month,
+                days = ui.days,
+                window = ui.window,
+                today = ui.today,
+                onPickDate = onPickDate,
+            )
+        }
 
         Legend()
 

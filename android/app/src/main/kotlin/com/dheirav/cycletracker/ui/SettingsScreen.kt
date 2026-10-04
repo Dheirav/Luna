@@ -2,6 +2,7 @@ package com.dheirav.cycletracker.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -102,7 +103,7 @@ fun SettingsScreen(onHowItWorks: () -> Unit, onSummary: () -> Unit) {
         // The widget sits with the reminder because it is the reminder's fallback: it keeps working
         // when the phone kills background work.
         SettingsGroup("Reminder and widget")
-        ReminderCard(settings = settings)
+        Box(Modifier.tourTarget(TourTarget.REMINDER_CARD)) { ReminderCard(settings = settings) }
         WidgetCard(settings = settings)
 
         SettingsGroup("Privacy and data")

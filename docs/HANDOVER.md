@@ -38,7 +38,7 @@ Governing rules (full list in the plan artifact):
 | | Verified how |
 |---|---|
 | Phase 0 — spec + golden fixture | 34 cases, `spec/cycle_fixtures.json` |
-| Cycle/period/phase engine (`:core`) | `./gradlew :core:test`: **163 tests, all pass** (plus 49 in `:app`, and 5 instrumented) |
+| Cycle/period/phase engine (`:core`) | `./gradlew :core:test`: **163 tests, all pass** (plus 54 in `:app`, and 5 instrumented) |
 | Encrypted backup codec | 11 tests incl. tamper detection, wrong-passphrase, no-plaintext-leak |
 | Forecast window / prediction scorer | 16 + 13 tests |
 | Health flags, symptom patterns, clinical summary | 14 + 12 + 11 tests |
@@ -535,12 +535,16 @@ batch is in, checked on the Redmi in both themes:
   failed contrast everywhere it was used. Switch rows are `SwitchRow`, one toggleable node each. At
   more than 130% text, level scales become a vertical list.
 
-**The walkthrough** (`ui/OnboardingScreen.kt`) shows on first run until finished or skipped
-(`Settings.onboardingDone`), and replays from Settings, Help. The notification permission is asked
-from its reminder page, no longer on launch. An optional setup page, shown only on a first run with
-no periods, logs the last period as a date range (`LogRepository.logPeriod`) and sets a usual cycle
-length. Known flaw: in landscape the reminder page's button sits partly under the page dots until
-scrolled.
+**The guided tour** (`ui/Tour.kt`, since 5 Oct, replacing four pages of explanation): a spotlight
+over the real screens, one short caption per step, twelve steps across Today, Log, History and
+Settings. Steps that move between screens are done by tapping the real highlighted element; the rest
+have Next and block every touch, and the script test forbids any saving element from being a tap-step.
+Elements tag themselves with `Modifier.tourTarget(...)`, which does nothing when no tour runs. A
+missing target is skipped, or its navigation done for the person, so the tour cannot get stuck. The
+notification permission is asked from the tour's reminder step. `OnboardingScreen` is now the
+welcome plus, with no periods logged, the setup page (`LogRepository.logPeriod`); it ends in "Show me
+around" or "Skip the tour". Settings, Help replays the tour on Today. All twelve steps were walked on
+the Redmi on 5 Oct.
 
 Still open from the council: three-state bleeding (Room v3, decided), the gap prompt (decided),
 the doctor summary, backup safety, and whether to amend §5.1 for an open period.
