@@ -109,6 +109,13 @@ private fun GuideHero(phase: Phase, summary: String) {
             .clip(ScallopedBottomShape(bumps = 9, topRadius = 0.dp))
             .background(Brush.verticalGradient(listOf(top, bottom))),
     ) {
+        // Over the hero rather than above it: the hero is full-bleed by design, and a bar on top would
+        // put a strip of plain background between the status bar and the gradient.
+        BackBar(
+            title = null,
+            tint = ink,
+            modifier = Modifier.align(Alignment.TopStart).padding(start = 4.dp, top = 4.dp),
+        )
         Cloud(
             color = ink.copy(alpha = 0.16f),
             width = 52.dp,
@@ -126,7 +133,8 @@ private fun GuideHero(phase: Phase, summary: String) {
         )
 
         Column(
-            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 34.dp, bottom = 40.dp),
+            // Top padding clears the back arrow sitting over the hero's corner.
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 56.dp, bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(

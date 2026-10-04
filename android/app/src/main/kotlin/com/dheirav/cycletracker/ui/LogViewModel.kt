@@ -9,18 +9,45 @@ import com.dheirav.cycletracker.core.FlowLevel
 import com.dheirav.cycletracker.core.Symptom
 import com.dheirav.cycletracker.data.DayEntry
 import com.dheirav.cycletracker.data.LogRepository
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 data class LogUiState(
     val entry: DayEntry = DayEntry(LocalDate.now()),
+    /** The day as it was loaded, so the form can tell an edit from a visit. */
+    val original: DayEntry = entry,
     val showExtended: Boolean = false,
     val saved: Boolean = false,
     val loading: Boolean = true,
-)
+) {
+    /**
+     * True when leaving would throw something away.
+     *
+     * Compared by value rather than tracked as "was anything tapped", so an edit undone by hand (the
+     * form unsets a level when it is tapped twice) does not trigger a prompt for nothing to lose.
+     */
+    val dirty: Boolean get() = !loading && entry != original
+}
+
+/**
+ * How the log form and its snackbar name a day: "Today", "Yesterday", or "Mon 3 Mar".
+ * The weekday is kept so a save to the day next to the intended one is visible at a glance.
+ */
+fun dayLabel(date: LocalDate, today: LocalDate = LocalDate.now()): String = when (date) {
+    today -> "Today"
+    today.minusDays(1) -> "Yesterday"
+    else -> date.format(DateTimeFormatter.ofPattern("EEE d MMM"))
+}
+
+/** A write that can be taken back: what to say about it, and the day as it was before. */
+data class Undoable(val message: String, val previous: DayEntry)
 
 class LogViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -29,28 +56,32 @@ class LogViewModel(app: Application) : AndroidViewModel(app) {
     private val _ui = MutableStateFlow(LogUiState())
     val ui: StateFlow<LogUiState> = _ui.asStateFlow()
 
+    /**
+     * One event per write, collected by the activity's snackbar. A shared flow rather than state,
+     * because the form has usually been left by the time it shows, and a replayed "Saved" on the
+     * next visit would be wrong.
+     */
+    private val _undoable = MutableSharedFlow<Undoable>(extraBufferCapacity = 1)
+    val undoable: SharedFlow<Undoable> = _undoable.asSharedFlow()
+
     init {
         open(LocalDate.now())
     }
 
     /** Loads a date for editing. Retro-logging is the same path as today — no special case. */
     fun open(date: LocalDate) {
+        // No logging the future — there is nothing to observe yet.
+        if (date.isAfter(LocalDate.now())) return
         viewModelScope.launch {
             val entry = repo.load(date)
             _ui.value = LogUiState(
                 entry = entry,
+                original = entry,
                 // If a day already has extended symptoms, show them rather than hide the data.
                 showExtended = entry.symptoms.keys.any { !it.isCore },
                 loading = false,
             )
         }
-    }
-
-    fun shiftDay(days: Long) {
-        val target = _ui.value.entry.date.plusDays(days)
-        // No logging the future — there is nothing to observe yet.
-        if (target.isAfter(LocalDate.now())) return
-        open(target)
     }
 
     fun setBleeding(bleeding: Boolean) = edit {
@@ -81,10 +112,19 @@ class LogViewModel(app: Application) : AndroidViewModel(app) {
 
     fun save(onDone: () -> Unit) {
         viewModelScope.launch {
-            repo.save(_ui.value.entry)
-            _ui.value = _ui.value.copy(saved = true)
+            val state = _ui.value
+            repo.save(state.entry)
+            _ui.value = state.copy(saved = true)
+            // Saving gave no sign it had happened: the form just closed. The snackbar names the day,
+            // which also catches a save to the wrong one, and makes a mistaken save one tap to undo.
+            _undoable.tryEmit(Undoable("Saved · ${dayLabel(state.entry.date)}", state.original))
             onDone()
         }
+    }
+
+    /** Puts the day back as it was before the write being undone. See [LogRepository.restore]. */
+    fun undo(undoable: Undoable) {
+        viewModelScope.launch { repo.restore(undoable.previous) }
     }
 
     /**
@@ -95,7 +135,9 @@ class LogViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun confirmBackfill(onDone: () -> Unit) {
         viewModelScope.launch {
+            val original = _ui.value.original
             repo.save(_ui.value.entry, confirmed = true)
+            _undoable.tryEmit(Undoable("Marked as observed", original))
             open(_ui.value.entry.date)
             onDone()
         }
@@ -104,7 +146,11 @@ class LogViewModel(app: Application) : AndroidViewModel(app) {
     /** "No, I made that up" — deletes the day so an extrapolated guess stops feeding the engine. */
     fun discardBackfill(onDone: () -> Unit) {
         viewModelScope.launch {
+            val original = _ui.value.original
             repo.discard(_ui.value.entry.date)
+            // Remove deleted the day with no confirmation. Undo is the cheaper safeguard: a dialog
+            // would add a tap to every correct removal in a loop built for removing many.
+            _undoable.tryEmit(Undoable("Estimated day removed", original))
             open(_ui.value.entry.date)
             onDone()
         }

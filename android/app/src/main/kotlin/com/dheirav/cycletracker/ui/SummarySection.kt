@@ -20,13 +20,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.dheirav.cycletracker.CycleTrackerApp
 import com.dheirav.cycletracker.core.ClinicalSummary
-import com.dheirav.cycletracker.core.CycleEngine
-import com.dheirav.cycletracker.core.CycleProjector
-import com.dheirav.cycletracker.core.HealthFlags
 import com.dheirav.cycletracker.core.PhaseObservation
 import com.dheirav.cycletracker.core.Symptom
 import com.dheirav.cycletracker.core.SymptomPatterns
 import com.dheirav.cycletracker.data.Settings
+import com.dheirav.cycletracker.data.snapshot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -109,21 +107,11 @@ fun SummarySection() {
 private suspend fun buildSummary(context: android.content.Context): String {
     val app = context.applicationContext as CycleTrackerApp
     val dao = app.database.logDao()
-    val settings = Settings(context)
-    val engine = CycleEngine()
     val today = LocalDate.now()
 
     val logs = dao.allLogsOnce()
-    val bleeding = logs.filter { it.isBleeding }.map { it.date }
-    val assumed = logs.filter { it.isBleeding && it.source == "ASSUMED" }.map { it.date }.toSet()
-    val projection = CycleProjector.project(bleeding, assumedDays = assumed)
-
-    val state = engine.stateFor(
-        today, projection,
-        bleedingDays = bleeding.toSet(),
-        userTypicalCycleLength = settings.typicalCycleLength,
-        userTypicalPeriodLength = settings.typicalPeriodLength,
-    )
+    val snapshot = logs.snapshot(Settings(context).forEngine(), today)
+    val state = snapshot.state
 
     val symptomsByDate = dao.allSymptomsOnce()
         .groupBy { it.date }
@@ -132,21 +120,16 @@ private suspend fun buildSummary(context: android.content.Context): String {
         }
     val observations = logs.map { log ->
         PhaseObservation(
-            phase = engine.stateFor(
-                log.date, projection,
-                bleedingDays = bleeding.toSet(),
-                userTypicalCycleLength = settings.typicalCycleLength,
-                userTypicalPeriodLength = settings.typicalPeriodLength,
-            ).phase,
+            phase = snapshot.stateOn(log.date).phase,
             symptoms = symptomsByDate[log.date].orEmpty(),
         )
     }
 
     return ClinicalSummary.build(
-        projection = projection,
+        projection = snapshot.projection,
         today = today,
         expectedCycleLength = state.expectedCycleLength,
-        flags = HealthFlags.evaluate(projection, today, state.expectedCycleLength),
+        flags = snapshot.flags,
         symptomSummaries = state.phase?.let { SymptomPatterns.summarise(observations, it) }.orEmpty(),
         // Read from the logs rather than from the summaries, because that is the whole point: the
         // summaries are empty both when nothing was logged and when the phase could not be worked

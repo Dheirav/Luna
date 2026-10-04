@@ -23,13 +23,10 @@ import androidx.work.workDataOf
 import com.dheirav.cycletracker.CycleTrackerApp
 import com.dheirav.cycletracker.MainActivity
 import com.dheirav.cycletracker.R
-import com.dheirav.cycletracker.core.CycleEngine
-import com.dheirav.cycletracker.core.CycleProjector
-import com.dheirav.cycletracker.core.Forecast
-import com.dheirav.cycletracker.core.ForecastConfig
 import com.dheirav.cycletracker.data.LogDao
 import com.dheirav.cycletracker.data.PredictionLedger
 import com.dheirav.cycletracker.data.Settings
+import com.dheirav.cycletracker.data.snapshot
 import com.dheirav.cycletracker.widget.refreshWidgets
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -278,7 +275,9 @@ class ReminderWorker(
             notify(context)
         }
 
-        recordPrediction(dao)
+        // A test run stays out of the ledger like the rest of the bookkeeping. It is not a day's
+        // prediction being made at its usual time, it is someone pressing a button.
+        if (!isTest) recordPrediction(dao, settings)
 
         if (!isTest) maybeWarnPeriodDue(context, dao, settings)
 
@@ -301,20 +300,20 @@ class ReminderWorker(
      * runs when someone looks at the screen. Since the scoring history can only ever be built
      * going forward, a day nobody opened the app is a gap that cannot be filled in later.
      *
+     * **It must record what Today would have shown.** The ledger keeps one row per day, so this
+     * row replaces any Today wrote earlier. It used to call the engine without the user's stated
+     * cycle and period lengths, and since those outrank the app's own estimate until three cycles
+     * are observed, the row it left behind was a prediction the app never displayed, and accuracy
+     * was graded against it. The shared snapshot takes the settings as one value, so it cannot
+     * drop one again.
+     *
      * Failures are swallowed on purpose. This is bookkeeping; it must never be the reason the
      * reminder chain breaks, and the reminder is what adherence depends on.
      */
-    private suspend fun recordPrediction(dao: LogDao) {
+    private suspend fun recordPrediction(dao: LogDao, settings: Settings) {
         runCatching {
-            val logs = dao.allLogsOnce()
-            val bleeding = logs.filter { it.isBleeding }.map { it.date }
-            val assumed = logs.filter { it.isBleeding && it.source == "ASSUMED" }
-                .map { it.date }.toSet()
-            val projection = CycleProjector.project(bleeding, assumedDays = assumed)
-            val state = CycleEngine().stateFor(
-                LocalDate.now(), projection, bleedingDays = bleeding.toSet(),
-            )
-            PredictionLedger(dao).record(state)
+            val snapshot = dao.snapshot(settings)
+            PredictionLedger(dao).record(snapshot.state, snapshot.today)
         }
     }
 
@@ -331,28 +330,15 @@ class ReminderWorker(
     private suspend fun maybeWarnPeriodDue(context: Context, dao: LogDao, settings: Settings) {
         if (!settings.periodWarningEnabled) return
         runCatching {
-            val logs = dao.allLogsOnce()
-            val bleeding = logs.filter { it.isBleeding }.map { it.date }
-            val assumed = logs.filter { it.isBleeding && it.source == "ASSUMED" }
-                .map { it.date }.toSet()
-            val projection = CycleProjector.project(bleeding, assumedDays = assumed)
-            val state = CycleEngine().stateFor(
-                LocalDate.now(), projection,
-                bleedingDays = bleeding.toSet(),
-                userTypicalCycleLength = settings.typicalCycleLength,
-                userTypicalPeriodLength = settings.typicalPeriodLength,
-            )
+            val snapshot = dao.snapshot(settings)
+            val state = snapshot.state
             val cycleStart = state.cycleStart ?: return@runCatching
             if (settings.lastPeriodWarningFor == cycleStart) return@runCatching
 
-            val window = Forecast.periodWindow(
-                cycleStart = cycleStart,
-                expectedCycleLength = state.expectedCycleLength,
-                cycles = projection.cycles,
-                forecastConfig = ForecastConfig(spreadMultiplier = settings.windowWidth.multiplier),
-            ) ?: return@runCatching
+            // The window Today and the widget show, so the heads-up names the same dates they do.
+            val window = snapshot.window ?: return@runCatching
 
-            val today = LocalDate.now()
+            val today = snapshot.today
             val lead = settings.periodWarningLeadDays.toLong()
             // Only in the short run-up. Already bleeding means the answer has arrived.
             if (state.isBleeding) return@runCatching

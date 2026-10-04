@@ -4,8 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.dheirav.cycletracker.CycleTrackerApp
-import com.dheirav.cycletracker.core.CycleEngine
-import com.dheirav.cycletracker.core.CycleProjector
+import com.dheirav.cycletracker.core.CycleSnapshot
 import com.dheirav.cycletracker.core.Guidance
 import com.dheirav.cycletracker.core.Phase
 import com.dheirav.cycletracker.core.PhaseGuidance
@@ -13,12 +12,13 @@ import com.dheirav.cycletracker.core.PhaseObservation
 import com.dheirav.cycletracker.core.PhaseSymptomSummary
 import com.dheirav.cycletracker.core.Symptom
 import com.dheirav.cycletracker.core.SymptomPatterns
-import com.dheirav.cycletracker.data.Settings
+import com.dheirav.cycletracker.data.DailyLogEntity
+import com.dheirav.cycletracker.data.SymptomValueEntity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
-import java.time.LocalDate
 
 data class GuideUiState(
     val phase: Phase = Phase.MENSTRUATION,
@@ -34,65 +34,64 @@ data class GuideUiState(
 /**
  * Backs the phase guide: what is typical, and separately what this user's own logs show.
  *
- * The mapping from logged day to phase runs through [CycleEngine] rather than being recomputed —
- * the same engine the rest of the app uses, so a day cannot be filed under one phase here and a
- * different one on the calendar.
+ * Every logged day is filed under a phase by the shared snapshot rather than by a projection of its
+ * own, so a day cannot be filed under one phase here and a different one on the calendar or the
+ * hero, and the filing moves when the logs, the settings or the date do.
  */
 class GuideViewModel(app: Application) : AndroidViewModel(app) {
 
     private val dao = (app as CycleTrackerApp).database.logDao()
-    private val engine = CycleEngine()
-    private val settings = Settings(app)
+    private val cycles = (app as CycleTrackerApp).cycles
+
+    /** The phase being read about. Null means "whatever today is", resolved from the snapshot. */
+    private val selected = MutableStateFlow<Phase?>(null)
 
     private val _ui = MutableStateFlow(GuideUiState())
     val ui: StateFlow<GuideUiState> = _ui.asStateFlow()
 
-    fun load(phase: Phase?) {
+    init {
         viewModelScope.launch {
-            val logs = dao.allLogsOnce()
-            val bleeding = logs.filter { it.isBleeding }.map { it.date }
-            val assumed = logs.filter { it.isBleeding && it.source == "ASSUMED" }
-                .map { it.date }.toSet()
-            val projection = CycleProjector.project(bleeding, assumedDays = assumed)
+            combine(cycles.snapshots, dao.allLogs(), dao.allSymptoms(), selected) { snapshot, logs, symptoms, phase ->
+                build(snapshot, logs, symptoms, phase)
+            }.collect { _ui.value = it }
+        }
+    }
 
-            val target = phase
-                ?: engine.stateFor(
-                    LocalDate.now(), projection,
-                    bleedingDays = bleeding.toSet(),
-                    userTypicalCycleLength = settings.typicalCycleLength,
-                    userTypicalPeriodLength = settings.typicalPeriodLength,
-                ).phase
-                ?: Phase.MENSTRUATION
+    fun load(phase: Phase?) {
+        selected.value = phase
+    }
 
-            val symptomsByDate = dao.allSymptomsOnce()
-                .groupBy { it.date }
-                .mapValues { (_, rows) ->
-                    rows.mapNotNull { row -> Symptom.byKey(row.key)?.let { it to row.value } }.toMap()
-                }
+    private fun build(
+        snapshot: CycleSnapshot,
+        logs: List<DailyLogEntity>,
+        symptoms: List<SymptomValueEntity>,
+        phase: Phase?,
+    ): GuideUiState {
+        val target = phase ?: snapshot.state.phase ?: Phase.MENSTRUATION
 
-            // One engine call per logged day. Sixty-odd rows today and a few thousand after years,
-            // which is still trivial next to the disk read that produced them.
-            val observations = logs.map { log ->
-                PhaseObservation(
-                    phase = engine.stateFor(
-                        log.date, projection,
-                        bleedingDays = bleeding.toSet(),
-                        userTypicalCycleLength = settings.typicalCycleLength,
-                        userTypicalPeriodLength = settings.typicalPeriodLength,
-                    ).phase,
-                    symptoms = symptomsByDate[log.date].orEmpty(),
-                )
+        val symptomsByDate = symptoms
+            .groupBy { it.date }
+            .mapValues { (_, rows) ->
+                rows.mapNotNull { row -> Symptom.byKey(row.key)?.let { it to row.value } }.toMap()
             }
 
-            _ui.value = GuideUiState(
-                phase = target,
-                guidance = Guidance.forPhase(target),
-                yours = SymptomPatterns.summarise(observations, target),
-                loggedDaysInPhase = observations.count {
-                    it.phase == target && it.symptoms.isNotEmpty()
-                },
-                loading = false,
+        // One engine call per logged day. Sixty-odd rows today and a few thousand after years,
+        // which is still trivial next to the disk read that produced them.
+        val observations = logs.map { log ->
+            PhaseObservation(
+                phase = snapshot.stateOn(log.date).phase,
+                symptoms = symptomsByDate[log.date].orEmpty(),
             )
         }
+
+        return GuideUiState(
+            phase = target,
+            guidance = Guidance.forPhase(target),
+            yours = SymptomPatterns.summarise(observations, target),
+            loggedDaysInPhase = observations.count {
+                it.phase == target && it.symptoms.isNotEmpty()
+            },
+            loading = false,
+        )
     }
 }

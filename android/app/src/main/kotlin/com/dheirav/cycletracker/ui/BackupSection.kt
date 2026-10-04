@@ -34,9 +34,11 @@ private enum class Pending { NONE, EXPORT, IMPORT }
  *
  * Offline means one lost phone from gone. The passphrase is asked for every time and never
  * stored — a key kept next to the data it protects is decoration.
+ *
+ * A restore needs no refresh hook: it writes through Room, and every screen follows the snapshot.
  */
 @Composable
-fun BackupSection(onRestored: () -> Unit) {
+fun BackupSection() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val manager = remember {
@@ -67,7 +69,7 @@ fun BackupSection(onRestored: () -> Unit) {
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
             status = runCatching { manager.import(context, uri, pass) }
-                .fold({ onRestored(); "Restored $it days" }, { "Restore failed: ${it.message}" })
+                .fold({ "Restored $it days" }, { "Restore failed: ${it.message}" })
         }
     }
 

@@ -77,6 +77,8 @@ fun HistoryScreen(viewModel: HistoryViewModel, onPickDate: (LocalDate) -> Unit) 
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        BackBar(title = "History")
+
         MonthHeader(
             month = ui.month,
             canGoForward = ui.canGoForward,
@@ -89,6 +91,7 @@ fun HistoryScreen(viewModel: HistoryViewModel, onPickDate: (LocalDate) -> Unit) 
             month = ui.month,
             days = ui.days,
             window = ui.window,
+            today = ui.today,
             onPickDate = onPickDate,
         )
 
@@ -289,9 +292,9 @@ private fun MonthGrid(
     month: YearMonth,
     days: Map<LocalDate, DaySummary>,
     window: PeriodWindow?,
+    today: LocalDate,
     onPickDate: (LocalDate) -> Unit,
 ) {
-    val today = LocalDate.now()
     val first = month.atDay(1)
     // How many blanks before the 1st, given weeks start Monday.
     val leading = (first.dayOfWeek.value - DayOfWeek.MONDAY.value + 7) % 7

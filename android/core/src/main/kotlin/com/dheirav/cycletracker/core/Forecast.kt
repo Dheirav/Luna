@@ -51,6 +51,12 @@ data class PeriodWindow(
 
     operator fun contains(date: LocalDate): Boolean =
         !date.isBefore(earliest) && !date.isAfter(latest)
+
+    /**
+     * True once [on] is after the window's last day: the period was due and has not been logged.
+     * From then on these dates are a record of what was expected, not a forecast.
+     */
+    fun hasPassed(on: LocalDate): Boolean = on.isAfter(latest)
 }
 
 /**

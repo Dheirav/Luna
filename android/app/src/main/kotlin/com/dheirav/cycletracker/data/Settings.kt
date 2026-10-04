@@ -1,7 +1,13 @@
 package com.dheirav.cycletracker.data
 
 import android.content.Context
+import android.content.SharedPreferences
+import com.dheirav.cycletracker.core.UserCycleSettings
 import com.dheirav.cycletracker.core.WindowWidth
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalTime
@@ -163,6 +169,27 @@ class Settings(context: Context) {
      * UI tells the user their reminder is being killed and points at the battery settings, which
      * is the only real remedy on these ROMs.
      */
+    /** The settings the engine reads, as one value. See [UserCycleSettings] for why it is one value. */
+    fun forEngine(): UserCycleSettings = UserCycleSettings(
+        typicalCycleLength = typicalCycleLength,
+        typicalPeriodLength = typicalPeriodLength,
+        windowSpread = windowWidth.multiplier,
+    )
+
+    /**
+     * [forEngine] now and again after every change to it.
+     *
+     * Every `Settings` instance reads the same `SharedPreferences` object, so a write from the
+     * settings screen reaches a listener registered here through any other instance. Unrelated keys
+     * (the reminder's bookkeeping writes one nightly) are filtered out by the `distinctUntilChanged`.
+     */
+    fun engineSettings(): Flow<UserCycleSettings> = callbackFlow {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> trySend(forEngine()) }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        trySend(forEngine())
+        awaitClose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }.distinctUntilChanged()
+
     fun reminderLooksBroken(now: Instant = Instant.now()): Boolean {
         if (!reminderEnabled) return false
         val since = reminderScheduledSince ?: return false

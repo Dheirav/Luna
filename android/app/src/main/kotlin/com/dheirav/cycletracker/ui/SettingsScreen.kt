@@ -66,7 +66,7 @@ private val stamp = DateTimeFormatter.ofPattern("d MMM, HH:mm")
  * and were occupying a third of the screen looked at daily.
  */
 @Composable
-fun SettingsScreen(onChanged: () -> Unit) {
+fun SettingsScreen() {
     val context = LocalContext.current
     val settings = remember { Settings(context) }
 
@@ -77,11 +77,11 @@ fun SettingsScreen(onChanged: () -> Unit) {
             .padding(horizontal = 18.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text("Settings", style = MaterialTheme.typography.headlineMedium)
+        BackBar(title = "Settings")
 
-        YourCyclesCard(settings = settings, onChanged = onChanged)
+        YourCyclesCard(settings = settings)
 
-        PredictionCard(settings = settings, onChanged = onChanged)
+        PredictionCard(settings = settings)
 
         ReminderCard(settings = settings)
 
@@ -89,7 +89,7 @@ fun SettingsScreen(onChanged: () -> Unit) {
 
         AppLockSection()
 
-        BackupSection(onRestored = onChanged)
+        BackupSection()
 
         SummarySection()
 
@@ -110,7 +110,7 @@ fun SettingsScreen(onChanged: () -> Unit) {
  * are worth more than their recollection.
  */
 @Composable
-private fun YourCyclesCard(settings: Settings, onChanged: () -> Unit) {
+private fun YourCyclesCard(settings: Settings) {
     var cycle by remember { mutableStateOf(settings.typicalCycleLength) }
     var period by remember { mutableStateOf(settings.typicalPeriodLength) }
 
@@ -124,7 +124,6 @@ private fun YourCyclesCard(settings: Settings, onChanged: () -> Unit) {
             onChange = {
                 cycle = it
                 settings.typicalCycleLength = it
-                onChanged()
             },
         )
         Stepper(
@@ -136,7 +135,6 @@ private fun YourCyclesCard(settings: Settings, onChanged: () -> Unit) {
             onChange = {
                 period = it
                 settings.typicalPeriodLength = it
-                onChanged()
             },
         )
         Text(
@@ -150,7 +148,7 @@ private fun YourCyclesCard(settings: Settings, onChanged: () -> Unit) {
 }
 
 @Composable
-private fun PredictionCard(settings: Settings, onChanged: () -> Unit) {
+private fun PredictionCard(settings: Settings) {
     var width by remember { mutableStateOf(settings.windowWidth) }
 
     SettingsCard("Prediction window") {
@@ -161,7 +159,6 @@ private fun PredictionCard(settings: Settings, onChanged: () -> Unit) {
                     onClick = {
                         width = option
                         settings.windowWidth = option
-                        onChanged()
                     },
                     shape = SegmentedButtonDefaults.itemShape(index, WindowWidth.entries.size),
                     label = {
@@ -355,6 +352,8 @@ private fun ReminderCard(settings: Settings) {
                 FixRow(
                     message = "Battery use is restricted. Autostart, if this ROM has it, needs " +
                         "granting by hand too.",
+                    // A risk, not a fault: nothing has failed yet. Same weight as Today's footnote.
+                    severe = false,
                     action = "Open battery settings",
                     onClick = {
                         runCatching { context.startActivity(ReminderScheduler.batterySettingsIntent()) }
@@ -450,14 +449,19 @@ private fun StatusLine(label: String, value: String) {
     }
 }
 
-/** A problem the user can actually do something about, with the something attached. */
+/**
+ * A problem the user can actually do something about, with the something attached.
+ *
+ * [severe] is for faults that stop the reminder outright, and is the only case drawn in the error
+ * colour, so red keeps meaning the same thing here as on Today.
+ */
 @Composable
-private fun FixRow(message: String, action: String, onClick: () -> Unit) {
+private fun FixRow(message: String, action: String, severe: Boolean = true, onClick: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(
             message,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error,
+            color = if (severe) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
         )
         TextButton(onClick = onClick) { Text(action) }
     }

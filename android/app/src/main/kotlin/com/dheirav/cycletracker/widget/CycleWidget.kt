@@ -11,14 +11,10 @@ import android.widget.RemoteViews
 import com.dheirav.cycletracker.CycleTrackerApp
 import com.dheirav.cycletracker.MainActivity
 import com.dheirav.cycletracker.R
-import com.dheirav.cycletracker.core.CycleEngine
-import com.dheirav.cycletracker.core.CycleProjector
-import com.dheirav.cycletracker.core.CycleStats
-import com.dheirav.cycletracker.core.Forecast
-import com.dheirav.cycletracker.core.ForecastConfig
 import com.dheirav.cycletracker.core.Phase
 import com.dheirav.cycletracker.core.PeriodWindow
 import com.dheirav.cycletracker.data.Settings
+import com.dheirav.cycletracker.data.snapshot
 import com.dheirav.cycletracker.reminder.EXTRA_OPEN_LOG
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -131,18 +127,10 @@ private suspend fun buildViews(context: Context): RemoteViews {
         return views
     }
 
-    val logs = dao.allLogsOnce()
-    val bleeding = logs.filter { it.isBleeding }.map { it.date }
-    val assumed = logs.filter { it.isBleeding && it.source == "ASSUMED" }.map { it.date }.toSet()
     val today = LocalDate.now()
-
-    val projection = CycleProjector.project(bleeding, assumedDays = assumed)
-    val state = CycleEngine().stateFor(
-        today, projection,
-        bleedingDays = bleeding.toSet(),
-        userTypicalCycleLength = settings.typicalCycleLength,
-        userTypicalPeriodLength = settings.typicalPeriodLength,
-    )
+    // The same snapshot the app's screens render, so the widget cannot disagree with them.
+    val snapshot = dao.snapshot(settings, today)
+    val state = snapshot.state
 
     if (!state.hasData) {
         // §6 — never invent a cycle day for someone with no periods logged.
@@ -151,12 +139,7 @@ private suspend fun buildViews(context: Context): RemoteViews {
         return views
     }
 
-    val window = Forecast.periodWindow(
-        cycleStart = state.cycleStart,
-        expectedCycleLength = state.expectedCycleLength,
-        cycles = projection.cycles,
-        forecastConfig = ForecastConfig(spreadMultiplier = settings.windowWidth.multiplier),
-    )
+    val window = snapshot.window
 
     // Tint the background to the phase, matching the app's hero card.
     //

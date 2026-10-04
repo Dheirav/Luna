@@ -1,9 +1,7 @@
 package com.dheirav.cycletracker.data
 
-import com.dheirav.cycletracker.core.CycleProjector
 import com.dheirav.cycletracker.core.DayTag
 import com.dheirav.cycletracker.core.FlowLevel
-import com.dheirav.cycletracker.core.Projection
 import com.dheirav.cycletracker.core.Source
 import com.dheirav.cycletracker.core.Symptom
 import kotlinx.coroutines.flow.Flow
@@ -116,6 +114,22 @@ class LogRepository(private val dao: LogDao) {
      * must be a deliberate act: see [sourceFor].
      */
     suspend fun save(entry: DayEntry, confirmed: Boolean = false) {
+        write(entry, sourceFor(entry, confirmed))
+    }
+
+    /**
+     * Puts a day back exactly as it was, for Undo.
+     *
+     * Not [save]: that decides the source afresh, and undoing an edit to an estimated day would then
+     * find the edited row, see it as observed, and keep it observed, so Undo would quietly turn a guess
+     * into a measurement. The previous state carries its own source, and this writes it as it was. A
+     * day that did not exist before is deleted again.
+     */
+    suspend fun restore(previous: DayEntry) {
+        if (!previous.exists) dao.deleteDay(previous.date) else write(previous, previous.source)
+    }
+
+    private suspend fun write(entry: DayEntry, source: Source) {
         val isEmpty = !entry.isBleeding &&
             entry.symptoms.isEmpty() &&
             entry.tags.isEmpty() &&
@@ -132,7 +146,7 @@ class LogRepository(private val dao: LogDao) {
                 isBleeding = entry.isBleeding,
                 flow = entry.flow?.name,
                 notes = entry.notes,
-                source = sourceFor(entry, confirmed).name,
+                source = source.name,
             ),
         )
         dao.deleteSymptoms(entry.date)
@@ -162,12 +176,4 @@ class LogRepository(private val dao: LogDao) {
 
     /** Throws a backfilled guess away entirely, rather than leaving it to pollute the statistics. */
     suspend fun discard(date: LocalDate) = dao.deleteDay(date)
-
-    /** Rebuilds the full projection from the logs. Cheap, and the reason corrections just work. */
-    suspend fun projection(): Pair<Projection, Set<LocalDate>> {
-        val logs = dao.allLogsOnce()
-        val bleeding = logs.filter { it.isBleeding }.map { it.date }
-        val assumed = logs.filter { it.isBleeding && it.source == "ASSUMED" }.map { it.date }.toSet()
-        return CycleProjector.project(bleeding, assumedDays = assumed) to bleeding.toSet()
-    }
 }

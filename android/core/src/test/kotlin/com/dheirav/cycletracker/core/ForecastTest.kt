@@ -226,4 +226,19 @@ class ForecastTest {
         assertEquals(3, basis.cyclesUsed)
         assertEquals(28, basis.expectedCycleLength)
     }
+
+    // -- a window that has passed ------------------------------------------
+
+    /**
+     * A late period leaves the window in the past while the card still read "Next period" above it,
+     * which is the app naming dates it already knows were wrong. The card changes once this is true.
+     */
+    @Test
+    fun `a window has passed only once its last day is behind us`() {
+        val window = Forecast.periodWindow(date("2025-01-01"), 28, emptyList())!!
+
+        assertFalse(window.hasPassed(window.earliest))
+        assertFalse(window.hasPassed(window.latest))
+        assertTrue(window.hasPassed(window.latest.plusDays(1)))
+    }
 }

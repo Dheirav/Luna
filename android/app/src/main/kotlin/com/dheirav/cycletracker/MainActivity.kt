@@ -18,17 +18,23 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.room.Room
+import com.dheirav.cycletracker.data.CycleRepository
 import com.dheirav.cycletracker.data.TrackerDatabase
 import com.dheirav.cycletracker.data.Settings
 import com.dheirav.cycletracker.reminder.EXTRA_OPEN_LOG
@@ -44,6 +50,7 @@ import com.dheirav.cycletracker.ui.SettingsScreen
 import com.dheirav.cycletracker.ui.TodayScreen
 import com.dheirav.cycletracker.ui.TodayViewModel
 import com.dheirav.cycletracker.ui.theme.CycleTrackerTheme
+import kotlinx.coroutines.flow.collectLatest
 import java.time.LocalDate
 
 class CycleTrackerApp : Application() {
@@ -60,6 +67,9 @@ class CycleTrackerApp : Application() {
             .addMigrations(TrackerDatabase.MIGRATION_1_2)
             .build()
     }
+
+    /** The live cycle state every screen renders from. One instance, so one source of truth. */
+    val cycles: CycleRepository by lazy { CycleRepository(database.logDao(), Settings(this)) }
 
     override fun onCreate() {
         super.onCreate()
@@ -104,6 +114,9 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         applyScreenshotPolicy()
+        // Coming back is when the date may have rolled over, or a notification action may have
+        // logged a day; the screens follow the snapshot, so nudging it is all a resume needs.
+        (application as CycleTrackerApp).cycles.onResume()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -124,9 +137,27 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun Content() {
-        Scaffold { padding ->
+        // Hosted here rather than on the log form, because the form closes on save and the
+        // confirmation has to outlive it.
+        val snackbar = remember { SnackbarHostState() }
+        Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { padding ->
             val todayVm: TodayViewModel = viewModel()
             val logVm: LogViewModel = viewModel()
+
+            // Latest only: a second save replaces the first snackbar rather than queueing behind it.
+            LaunchedEffect(logVm) {
+                logVm.undoable.collectLatest { undoable ->
+                    val result = snackbar.showSnackbar(
+                        message = undoable.message,
+                        actionLabel = "Undo",
+                        // Long, not Short. Short is about four seconds, which on the Redmi was gone
+                        // before Undo could be reached; an undo that expires while you read it is
+                        // not one you can use.
+                        duration = SnackbarDuration.Long,
+                    )
+                    if (result == SnackbarResult.ActionPerformed) logVm.undo(undoable)
+                }
+            }
             val historyVm: HistoryViewModel = viewModel()
             val guideVm: GuideViewModel = viewModel()
             var screen by rememberSaveable { mutableStateOf(Screen.TODAY) }
@@ -184,10 +215,7 @@ class MainActivity : ComponentActivity() {
                         onPhaseGuide = { screen = Screen.PHASE_GUIDE },
                     )
 
-                    Screen.LOG -> LogScreen(logVm) {
-                        screen = logOrigin
-                        todayVm.reload()
-                    }
+                    Screen.LOG -> LogScreen(logVm, onDone = { screen = logOrigin })
 
                     Screen.HISTORY -> HistoryScreen(historyVm) { date ->
                         logVm.open(date)
@@ -195,9 +223,8 @@ class MainActivity : ComponentActivity() {
                         screen = Screen.LOG
                     }
 
-                    // Any settings change alters what the engine computes, so Today is rebuilt on
-                    // the way back rather than only after a restore.
-                    Screen.SETTINGS -> SettingsScreen(onChanged = todayVm::reload)
+                    // No refresh hook: a settings change reaches every screen through the snapshot.
+                    Screen.SETTINGS -> SettingsScreen()
 
                     // Null phase means "whatever today is" — the guide resolves it from the same
                     // engine, so it cannot disagree with the hero the user just tapped.

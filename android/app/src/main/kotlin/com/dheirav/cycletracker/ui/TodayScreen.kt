@@ -1,6 +1,7 @@
 package com.dheirav.cycletracker.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +22,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -102,15 +104,11 @@ fun TodayScreen(
             .padding(horizontal = 18.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Header(onSettings = onSettings)
+        Header(today = ui.today, onSettings = onSettings)
 
         if (state == null || !state.hasData) {
             EmptyState(onLog = onLog, onHistory = onHistory)
             return@Column
-        }
-
-        if (ui.reminderBroken || ui.batteryRestricted) {
-            ReminderWarning(broken = ui.reminderBroken)
         }
 
         CycleHero(
@@ -122,30 +120,32 @@ fun TodayScreen(
             onClick = onPhaseGuide,
         )
 
-        ui.window?.let { NextPeriodCard(it) }
-
-        ui.flags.forEach { HealthFlagCard(it) }
-
-        Button(
-            onClick = onLog,
-            shape = MaterialTheme.shapes.large,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 58.dp),
-        ) {
-            Text("Log today", style = MaterialTheme.typography.titleMedium)
-        }
+        // The daily action sits directly under the hero, ahead of every card that can appear. Cards
+        // used to come first, and on the Redmi Note 15 Pro a reminder warning plus one health flag
+        // pushed "Log today" below the fold, so the one thing this screen is for needed a scroll.
+        LogTodayButton(logged = ui.loggedToday, onClick = onLog)
 
         TextButton(onClick = onHistory, modifier = Modifier.fillMaxWidth()) {
             Text("History")
         }
 
-        WhyCard(basis = ui.basis, accuracy = ui.accuracy, state = state)
+        // A reminder that has stopped is a fault with something to do about it, so it comes before
+        // the forecast. A reminder that merely might be stopped is a risk, and gets one quiet line
+        // at the bottom instead of a card on every launch.
+        if (ui.reminderBroken) ReminderStopped()
+
+        ui.window?.let { NextPeriodCard(it, today = ui.today) }
+
+        ui.flags.forEach { HealthFlagCard(it) }
+
+                WhyCard(basis = ui.basis, accuracy = ui.accuracy, state = state)
+
+        if (!ui.reminderBroken && ui.batteryRestricted) ReminderAtRisk()
     }
 }
 
 @Composable
-private fun Header(onSettings: () -> Unit) {
+private fun Header(today: java.time.LocalDate, onSettings: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -154,7 +154,7 @@ private fun Header(onSettings: () -> Unit) {
         Column {
             Text("Today", style = MaterialTheme.typography.headlineMedium)
             Text(
-                java.time.LocalDate.now().format(fullDate),
+                today.format(fullDate),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -306,20 +306,26 @@ private fun CycleHero(
 }
 
 /**
- * The next period as a range.
+ * The next period as a range, or, once that range is behind us, the range that was expected.
  *
  * An `ASSUMED` window says so in as many words. Presenting a default spread as though it were
  * measured from this user is the exact dishonesty [PeriodWindow.basis] exists to prevent, and it
  * would be invisible to anyone who did not already know how the app works.
+ *
+ * A passed window changes its label rather than its dates. It used to stay headed "Next period" while
+ * the hero above said the period was twelve days late, so the card named dates the app already knew
+ * were wrong. How late is the hero's job, and is not repeated here as a second, different count.
  */
 @Composable
-private fun NextPeriodCard(window: PeriodWindow) {
+private fun NextPeriodCard(window: PeriodWindow, today: java.time.LocalDate) {
     val cycle = MaterialTheme.cycleColors
+    val passed = window.hasPassed(today)
+    val range = "${window.earliest.format(dayMonth)} – ${window.latest.format(dayMonth)}"
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
-            containerColor = cycle.predicted.copy(alpha = 0.18f),
+            containerColor = cycle.predicted.copy(alpha = if (passed) 0.08f else 0.18f),
         ),
     ) {
         Column(
@@ -327,25 +333,28 @@ private fun NextPeriodCard(window: PeriodWindow) {
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
-                "NEXT PERIOD",
+                if (passed) "WAS EXPECTED" else "NEXT PERIOD",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                "${window.earliest.format(dayMonth)} – ${window.latest.format(dayMonth)}",
+                range,
                 style = MaterialTheme.typography.headlineSmall,
+                color = if (passed) MaterialTheme.colorScheme.onSurfaceVariant else Color.Unspecified,
                 // A bare "1 Jan – 9 Jan" reads as two dates and a dash out loud.
                 modifier = Modifier.semantics {
-                    contentDescription = "Expected between ${window.earliest.format(dayMonth)} " +
-                        "and ${window.latest.format(dayMonth)}"
+                    contentDescription = (if (passed) "Was expected between " else "Expected between ") +
+                        "${window.earliest.format(dayMonth)} and ${window.latest.format(dayMonth)}"
                 },
             )
             Text(
-                when (window.basis) {
-                    WindowBasis.MEASURED ->
+                when {
+                    passed ->
+                        "That window has passed. The next prediction starts from the period you log next."
+                    window.basis == WindowBasis.MEASURED ->
                         "A ${window.spanDays}-day window, from how much your own cycles have varied " +
                             "across ${window.observedCycles} observed."
-                    WindowBasis.ASSUMED ->
+                    else ->
                         "A ${window.spanDays}-day window based on a typical spread — not yours yet. " +
                             "It narrows once three cycles have been observed."
                 },
@@ -386,6 +395,68 @@ private fun HealthFlagCard(flag: com.dheirav.cycletracker.core.HealthFlag) {
                 flag.detail,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onTertiaryContainer,
+            )
+        }
+    }
+}
+
+/**
+ * The day's one job, in its two states.
+ *
+ * It read "Log today" whether or not today had been logged, so the screen never answered the
+ * question it is opened to answer, and a finished entry left no trace on it. Once logged it becomes
+ * a record of what was saved, still one tap from the same form: the work is visibly done, which is
+ * the cheapest reward logging can get, and "Edit" makes clear a second tap changes this entry rather
+ * than adding another.
+ *
+ * Filled while there is something to do, tonal once there is not, so the screen's loudest element is
+ * always the thing still undone.
+ */
+@Composable
+private fun LogTodayButton(logged: String?, onClick: () -> Unit) {
+    if (logged == null) {
+        Button(
+            onClick = onClick,
+            shape = MaterialTheme.shapes.large,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 58.dp),
+        ) {
+            Text("Log today", style = MaterialTheme.typography.titleMedium)
+        }
+        return
+    }
+
+    Card(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 58.dp)
+            .semantics { contentDescription = "Today's log: $logged. Edit." },
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    "LOGGED TODAY",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
+                )
+                Text(
+                    logged,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
+            Text(
+                "Edit",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 12.dp),
             )
         }
     }
@@ -529,41 +600,71 @@ private fun EmptyState(onLog: () -> Unit, onHistory: () -> Unit) {
 }
 
 /**
- * Surfaces a killed reminder rather than letting it fail silently.
+ * The reminder was due and did not run.
  *
  * Vivo, Oppo, Xiaomi and Samsung all terminate background work on their own schedule, and none
  * of it can be fixed programmatically — Autostart and background-power allowances live in vendor
  * settings screens with no public API. The honest response is to detect that the reminder stopped
  * firing and say so, since a silently dead reminder ends the logging habit without warning.
+ *
+ * Deliberately not styled like a health flag. Both used the tertiary card, so a fault the user has to
+ * fix looked exactly like an observation to mention to a doctor, and the one needing action did not
+ * stand out. This one is outlined, with the title in the error colour, matching how Settings already
+ * reports the same condition. Health flags stay out of red on purpose; this is about the app, not the
+ * body.
  */
 @Composable
-private fun ReminderWarning(broken: Boolean) {
+private fun ReminderStopped() {
     val context = LocalContext.current
-    Card(
+    OutlinedCard(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.6f)),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
-                if (broken) "Your daily reminder has stopped firing" else "Reminders may be killed",
+                "Your daily reminder has stopped firing",
                 style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                color = MaterialTheme.colorScheme.error,
             )
             Text(
-                "This phone restricts background apps. Allow unrestricted battery use, and enable " +
-                    "Autostart for this app in the system settings — the reminder is what keeps " +
-                    "the habit going.",
+                "This phone stopped it in the background. Allow unrestricted battery use, and enable " +
+                    "Autostart for this app if the phone has it.",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onTertiaryContainer,
             )
             TextButton(onClick = {
                 runCatching { context.startActivity(ReminderScheduler.batterySettingsIntent()) }
             }) { Text("Open battery settings") }
         }
+    }
+}
+
+/**
+ * Battery use is restricted, so the reminder might be stopped, but nothing has failed yet.
+ *
+ * One line at the foot of the screen rather than a card at the top. It showed on every launch for as
+ * long as the restriction stood, with no way to dismiss it, and at the top it was the reason the log
+ * button fell below the fold. If the reminder actually stops, [ReminderStopped] takes over.
+ */
+@Composable
+private fun ReminderAtRisk() {
+    val context = LocalContext.current
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "Battery settings may stop the daily reminder.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = {
+            runCatching { context.startActivity(ReminderScheduler.batterySettingsIntent()) }
+        }) { Text("Fix") }
     }
 }
 

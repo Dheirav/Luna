@@ -10,8 +10,6 @@ import android.widget.RemoteViews
 import com.dheirav.cycletracker.CycleTrackerApp
 import com.dheirav.cycletracker.MainActivity
 import com.dheirav.cycletracker.R
-import com.dheirav.cycletracker.core.CycleEngine
-import com.dheirav.cycletracker.core.CycleProjector
 import com.dheirav.cycletracker.core.Guidance
 import com.dheirav.cycletracker.core.MoodFace
 import com.dheirav.cycletracker.core.MoodReading
@@ -21,6 +19,7 @@ import com.dheirav.cycletracker.core.Phase
 import com.dheirav.cycletracker.core.PhaseObservation
 import com.dheirav.cycletracker.core.Symptom
 import com.dheirav.cycletracker.data.Settings
+import com.dheirav.cycletracker.data.snapshot
 import com.dheirav.cycletracker.reminder.EXTRA_OPEN_LOG
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -113,17 +112,10 @@ private suspend fun buildMoodViews(context: Context): RemoteViews {
     }
 
     val logs = dao.allLogsOnce()
-    val bleeding = logs.filter { it.isBleeding }.map { it.date }
-    val assumed = logs.filter { it.isBleeding && it.source == "ASSUMED" }.map { it.date }.toSet()
-    val projection = CycleProjector.project(bleeding, assumedDays = assumed)
-
-    val engine = CycleEngine()
-    fun stateOn(date: LocalDate) = engine.stateFor(
-        date, projection,
-        bleedingDays = bleeding.toSet(),
-        userTypicalCycleLength = settings.typicalCycleLength,
-        userTypicalPeriodLength = settings.typicalPeriodLength,
-    )
+    // Phases come from the same snapshot as the app's screens, so this widget and the phase guide
+    // cannot file a day differently.
+    val snapshot = logs.snapshot(settings.forEngine(), today)
+    fun stateOn(date: LocalDate) = snapshot.stateOn(date)
 
     val symptomsByDate = dao.allSymptomsOnce()
         .groupBy { it.date }

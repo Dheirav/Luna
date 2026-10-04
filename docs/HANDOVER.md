@@ -1,6 +1,6 @@
 # Handover — Luna
 
-Written 2026-08-11, current as of **2026-08-13**. Everything needed to pick this up in a fresh
+Written 2026-08-11, current as of **2026-10-04**. Everything needed to pick this up in a fresh
 session.
 
 **Read first:** [`CYCLE_RULES.md`](CYCLE_RULES.md) is the authoritative spec. This document covers
@@ -38,7 +38,7 @@ Governing rules (full list in the plan artifact):
 | | Verified how |
 |---|---|
 | Phase 0 — spec + golden fixture | 34 cases, `spec/cycle_fixtures.json` |
-| Cycle/period/phase engine (`:core`) | `./gradlew :core:test` — **122 tests, all pass** (plus 5 in `:app`, and 3 instrumented) |
+| Cycle/period/phase engine (`:core`) | `./gradlew :core:test`: **130 tests, all pass** (plus 16 in `:app`, and 3 instrumented) |
 | Encrypted backup codec | 11 tests incl. tamper detection, wrong-passphrase, no-plaintext-leak |
 | Forecast window / prediction scorer | 16 + 13 tests |
 | Health flags, symptom patterns, clinical summary | 14 + 12 + 11 tests |
@@ -178,9 +178,15 @@ without it is scoring data lost permanently. `TodayUiState.accuracy` was populat
 rendered nowhere for a while; it now reaches the screen inside Today's *Why these numbers?* card
 (`TodayScreen.kt`, `WhyCard`), which still shows nothing where `accuracy()` returns null.
 
-- Written from **two** places: `TodayViewModel.refresh` and `ReminderWorker` — the worker covers
+- Written from **two** places: `TodayViewModel` and `ReminderWorker` — the worker covers
   days the app is never opened. Its call is wrapped in `runCatching`; bookkeeping must never break
   the reminder chain.
+- **Both writers must record the same prediction**, because the ledger keeps one row per day and
+  the later write wins. Until 2026-10-04 the worker called the engine without the user's stated
+  cycle and period lengths, so on any day it ran after Today, the row left behind was a prediction
+  the app never displayed. Both now record from `CycleSnapshot` (see "One snapshot" below). Rows
+  written before that date by the worker may carry the default length where a stated one applied;
+  they were not rewritten, since a prediction cannot honestly be re-made after the fact.
 - **`accuracy()` returns null until 3 scored cycles exist.** Rule 3 says not to display a
   confidence figure without a track record — not to display a low one. Expect null for months.
 - Scoring excludes the open cycle and any period marked `ASSUMED`; grading against backfill would
@@ -407,8 +413,8 @@ visibility, and one hardcoded number**:
 - A test run is flagged in the worker's input data and **must not touch the bookkeeping**: it skips
   `lastReminderFired` (writing it would tell `reminderLooksBroken()` the reminder is alive for 36
   hours, so the test would suppress the warning it exists to check), skips the heads-up (which would
-  consume the cycle's only one), and skips rescheduling (which would move a 21:00 reminder to
-  whenever the button was pressed).
+  consume the cycle's only one), skips rescheduling (which would move a 21:00 reminder to
+  whenever the button was pressed), and since 2026-10-04 skips the prediction ledger too.
 - **`ReminderScheduler.status`** collects the four independent failure modes in one read, because
   each is silent alone: the switch can be on while the permission is denied, the permission can be
   granted while WorkManager holds no job, and both can be fine while the ROM throttles the wakeup.
@@ -470,6 +476,37 @@ There is now a second check that dumps permissions from the **built APK**, which
 that knows what actually shipped. Both are kept: the source grep fails fast and points at a line, the
 APK check is authoritative. Worth generalising from — a check is only as good as the layer it inspects,
 and a confident comment above a weak check is worse than no check, because it stops anyone looking.
+
+### One snapshot, so every surface agrees (2026-10-04)
+
+Today, History, the phase guide, the doctor summary, both widgets and the reminder each rebuilt the
+projection themselves, choosing their own inputs and their own moment to run. That produced the
+ledger bug above, plus two stale-screen bugs: Today kept yesterday's cycle day if the app was left
+open past midnight and missed rows written by the notification actions, while History kept an old
+predicted window after a settings change because SharedPreferences writes never reach Room.
+
+- **`core/CycleSnapshot.kt`** builds everything a surface reads (projection, state, window, basis,
+  flags, and `stateOn(date)` for other days) from the logs plus `UserCycleSettings`, which carries
+  the stated lengths and the window spread as one value so no caller can drop one. 7 tests.
+- **`data/CycleRepository.kt`** exposes `snapshots: Flow<CycleSnapshot>`, combining Room's log
+  flow, `Settings.engineSettings()` (a prefs listener), and a date that ticks at midnight and on
+  every `onResume`. Today, History and the guide collect it. `reload()` and the `onChanged` /
+  `onRestored` refresh hooks are gone, because nothing needs telling any more.
+- The widgets, the worker and the summary cannot follow a flow, so they call `LogDao.snapshot()`,
+  which builds from the same settings. **Do not reintroduce a local `CycleProjector.project` call
+  in `:app`**; the stored-row rule (`source == "ASSUMED"`) now lives in one place for a reason.
+- The log form asks before Back or the date arrows throw away an unsaved edit
+  (`LogUiState.dirty`, 5 tests). Compared by value, so an edit undone by hand does not prompt.
+
+Built, unit-tested and installed on the Redmi Note 15 Pro on 2026-10-04, launching with an empty
+crash buffer, but **not yet looked at on screen**: the phone was locked. Before relying on it,
+check that Today, History and the guide render, that a setting change moves History's shading
+without a log edit, and that Back from an edited day shows the prompt.
+
+The UX review that prompted this is `docs/UX_REVIEW.md`. Its step 3 (back arrows, pinned Save,
+Undo snackbar) landed on 2026-10-05 along with four fixes found on the real screen; see the review's
+"Order of work". `LogRepository.restore` exists for Undo and **must not be replaced with `save`**:
+`save` re-derives the source and would promote an estimated day to observed on undo.
 
 ### Not started
 
@@ -610,9 +647,34 @@ Two traps in that flag, both already paid for:
 
 ## Device — read this before debugging anything
 
-There are **two** test phones. Neither is the real target, which remains a **Galaxy A35**.
+There are **three** test phones. None is the real target, which remains a **Galaxy A35**.
 
-### Redmi Note 12 Pro (2209116AG) — preferred
+### REDMI Note 15 Pro 5G (25080RABDG): the working device from 2026-10-04
+
+Android 16 / API 36, arm64-v8a, 7.6 GB RAM, 1280x2772 @ 520dpi, HyperOS 3.0
+(OS3.0.307.0.WPPMIXM), timezone Asia/Kolkata. First device on an API newer than `targetSdk`
+35, so it is where a platform behaviour change would show up first.
+
+What was established on 2026-10-04, the day it was set up:
+
+- **USB works here**, through the Windows `adb.exe`. It appears as a serial number, so there is
+  no IP or port to chase, which removes traps 2 and 4 below for this phone.
+- **The WSL adb server has to be killed first, not just left idle.** With
+  `networkingMode=mirrored` in `.wslconfig`, a WSL server on 5037 holds the Windows port too, and
+  the Windows adb fails with "could not install smartsocket listener" in
+  `%TEMP%\adb.log` while reporting only "failed to start daemon".
+- **The first install failed with `INSTALL_FAILED_USER_RESTRICTED`**, the same HyperOS gate as
+  the Note 12 Pro. After the user changed the setting on the phone, a retry of `adb install`
+  succeeded, which the Note 12 Pro never managed for a new package.
+- `adb shell input keyevent` returned with no `SecurityException`, so input injection appears to
+  be available here, unlike trap 7. A tap has not been tried yet.
+- First launch on a fresh install: Today read "No periods logged yet", the crash buffer was empty,
+  `POST_NOTIFICATIONS` granted, and a job from the app was present in `jobscheduler`.
+
+The Note 12 Pro's data was **not** moved over. If it is wanted, the route is the app's own
+encrypted export and restore, which also carries the prediction ledger.
+
+### Redmi Note 12 Pro (2209116AG): preferred until 2026-10-04
 
 Android 13 / API 33, arm64-v8a, **7.7 GB RAM**, 1080x2400 @ 440dpi, HyperOS (V816.0.33.0).
 Better than the Y19 in every way that matters here, and its 7.7 GB reopens Phase 6's Gemma 3 1B
