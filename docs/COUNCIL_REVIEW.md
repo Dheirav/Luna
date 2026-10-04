@@ -261,6 +261,12 @@ quietly do not count, that is how people stop.
 - **H7, lateness wording:** add a "worth raising with a doctor" point, with no pregnancy line.
 - **D4, open-period length (a spec change):** not yet decided.
 
+## Progress
+
+- **5 Oct, first batch done and checked on screen:** D1, D5, D6, P1, P2, P3, H1, H2, A1, A2, A5,
+  plus the in-app walkthrough requested the same day, which also covers most of F1. 166 unit tests
+  pass.
+
 ## Suggested order
 
 1. **Now, no decisions needed:**

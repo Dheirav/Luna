@@ -60,6 +60,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -83,6 +86,8 @@ import java.time.LocalDate
  *  - Retro-logging is chevrons either side of the date, because yesterday is the common case.
  *    The date opens a calendar for anything further back.
  */
+// FlowRow is still ExperimentalLayoutApi on this BOM; HistoryScreen opts in for the same reason.
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LogScreen(viewModel: LogViewModel, onDone: () -> Unit) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
@@ -103,6 +108,7 @@ fun LogScreen(viewModel: LogViewModel, onDone: () -> Unit) {
             },
             onDiscard = {
                 leaving = null
+                viewModel.discardEdits()
                 attempt.proceed(viewModel, onDone)
             },
             onKeepEditing = { leaving = null },
@@ -122,7 +128,11 @@ fun LogScreen(viewModel: LogViewModel, onDone: () -> Unit) {
                 // Changing day loads another day over this one, which loses edits exactly as Back did.
                 onPick = { date ->
                     if (date == entry.date || date.isAfter(LocalDate.now())) return@DayHeader
-                    if (ui.dirty) leaving = Leave.To(date) else viewModel.open(date)
+                    if (ui.dirty) {
+                        leaving = Leave.To(date)
+                    } else {
+                        viewModel.open(date)
+                    }
                 },
             )
 
@@ -141,7 +151,11 @@ fun LogScreen(viewModel: LogViewModel, onDone: () -> Unit) {
 
             // -- bleeding ----------------------------------------------------
             Text("Bleeding", style = MaterialTheme.typography.titleSmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Wraps rather than squeezing: four chips need about 480dp at 200% text size.
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
                 FilterChip(
                     selected = entry.isBleeding,
                     onClick = { viewModel.setBleeding(!entry.isBleeding) },
@@ -193,17 +207,14 @@ fun LogScreen(viewModel: LogViewModel, onDone: () -> Unit) {
 
             // -- confounders --------------------------------------------------
             Text("Anything unusual?", style = MaterialTheme.typography.titleSmall)
-            Row(
+            // One wrapping row, not two fixed rows of three: at large text "Off routine" and "Med
+            // change" were clipped to fit.
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                DayTag.entries.take(3).forEach { tag -> TagChip(tag, entry.tags, viewModel) }
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                DayTag.entries.drop(3).forEach { tag -> TagChip(tag, entry.tags, viewModel) }
+                DayTag.entries.forEach { tag -> TagChip(tag, entry.tags, viewModel) }
             }
 
             OutlinedTextField(
@@ -248,7 +259,9 @@ private sealed interface Leave {
     }
 
     data class To(val date: LocalDate) : Leave {
-        override fun proceed(viewModel: LogViewModel, onDone: () -> Unit) = viewModel.open(date)
+        override fun proceed(viewModel: LogViewModel, onDone: () -> Unit) {
+            viewModel.open(date)
+        }
     }
 }
 
@@ -403,6 +416,12 @@ private fun SymptomRow(symptom: Symptom, value: Int?, onSelect: (Int) -> Unit) {
  */
 @Composable
 private fun LevelRow(symptom: Symptom, value: Int?, onSelect: (Int) -> Unit) {
+    // Above about 130% text size five words no longer fit across a phone, and shrinking them to fit
+    // undoes the size the person chose. So the scale turns into a list, top to bottom, at full size.
+    if (LocalDensity.current.fontScale > LARGE_TEXT_SCALE) {
+        LevelList(symptom = symptom, value = value, onSelect = onSelect)
+        return
+    }
     val shape = RoundedCornerShape(50)
     val outline = MaterialTheme.colorScheme.outline
     Row(
@@ -455,6 +474,49 @@ private fun LevelRow(symptom: Symptom, value: Int?, onSelect: (Int) -> Unit) {
     }
 }
 
+private const val LARGE_TEXT_SCALE = 1.3f
+
+/**
+ * The level scale as a vertical list, for large text. Same semantics as the row: one node per
+ * level, a state description, and a "clear" action on the selected one.
+ */
+@Composable
+private fun LevelList(symptom: Symptom, value: Int?, onSelect: (Int) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        symptom.levels.forEachIndexed { index, level ->
+            val selected = value == index
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(
+                        if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+                    )
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
+                    .clearAndSetSemantics {
+                        contentDescription = "${symptom.label}: $level"
+                        stateDescription = if (selected) "Selected" else "Not selected"
+                        onClick(label = if (selected) "clear" else "select") { onSelect(index); true }
+                    }
+                    .clickable(onClick = { onSelect(index) })
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    level,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (selected) {
+                        MaterialTheme.colorScheme.onSecondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                )
+            }
+        }
+    }
+}
+
 /**
  * One line of text that shrinks until it fits, never below 8sp.
  *
@@ -485,6 +547,7 @@ private fun TagChip(tag: DayTag, selected: Set<DayTag>, viewModel: LogViewModel)
     FilterChip(
         selected = tag in selected,
         onClick = { viewModel.toggleTag(tag) },
-        label = { Text(tag.label, maxLines = 1, fontSize = 12.sp) },
+        // The user's text size, not a forced 12sp.
+        label = { Text(tag.label) },
     )
 }

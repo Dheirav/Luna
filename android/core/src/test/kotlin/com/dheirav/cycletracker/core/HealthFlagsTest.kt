@@ -193,4 +193,54 @@ class HealthFlagsTest {
         val dates = flags.mapNotNull { it.on }
         assertEquals(dates.sortedDescending(), dates)
     }
+
+    // -- late and absent need an observed anchor ---------------------------
+
+    /** The council review found these two skipped the observed-only rule every other flag keeps. */
+    @Test
+    fun `an estimated last period raises neither late nor absent`() {
+        val estimated = CycleProjector.fromPeriods(
+            listOf(Period(date("2026-01-01"), date("2026-01-05"), 5, 5, Source.ASSUMED)),
+        )
+
+        val longAfter = HealthFlags.evaluate(estimated, date("2026-05-01"), 28)
+        val slightlyAfter = HealthFlags.evaluate(estimated, date("2026-02-08"), 28)
+
+        assertFalse(HealthFlagKind.PERIOD_ABSENT in kinds(longAfter))
+        assertFalse(HealthFlagKind.PERIOD_LATE in kinds(slightlyAfter))
+    }
+
+    @Test
+    fun `the late flag says when the expected length is assumed rather than measured`() {
+        val oneObserved = CycleProjector.fromPeriods(
+            listOf(Period(date("2026-06-01"), date("2026-06-05"), 5, 5)),
+        )
+
+        val assumed = HealthFlags.evaluate(
+            oneObserved, date("2026-07-08"), 28, lengthSource = LengthSource.APP_DEFAULT,
+        ).single { it.kind == HealthFlagKind.PERIOD_LATE }
+        val stated = HealthFlags.evaluate(
+            oneObserved, date("2026-07-08"), 31, lengthSource = LengthSource.USER_STATED,
+        )
+
+        assertTrue(assumed.detail, assumed.detail.contains("the app assumes is 28 days"))
+        assertFalse(assumed.detail, assumed.detail.contains("usually"))
+        // 31 days stated, so day 38 is exactly 7 days over: flagged at the default threshold.
+        val statedLate = stated.single { it.kind == HealthFlagKind.PERIOD_LATE }
+        assertTrue(statedLate.detail, statedLate.detail.contains("you set at 31 days"))
+    }
+
+    @Test
+    fun `flag dates are written for a person, not in ISO form`() {
+        val flags = HealthFlags.evaluate(
+            CycleProjector.fromPeriods(listOf(Period(date("2026-01-01"), date("2026-01-05"), 5, 5))),
+            today = date("2026-05-01"),
+            expectedCycleLength = 28,
+        )
+
+        val absent = flags.single { it.kind == HealthFlagKind.PERIOD_ABSENT }
+        // Month names follow the machine's locale, so only the shape is asserted.
+        assertTrue(absent.detail, Regex("""started on 1 \S+ 2026""").containsMatchIn(absent.detail))
+        assertFalse(absent.detail, absent.detail.contains("2026-01-01"))
+    }
 }

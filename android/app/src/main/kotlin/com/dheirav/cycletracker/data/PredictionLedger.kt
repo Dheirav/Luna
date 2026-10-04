@@ -27,8 +27,15 @@ class PredictionLedger(private val dao: LogDao) {
      * prediction of "nothing" is not a prediction. Skipped for past dates too: back-dating a
      * record would fabricate a prediction that was never actually made, which is precisely the
      * dishonesty this whole mechanism exists to prevent.
+     *
+     * **The date is read here, at the moment of writing, and callers cannot supply one.** It used to
+     * be a parameter, and Today passed the date of the snapshot it was rendering. The guard below then
+     * compared the snapshot with itself and could never fire: a snapshot left over from yesterday,
+     * rebuilt after today's period was logged, rewrote yesterday's row with hindsight, and that is the
+     * row the scorer grades. Reading the clock here is what makes a stale state get skipped.
      */
-    suspend fun record(state: CycleState, today: LocalDate = LocalDate.now()) {
+    suspend fun record(state: CycleState) {
+        val today = LocalDate.now()
         if (state.date != today) return
         val cycleStart = state.cycleStart ?: return
         val predicted = state.nextPeriodExpected ?: return

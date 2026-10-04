@@ -38,7 +38,7 @@ Governing rules (full list in the plan artifact):
 | | Verified how |
 |---|---|
 | Phase 0 — spec + golden fixture | 34 cases, `spec/cycle_fixtures.json` |
-| Cycle/period/phase engine (`:core`) | `./gradlew :core:test`: **130 tests, all pass** (plus 28 in `:app`, and 3 instrumented) |
+| Cycle/period/phase engine (`:core`) | `./gradlew :core:test`: **134 tests, all pass** (plus 32 in `:app`, and 3 instrumented) |
 | Encrypted backup codec | 11 tests incl. tamper detection, wrong-passphrase, no-plaintext-leak |
 | Forecast window / prediction scorer | 16 + 13 tests |
 | Health flags, symptom patterns, clinical summary | 14 + 12 + 11 tests |
@@ -512,6 +512,38 @@ The UX review that prompted this is `docs/UX_REVIEW.md`. Its step 3 (back arrows
 Undo snackbar) landed on 2026-10-05 along with four fixes found on the real screen; see the review's
 "Order of work". `LogRepository.restore` exists for Undo and **must not be replaced with `save`**:
 `save` re-derives the source and would promote an estimated day to observed on undo.
+
+### Council review fixes and the walkthrough (2026-10-05)
+
+`docs/COUNCIL_REVIEW.md` holds the five-reviewer review and the decisions taken on it. The first
+batch is in, checked on the Redmi in both themes:
+
+- **The ledger reads the date itself.** `PredictionLedger.record(state)` no longer takes one, after
+  passing the snapshot's date let a stale snapshot back-date a prediction with hindsight. Do not add
+  the parameter back.
+- **Notifications are private on the lock screen** ("Luna · A quick check-in"), and the Bleeding /
+  No bleeding actions **now require an unlocked phone** and carry the date the reminder was for. This
+  supersedes "no unlock and no biometric gate" in the one-tap logging section above.
+- **Widgets default to discreet**, keeping "Logged ✓". While the app is locked its content is cleared
+  from the accessibility tree, not only covered.
+- `LogDao.replaceDay` writes a day in one transaction and keeps `raw_text`.
+- "Late" on Today and the widget is `PeriodWindow.daysPast`, counted from the window's last day; the
+  engine's `daysLate` (§4) is unchanged. Past the window the hero adds a doctor point at window end
+  plus six weeks, with no pregnancy line, by decision. Late and absent flags need an observed anchor
+  and word an assumed length as assumed.
+- Light theme `primary` is `#A8336A` and `surfaceContainer*` are set explicitly; the old `#E0669B`
+  failed contrast everywhere it was used. Switch rows are `SwitchRow`, one toggleable node each. At
+  more than 130% text, level scales become a vertical list.
+
+**The walkthrough** (`ui/OnboardingScreen.kt`) shows on first run until finished or skipped
+(`Settings.onboardingDone`), and replays from Settings, Help. The notification permission is asked
+from its reminder page, no longer on launch. An optional setup page, shown only on a first run with
+no periods, logs the last period as a date range (`LogRepository.logPeriod`) and sets a usual cycle
+length. Known flaw: in landscape the reminder page's button sits partly under the page dots until
+scrolled.
+
+Still open from the council: three-state bleeding (Room v3, decided), the gap prompt (decided),
+the doctor summary, backup safety, and whether to amend §5.1 for an open period.
 
 ### Not started
 

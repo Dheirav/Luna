@@ -69,9 +69,17 @@ class LogViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Loads a date for editing. Retro-logging is the same path as today — no special case. */
-    fun open(date: LocalDate) {
+    /**
+     * Returns false, and changes nothing, for a date the form will not open; callers must not
+     * navigate to the form then. It used to return silently, and the form appeared showing whatever
+     * it held last, including edits the user had chosen to discard.
+     */
+    fun open(date: LocalDate): Boolean {
         // No logging the future — there is nothing to observe yet.
-        if (date.isAfter(LocalDate.now())) return
+        if (date.isAfter(LocalDate.now())) return false
+        // Cleared at once rather than when the load lands, so the previous day's entry is never
+        // shown under the new date, even for a frame.
+        _ui.value = LogUiState(entry = DayEntry(date), loading = true)
         viewModelScope.launch {
             val entry = repo.load(date)
             _ui.value = LogUiState(
@@ -82,6 +90,17 @@ class LogViewModel(app: Application) : AndroidViewModel(app) {
                 loading = false,
             )
         }
+        return true
+    }
+
+    /** The walkthrough's "When did your last period start?". See [LogRepository.logPeriod]. */
+    fun logPeriod(start: LocalDate, end: LocalDate) {
+        viewModelScope.launch { repo.logPeriod(start, end) }
+    }
+
+    /** Throws away unsaved edits, so nothing chosen to be discarded can resurface later. */
+    fun discardEdits() {
+        _ui.value = _ui.value.copy(entry = _ui.value.original)
     }
 
     fun setBleeding(bleeding: Boolean) = edit {
@@ -124,7 +143,13 @@ class LogViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Puts the day back as it was before the write being undone. See [LogRepository.restore]. */
     fun undo(undoable: Undoable) {
-        viewModelScope.launch { repo.restore(undoable.previous) }
+        viewModelScope.launch {
+            repo.restore(undoable.previous)
+            // If the form is open on that day with nothing typed since, reload it. Otherwise it keeps
+            // showing the undone state as unchanged, and the next Save writes it straight back.
+            val open = _ui.value
+            if (open.entry.date == undoable.previous.date && !open.dirty) open(undoable.previous.date)
+        }
     }
 
     /**

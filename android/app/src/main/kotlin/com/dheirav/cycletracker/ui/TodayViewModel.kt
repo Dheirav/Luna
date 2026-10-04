@@ -122,7 +122,7 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun render(snapshot: CycleSnapshot, today: DaySummary?) {
         // Write the prediction down before rendering it, from the same snapshot that is rendered. A
         // prediction that was shown but never recorded is one the app can never be held to.
-        ledger.record(snapshot.state, snapshot.today)
+        ledger.record(snapshot.state)
 
         // Push the widget rather than waiting on updatePeriodMillis, which the system clamps and
         // vendor ROMs throttle. A widget disagreeing with the screen beside it is worse than one

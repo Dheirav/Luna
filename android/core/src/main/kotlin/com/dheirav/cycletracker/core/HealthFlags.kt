@@ -86,6 +86,19 @@ data class HealthFlag(
     val on: LocalDate?,
 )
 
+/** Dates in flag text, which reaches a doctor: "1 Jul 2026", not "2026-07-01". */
+private val FLAG_DATE = java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy")
+
+/**
+ * How the late flag names the expected length. "Usually runs 28 days" is only true when 28 was
+ * measured; a population default printed that way in the doctor summary described nobody.
+ */
+internal fun lengthClause(length: Int, source: LengthSource?): String = when (source) {
+    LengthSource.USER_STATED -> "you set at $length days"
+    LengthSource.MEDIAN_WITH_ESTIMATES, LengthSource.APP_DEFAULT -> "the app assumes is $length days"
+    LengthSource.MEDIAN_OF_OBSERVED, null -> "that usually runs $length days"
+}
+
 object HealthFlags {
 
     /**
@@ -99,6 +112,12 @@ object HealthFlags {
         expectedCycleLength: Int,
         config: HealthFlagConfig = HealthFlagConfig.Default,
         cycleConfig: CycleConfig = CycleConfig.Default,
+        /**
+         * Where [expectedCycleLength] came from. Null is treated as measured, for callers that
+         * predate it. The late flag words a stated or assumed length as exactly that, because it
+         * reaches the doctor summary verbatim.
+         */
+        lengthSource: LengthSource? = null,
     ): List<HealthFlag> {
         val flags = mutableListOf<HealthFlag>()
 
@@ -111,13 +130,16 @@ object HealthFlags {
         val lastPeriod = projection.periods.lastOrNull()
 
         // -- nothing has happened for a long time ---------------------------
-        if (lastPeriod != null) {
+        // Only from a period that was observed. These two flags used to skip the check every other
+        // flag makes, so an estimated period could anchor "the last one you logged", which it was
+        // not, and assumed cycles must never raise a flag (§3.2).
+        if (lastPeriod != null && lastPeriod.source == Source.OBSERVED) {
             val since = daysBetween(lastPeriod.start, today)
             if (since >= config.absentPeriodDays) {
                 flags += HealthFlag(
                     kind = HealthFlagKind.PERIOD_ABSENT,
                     headline = "No period logged for $since days",
-                    detail = "The last one you logged started on ${lastPeriod.start}. Three " +
+                    detail = "The last one you logged started on ${lastPeriod.start.format(FLAG_DATE)}. Three " +
                         "months without one is worth raising with a doctor, and worth checking " +
                         "you have not simply missed logging it.",
                     on = lastPeriod.start,
@@ -132,9 +154,10 @@ object HealthFlags {
                         flags += HealthFlag(
                             kind = HealthFlagKind.PERIOD_LATE,
                             headline = "Period is $late days later than expected",
-                            detail = "You are on day $dayOfCycle of a cycle that usually runs " +
-                                "$expectedCycleLength days. Stress, illness, travel and sleep " +
-                                "all shift this, and one late cycle on its own is common.",
+                            detail = "You are on day $dayOfCycle of a cycle " +
+                                lengthClause(expectedCycleLength, lengthSource) +
+                                ". Stress, illness, travel and sleep all shift this, and one " +
+                                "late cycle on its own is common.",
                             on = today,
                         )
                     }

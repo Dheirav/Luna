@@ -140,19 +140,17 @@ class LogRepository(private val dao: LogDao) {
             return
         }
 
-        dao.upsertLog(
-            DailyLogEntity(
+        dao.replaceDay(
+            log = DailyLogEntity(
                 date = entry.date,
                 isBleeding = entry.isBleeding,
                 flow = entry.flow?.name,
                 notes = entry.notes,
                 source = source.name,
             ),
+            symptoms = entry.symptoms.map { (s, v) -> SymptomValueEntity(entry.date, s.key, v) },
+            tags = entry.tags.map { DayTagEntity(entry.date, it.key) },
         )
-        dao.deleteSymptoms(entry.date)
-        dao.upsertSymptoms(entry.symptoms.map { (s, v) -> SymptomValueEntity(entry.date, s.key, v) })
-        dao.deleteTags(entry.date)
-        dao.upsertTags(entry.tags.map { DayTagEntity(entry.date, it.key) })
     }
 
     /**
@@ -172,6 +170,22 @@ class LogRepository(private val dao: LogDao) {
         val existing = dao.logFor(entry.date) ?: return Source.OBSERVED
         if (existing.source != "ASSUMED") return Source.OBSERVED
         return if (existing.isBleeding == entry.isBleeding) Source.ASSUMED else Source.OBSERVED
+    }
+
+    /**
+     * Logs every day from [start] to [end] as bleeding, keeping whatever else each day already holds.
+     *
+     * For the walkthrough's "When did your last period start?", where the alternative was a tap per
+     * day in History, about fifteen per period. Each day is saved as an observation, because the
+     * person is stating it, and each goes through [save] so an existing day's symptoms and notes
+     * survive.
+     */
+    suspend fun logPeriod(start: LocalDate, end: LocalDate) {
+        var day = start
+        while (!day.isAfter(end)) {
+            save(load(day).copy(isBleeding = true))
+            day = day.plusDays(1)
+        }
     }
 
     /** Throws a backfilled guess away entirely, rather than leaving it to pollute the statistics. */

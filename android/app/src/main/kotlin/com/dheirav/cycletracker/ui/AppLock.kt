@@ -30,6 +30,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -150,7 +153,15 @@ fun AppLockGate(content: @Composable () -> Unit) {
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { prompt() }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        content()
+        // Hidden from accessibility services while locked, not just covered. The overlay only
+        // swallowed touches: the content stayed in the semantics tree, so TalkBack could read the
+        // cycle day behind "Locked" and activate buttons with a double-tap, which is the exact
+        // over-the-shoulder threat the lock exists for. Still composed, so nothing reloads on unlock.
+        Box(
+            modifier = if (AppLock.locked) Modifier.clearAndSetSemantics { } else Modifier,
+        ) {
+            content()
+        }
         if (AppLock.locked) LockOverlay(error = error, onRetry = prompt)
     }
 }
@@ -163,7 +174,9 @@ private fun LockOverlay(error: String?, onRetry: () -> Unit) {
             // Explicitly swallow every touch. Material's Surface happens to do this already, but
             // this is the thing standing between a bystander and the data — it should not depend
             // on an implementation detail of a component that could change under us.
-            .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } },
+            .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } }
+            // Announced as its own pane, so a screen reader says where focus landed.
+            .semantics { paneTitle = "Locked" },
         color = MaterialTheme.colorScheme.background,
     ) {
         Column(
@@ -202,22 +215,17 @@ fun AppLockSection() {
             "app on your unlocked phone.",
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("Require unlock", style = MaterialTheme.typography.titleSmall)
-                Switch(
-                    checked = enabled && available,
-                    enabled = available,
-                    onCheckedChange = {
-                        enabled = it
-                        settings.appLockEnabled = it
-                        if (!it) AppLock.disable()
-                    },
-                )
-            }
+            SwitchRow(
+                label = "Require unlock",
+                style = MaterialTheme.typography.titleSmall,
+                checked = enabled && available,
+                enabled = available,
+                onCheckedChange = {
+                    enabled = it
+                    settings.appLockEnabled = it
+                    if (!it) AppLock.disable()
+                },
+            )
             Text(
                 if (available) {
                     "Fingerprint, face or device PIN before the app opens, and again after a " +
@@ -232,33 +240,28 @@ fun AppLockSection() {
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("Allow screenshots", style = MaterialTheme.typography.titleSmall)
-                Switch(
-                    checked = screenshots,
-                    onCheckedChange = {
-                        screenshots = it
-                        settings.allowScreenshots = it
-                        // Applied to the window immediately rather than on the next launch. A privacy
-                        // switch that needs a restart to take effect is one people reasonably assume
-                        // did not work.
-                        (context as? Activity)?.let { activity ->
-                            if (it) {
-                                activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-                            } else {
-                                activity.window.setFlags(
-                                    WindowManager.LayoutParams.FLAG_SECURE,
-                                    WindowManager.LayoutParams.FLAG_SECURE,
-                                )
-                            }
+            SwitchRow(
+                label = "Allow screenshots",
+                style = MaterialTheme.typography.titleSmall,
+                checked = screenshots,
+                onCheckedChange = {
+                    screenshots = it
+                    settings.allowScreenshots = it
+                    // Applied to the window immediately rather than on the next launch. A privacy
+                    // switch that needs a restart to take effect is one people reasonably assume
+                    // did not work.
+                    (context as? Activity)?.let { activity ->
+                        if (it) {
+                            activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                        } else {
+                            activity.window.setFlags(
+                                WindowManager.LayoutParams.FLAG_SECURE,
+                                WindowManager.LayoutParams.FLAG_SECURE,
+                            )
                         }
-                    },
-                )
-            }
+                    }
+                },
+            )
             Text(
                 if (screenshots) {
                     "On. You can screenshot and screen-record — and your cycle day and phase will " +

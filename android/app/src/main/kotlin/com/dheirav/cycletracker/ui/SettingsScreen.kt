@@ -20,6 +20,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -38,6 +39,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -76,7 +80,7 @@ private val stamp = DateTimeFormatter.ofPattern("d MMM, HH:mm")
  * reasoning was always on screen, and after the first read it was only scrolling between switches.
  */
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(onHowItWorks: () -> Unit) {
     val context = LocalContext.current
     val settings = remember { Settings(context) }
 
@@ -105,6 +109,18 @@ fun SettingsScreen() {
         AppLockSection()
         BackupSection()
         SummarySection()
+
+        SettingsGroup("Help")
+        SettingsCard("How Luna works") {
+            Text(
+                "The short walkthrough from the first time you opened the app.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedButton(onClick = onHowItWorks, modifier = Modifier.fillMaxWidth()) {
+                Text("Show the walkthrough")
+            }
+        }
 
         Text(
             "This app has no internet permission and never will. Nothing here leaves the phone " +
@@ -254,24 +270,19 @@ private fun ReminderCard(settings: Settings) {
         about = "Skips days you have already logged. The heads-up comes once per cycle, before the " +
             "window opens.",
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("Remind me to log", style = MaterialTheme.typography.bodyMedium)
-            Switch(
-                checked = enabled,
-                onCheckedChange = {
-                    enabled = it
-                    settings.reminderEnabled = it
-                    // Reschedules or cancels immediately — a reminder setting that waits for the
-                    // next app launch to take effect is one the user will believe is broken.
-                    ReminderScheduler.schedule(context)
-                    probe++
-                },
-            )
-        }
+        SwitchRow(
+            label = "Remind me to log",
+            style = MaterialTheme.typography.bodyMedium,
+            checked = enabled,
+            onCheckedChange = {
+                enabled = it
+                settings.reminderEnabled = it
+                // Reschedules or cancels immediately — a reminder setting that waits for the
+                // next app launch to take effect is one the user will believe is broken.
+                ReminderScheduler.schedule(context)
+                probe++
+            },
+        )
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -284,20 +295,15 @@ private fun ReminderCard(settings: Settings) {
         }
         HorizontalDivider()
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("Warn me before it's due", style = MaterialTheme.typography.bodyMedium)
-            Switch(
-                checked = warn,
-                onCheckedChange = {
-                    warn = it
-                    settings.periodWarningEnabled = it
-                },
-            )
-        }
+        SwitchRow(
+            label = "Warn me before it's due",
+            style = MaterialTheme.typography.bodyMedium,
+            checked = warn,
+            onCheckedChange = {
+                warn = it
+                settings.periodWarningEnabled = it
+            },
+        )
         if (warn) {
             Stepper(
                 label = "Days of notice",
@@ -570,21 +576,16 @@ private fun WidgetCard(settings: Settings) {
         about = "Add it by long-pressing your home screen. Worth having: it needs no background " +
             "permission, so it keeps working even when this phone kills the daily reminder.",
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("Show cycle details", style = MaterialTheme.typography.bodyMedium)
-            Switch(
-                checked = details,
-                onCheckedChange = {
-                    details = it
-                    settings.widgetShowsDetails = it
-                    refreshWidgets(context)
-                },
-            )
-        }
+        SwitchRow(
+            label = "Show cycle details",
+            style = MaterialTheme.typography.bodyMedium,
+            checked = details,
+            onCheckedChange = {
+                details = it
+                settings.widgetShowsDetails = it
+                refreshWidgets(context)
+            },
+        )
         Text(
             if (details) {
                 "The widget shows your cycle day, phase and next window — visible to anyone who " +
@@ -596,6 +597,40 @@ private fun WidgetCard(settings: Settings) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+/**
+ * A labelled switch where the whole row is the control.
+ *
+ * The switches were siblings of a plain `Text`, so TalkBack landed on each one and said "Off,
+ * switch" with no name. On "Require unlock" and "Allow screenshots" that meant guessing which
+ * privacy setting was about to change. Making the row toggleable gives one node, "Require unlock,
+ * switch, on", and a larger target than the switch alone.
+ */
+@Composable
+internal fun SwitchRow(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    style: TextStyle = MaterialTheme.typography.bodyMedium,
+    enabled: Boolean = true,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(
+                value = checked,
+                enabled = enabled,
+                role = Role.Switch,
+                onValueChange = onCheckedChange,
+            ),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, style = style, modifier = Modifier.weight(1f))
+        // No handler of its own: the row takes the tap, so there is one control, not two.
+        Switch(checked = checked, onCheckedChange = null, enabled = enabled)
     }
 }
 
@@ -673,7 +708,7 @@ internal fun SettingsCard(title: String, about: String? = null, content: @Compos
  * [range] bounds it at the source instead.
  */
 @Composable
-private fun Stepper(
+internal fun Stepper(
     label: String,
     value: Int?,
     unset: String,

@@ -116,11 +116,14 @@ class Settings(context: Context) {
      * or a calendar for exactly this reason. Off, the widget still works as a one-tap logging
      * shortcut, which is the point of it.
      *
-     * Defaults on: the user placed it deliberately, and defaulting to a blank card would look
-     * broken. The trade-off is stated in the settings screen rather than assumed either way.
+     * **Defaults off since 2026-10-05.** It defaulted on, on the grounds that a blank card would look
+     * broken, but the council review found it was the one surface leaking the cycle by default: the
+     * recents card is blank by default and the lock screen now is too. A partner glancing at the home
+     * screen saw "Day 41 · Luteal · 13 days late". Details are an opt-in in Settings, where the
+     * switch states the trade. The discreet card still shows whether today is logged.
      */
     var widgetShowsDetails: Boolean
-        get() = prefs.getBoolean(KEY_WIDGET_DETAILS, true)
+        get() = prefs.getBoolean(KEY_WIDGET_DETAILS, false)
         set(value) = prefs.edit().putBoolean(KEY_WIDGET_DETAILS, value).apply()
 
     /** How wide a prediction window to show. A coverage preference, not a data override — the
@@ -169,6 +172,17 @@ class Settings(context: Context) {
      * UI tells the user their reminder is being killed and points at the battery settings, which
      * is the only real remedy on these ROMs.
      */
+    /**
+     * Whether the first-run walkthrough has been finished or skipped.
+     *
+     * Set once and never cleared by the app; "How Luna works" in Settings replays it without
+     * touching this. Absent on installs from before the walkthrough existed, so those see it once
+     * too, which is the point: it was asked for to explain an app already in use.
+     */
+    var onboardingDone: Boolean
+        get() = prefs.getBoolean(KEY_ONBOARDING_DONE, false)
+        set(value) = prefs.edit().putBoolean(KEY_ONBOARDING_DONE, value).apply()
+
     /** The settings the engine reads, as one value. See [UserCycleSettings] for why it is one value. */
     fun forEngine(): UserCycleSettings = UserCycleSettings(
         typicalCycleLength = typicalCycleLength,
@@ -218,6 +232,7 @@ class Settings(context: Context) {
         private const val KEY_WIDGET_DETAILS = "widget_shows_details"
         private const val KEY_APP_LOCK = "app_lock_enabled"
         private const val KEY_ALLOW_SCREENSHOTS = "allow_screenshots"
+        private const val KEY_ONBOARDING_DONE = "onboarding_done"
 
         /** 21:00 — late enough that the day is done, early enough not to be asleep. */
         private val DEFAULT_REMINDER_SECONDS = LocalTime.of(21, 0).toSecondOfDay().toLong()

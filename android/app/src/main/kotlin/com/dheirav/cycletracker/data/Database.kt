@@ -141,6 +141,31 @@ interface LogDao {
     @Query("DELETE FROM daily_logs WHERE date = :date")
     suspend fun deleteLog(date: LocalDate)
 
+    /**
+     * Writes one day's log, symptoms and tags as a single unit.
+     *
+     * These were five separate statements. A crash between deleting a day's symptoms and writing
+     * the new ones lost them, and every screen following the database briefly saw the day half
+     * written. Symptoms and tags are deleted then rewritten rather than merged, so unsetting a value
+     * genuinely removes it.
+     *
+     * The raw natural-language text is kept when the caller has none, because the form never edits
+     * it and rewriting the row used to drop it.
+     */
+    @Transaction
+    suspend fun replaceDay(
+        log: DailyLogEntity,
+        symptoms: List<SymptomValueEntity>,
+        tags: List<DayTagEntity>,
+    ) {
+        val keptRawText = if (log.rawText == null) logFor(log.date)?.rawText else log.rawText
+        upsertLog(log.copy(rawText = keptRawText))
+        deleteSymptoms(log.date)
+        upsertSymptoms(symptoms)
+        deleteTags(log.date)
+        upsertTags(tags)
+    }
+
     /** Removes a day entirely, so "never logged" stays distinct from "logged as nothing". */
     @Transaction
     suspend fun deleteDay(date: LocalDate) {

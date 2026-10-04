@@ -313,7 +313,7 @@ class ReminderWorker(
     private suspend fun recordPrediction(dao: LogDao, settings: Settings) {
         runCatching {
             val snapshot = dao.snapshot(settings)
-            PredictionLedger(dao).record(snapshot.state, snapshot.today)
+            PredictionLedger(dao).record(snapshot.state)
         }
     }
 
@@ -403,9 +403,27 @@ class ReminderWorker(
                 .setStyle(NotificationCompat.BigTextStyle().bigText(body))
                 .setContentIntent(openAppIntent(context, openLog = false))
                 .setAutoCancel(true)
+                // Dates of an expected period are exactly what the bloom icon and discreet widget
+                // keep off shared surfaces, so the lock screen gets a version that says nothing.
+                .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+                .setPublicVersion(publicVersion(context, CHANNEL_ID_FORECAST))
                 .build(),
         )
     }
+
+    /**
+     * What a locked phone shows in place of either notification: the app's name and nothing else.
+     *
+     * Without this the lock screen showed whatever the phone's default allows, which on many phones
+     * is the full text, "Period expected soon · Likely between 3 Oct and 9 Oct", to anyone nearby.
+     */
+    private fun publicVersion(context: Context, channelId: String) =
+        NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setColor(ContextCompat.getColor(context, R.color.notification_accent))
+            .setContentTitle("Luna")
+            .setContentText("A quick check-in")
+            .build()
 
     private fun notify(context: Context) {
         // Same helper as the forecast channel, so the vibration and retirement rules cannot drift
@@ -430,8 +448,15 @@ class ReminderWorker(
             return
         }
 
-        // Two actions so the common case — one bit of information — costs one tap, with no
-        // unlock and no biometric gate. See LogActionReceiver.
+        // Two actions so the common case — one bit of information — costs one tap. See
+        // LogActionReceiver.
+        //
+        // They carry the date the reminder was *for*. Answering at 00:30 used to log the new day
+        // and leave the one being asked about blank.
+        //
+        // And they require the phone to be unlocked. One tap still answers once the phone is open,
+        // but someone else holding a locked phone can no longer write a day into this record.
+        val forDate = LocalDate.now()
         NotificationManagerCompat.from(context).notify(
             REMINDER_NOTIFICATION_ID,
             NotificationCompat.Builder(context, CHANNEL_ID)
@@ -440,21 +465,35 @@ class ReminderWorker(
                 .setContentTitle("How was today?")
                 .setContentText("Ten seconds now beats guessing later.")
                 .setContentIntent(pending)
-                .addAction(0, "Bleeding", logAction(context, ACTION_LOG_BLEEDING, 10))
-                .addAction(0, "No bleeding", logAction(context, ACTION_LOG_NO_BLEEDING, 11))
+                .addAction(logAction(context, "Bleeding", ACTION_LOG_BLEEDING, 10, forDate))
+                .addAction(logAction(context, "No bleeding", ACTION_LOG_NO_BLEEDING, 11, forDate))
                 .setAutoCancel(true)
+                .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+                .setPublicVersion(publicVersion(context, CHANNEL_ID))
                 .build(),
         )
     }
 
     /** Distinct request codes, or the second action would silently reuse the first's intent. */
-    private fun logAction(context: Context, action: String, requestCode: Int): PendingIntent =
-        PendingIntent.getBroadcast(
+    private fun logAction(
+        context: Context,
+        title: String,
+        action: String,
+        requestCode: Int,
+        forDate: LocalDate,
+    ): NotificationCompat.Action {
+        val intent = PendingIntent.getBroadcast(
             context,
             requestCode,
-            Intent(context, LogActionReceiver::class.java).setAction(action),
+            Intent(context, LogActionReceiver::class.java)
+                .setAction(action)
+                .putExtra(EXTRA_LOG_DATE, forDate.toString()),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+        return NotificationCompat.Action.Builder(0, title, intent)
+            .setAuthenticationRequired(true)
+            .build()
+    }
 
 }
 

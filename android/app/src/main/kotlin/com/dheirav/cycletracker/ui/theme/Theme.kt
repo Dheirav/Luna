@@ -35,7 +35,13 @@ import com.dheirav.cycletracker.core.Phase
 
 // -- palette -----------------------------------------------------------------
 
-private val Rose = Color(0xFFE0669B)
+/**
+ * The light theme's action colour. Was `#E0669B`, which measured 3.21:1 with white text on the
+ * "Log today" and Save buttons and 2.48:1 as link text on cards, against WCAG's 4.5:1 for text this
+ * size. `#A8336A` is the lightest pink tried that passes on every surface it lands on: 6.27:1 under
+ * white text, 5.76:1 on cream cards, 4.85:1 on the lavender "Logged today" card.
+ */
+private val Rose = Color(0xFFA8336A)
 private val RoseLight = Color(0xFFF8CBDF)
 private val RoseDeep = Color(0xFF7B2D5E)
 private val Lavender = Color(0xFF9B85DE)
@@ -70,7 +76,16 @@ private val LightScheme = lightColorScheme(
     surface = Color.White,
     onSurface = Ink,
     surfaceVariant = Cream,
-    onSurfaceVariant = Color(0xFF7A6470),
+    // Darkened from #7A6470, which fell to 4.18:1 on lavender cards. 5.06:1 there now.
+    onSurfaceVariant = Color(0xFF6E5763),
+    // Stated outright. Left unset they fall back to Material's baseline lavender-grey, which is what
+    // every Card and dialog was drawing on: off-palette, and darker than the cream the colours above
+    // were chosen against, which is why secondary text and links failed contrast on cards.
+    surfaceContainerLowest = Color.White,
+    surfaceContainerLow = Color(0xFFFFFCF8),
+    surfaceContainer = Color(0xFFFFFBF6),
+    surfaceContainerHigh = Color(0xFFFFF9F2),
+    surfaceContainerHighest = Cream,
     outline = Color(0xFFD9C4CF),
     outlineVariant = Color(0xFFEEDFE6),
     // Reserved for genuine failures — a failed restore, an unreadable backup. Never for bleeding.

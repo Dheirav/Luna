@@ -77,6 +77,15 @@ fun cycleLengthPhrase(length: Int, source: LengthSource?): String = when (source
     LengthSource.MEDIAN_OF_OBSERVED, null -> "of a $length-day cycle"
 }
 
+/**
+ * How long after the window closes the hero suggests raising a late period with a doctor.
+ *
+ * Guidance, not a measurement: the app has no basis for its own threshold here, and six weeks is
+ * the point the council review proposed, well short of the 90-day absent flag. It is phrased as
+ * "worth raising", never as a finding.
+ */
+private const val DOCTOR_AFTER_WEEKS = 6L
+
 /** The mascot's face from today's logged mood. See [MascotMood] for why nothing else moves it. */
 fun mascotMoodFor(today: MoodFace?): MascotMood = when (today) {
     MoodFace.SETTLED -> MascotMood.CALM
@@ -138,7 +147,8 @@ fun TodayScreen(
             lengthPhrase = cycleLengthPhrase(state.expectedCycleLength, ui.basis?.source),
             phase = state.phase,
             isBleeding = state.isBleeding,
-            daysLate = state.daysLate,
+            daysPast = ui.window?.daysPast(ui.today) ?: 0,
+            doctorBy = ui.window?.latest?.plusWeeks(DOCTOR_AFTER_WEEKS),
             mood = mascotMoodFor(ui.todayMood),
             onClick = onPhaseGuide,
         )
@@ -211,7 +221,8 @@ private fun CycleHero(
     lengthPhrase: String,
     phase: Phase?,
     isBleeding: Boolean,
-    daysLate: Int,
+    daysPast: Int,
+    doctorBy: java.time.LocalDate?,
     mood: MascotMood,
     onClick: () -> Unit,
 ) {
@@ -301,6 +312,9 @@ private fun CycleHero(
                 },
                 style = MaterialTheme.typography.displaySmall,
                 color = ink,
+                // Clears the mascot in the top-right corner. Without it, "Menstruation" at large text
+                // ran underneath the cloud.
+                modifier = Modifier.padding(end = 96.dp),
             )
             Text(
                 lengthPhrase,
@@ -313,16 +327,21 @@ private fun CycleHero(
                 color = ink.copy(alpha = 0.72f),
                 modifier = Modifier.padding(top = 8.dp),
             )
-            if (daysLate > 0) {
+            // Late means past the whole window, counted from its last day. It used to count from the
+            // centre date, so the hero said "2 days later than expected" while the card beneath still
+            // showed the window open.
+            if (daysPast > 0) {
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    "$daysLate day${if (daysLate == 1) "" else "s"} later than expected",
+                    "$daysPast day${if (daysPast == 1) "" else "s"} past the expected window",
                     style = MaterialTheme.typography.labelLarge,
                     color = ink,
                 )
-                // What the late-period card used to add, without its repeat of the numbers above.
+                // What the late-period card used to add, without its repeat of the numbers above,
+                // and a point at which to act, which nothing gave before the 90-day absent flag.
                 Text(
-                    "Stress, illness, travel and sleep all shift this. One late cycle is common.",
+                    "Stress, illness, travel and sleep all shift this. One late cycle is common." +
+                        (doctorBy?.let { " Worth raising with a doctor if it has not come by ${it.format(dayMonth)}." } ?: ""),
                     style = MaterialTheme.typography.bodySmall,
                     color = ink.copy(alpha = 0.78f),
                     modifier = Modifier.padding(end = 96.dp),

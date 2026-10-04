@@ -32,6 +32,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.room.Room
 import com.dheirav.cycletracker.data.CycleRepository
@@ -44,6 +45,7 @@ import com.dheirav.cycletracker.ui.GuideViewModel
 import com.dheirav.cycletracker.ui.HistoryScreen
 import com.dheirav.cycletracker.ui.HistoryViewModel
 import com.dheirav.cycletracker.ui.LogScreen
+import com.dheirav.cycletracker.ui.OnboardingScreen
 import com.dheirav.cycletracker.ui.PhaseGuideScreen
 import com.dheirav.cycletracker.ui.LogViewModel
 import com.dheirav.cycletracker.ui.SettingsScreen
@@ -79,7 +81,7 @@ class CycleTrackerApp : Application() {
 
 /** Five screens, one back destination, no deep links beyond the reminder's. Still less code than
  *  wiring a navigation library, and every transition is visible in one `when`. */
-private enum class Screen { TODAY, LOG, HISTORY, SETTINGS, PHASE_GUIDE }
+private enum class Screen { TODAY, LOG, HISTORY, SETTINGS, PHASE_GUIDE, ONBOARDING }
 
 class MainActivity : ComponentActivity() {
 
@@ -160,7 +162,13 @@ class MainActivity : ComponentActivity() {
             }
             val historyVm: HistoryViewModel = viewModel()
             val guideVm: GuideViewModel = viewModel()
-            var screen by rememberSaveable { mutableStateOf(Screen.TODAY) }
+            val settings = remember { Settings(this@MainActivity) }
+            // The walkthrough comes first until it has been finished or skipped once.
+            var screen by rememberSaveable {
+                mutableStateOf(if (settings.onboardingDone) Screen.TODAY else Screen.ONBOARDING)
+            }
+            // True when the walkthrough was opened from Settings to reread, not as a first run.
+            var onboardingReplay by rememberSaveable { mutableStateOf(false) }
 
             // Where the log form was opened from, so leaving it goes back there.
             //
@@ -170,24 +178,31 @@ class MainActivity : ComponentActivity() {
             // bulk correction.
             var logOrigin by rememberSaveable { mutableStateOf(Screen.TODAY) }
 
-            // Ask once, on first composition. Without it the reminder posts nothing
-            // and fails silently — the worst possible failure for the one feature
-            // adherence depends on.
+            // Asked from the walkthrough's reminder page, behind a button that says what it is for.
+            // It used to be launched on the first frame of the app, before anyone knew why, and again
+            // whenever the screen was rebuilt. Without it the reminder posts nothing, so a denial is
+            // also surfaced in Settings, with a route to fix it.
             val permission = rememberLauncherForActivityResult(
                 ActivityResultContracts.RequestPermission(),
             ) { }
-            LaunchedEffect(Unit) {
+            val requestNotifications = {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     permission.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
             }
+            val todayUi by todayVm.ui.collectAsStateWithLifecycle()
 
             // Tapping the notification lands in the form, not the front door.
             LaunchedEffect(openLogOnLaunch) {
                 if (openLogOnLaunch) {
-                    logVm.open(LocalDate.now())
-                    logOrigin = Screen.TODAY
-                    screen = Screen.LOG
+                    // A form with unsaved edits is left as it is rather than replaced by today's.
+                    // The reminder and the widget used to reload it silently, which skipped the
+                    // unsaved-changes prompt every other way out of the form honours.
+                    val editing = screen == Screen.LOG && logVm.ui.value.dirty
+                    if (!editing && logVm.open(LocalDate.now())) {
+                        logOrigin = Screen.TODAY
+                        screen = Screen.LOG
+                    }
                     openLogOnLaunch = false
                 }
             }
@@ -201,9 +216,10 @@ class MainActivity : ComponentActivity() {
                     Screen.TODAY -> TodayScreen(
                         viewModel = todayVm,
                         onLog = {
-                            logVm.open(LocalDate.now())
-                            logOrigin = Screen.TODAY
-                            screen = Screen.LOG
+                            if (logVm.open(LocalDate.now())) {
+                                logOrigin = Screen.TODAY
+                                screen = Screen.LOG
+                            }
                         },
                         onHistory = {
                             // Opening the calendar afresh always lands on this month. Entering
@@ -218,13 +234,35 @@ class MainActivity : ComponentActivity() {
                     Screen.LOG -> LogScreen(logVm, onDone = { screen = logOrigin })
 
                     Screen.HISTORY -> HistoryScreen(historyVm) { date ->
-                        logVm.open(date)
-                        logOrigin = Screen.HISTORY
-                        screen = Screen.LOG
+                        if (logVm.open(date)) {
+                            logOrigin = Screen.HISTORY
+                            screen = Screen.LOG
+                        }
                     }
 
                     // No refresh hook: a settings change reaches every screen through the snapshot.
-                    Screen.SETTINGS -> SettingsScreen()
+                    Screen.SETTINGS -> SettingsScreen(
+                        onHowItWorks = {
+                            onboardingReplay = true
+                            screen = Screen.ONBOARDING
+                        },
+                    )
+
+                    Screen.ONBOARDING -> OnboardingScreen(
+                        replay = onboardingReplay,
+                        hasPeriods = todayUi.state?.hasData == true,
+                        onRequestNotifications = requestNotifications,
+                        onLogPeriod = logVm::logPeriod,
+                        onFinish = {
+                            if (onboardingReplay) {
+                                onboardingReplay = false
+                                screen = Screen.SETTINGS
+                            } else {
+                                settings.onboardingDone = true
+                                screen = Screen.TODAY
+                            }
+                        },
+                    )
 
                     // Null phase means "whatever today is" — the guide resolves it from the same
                     // engine, so it cannot disagree with the hero the user just tapped.

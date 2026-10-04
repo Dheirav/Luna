@@ -78,6 +78,8 @@ class CycleSnapshot private constructor(
                 userTypicalPeriodLength = settings.typicalPeriodLength,
             )
 
+            val basis = Forecast.basis(projection.cycles, settings.typicalCycleLength, config)
+
             return CycleSnapshot(
                 today = today,
                 projection = projection,
@@ -91,12 +93,13 @@ class CycleSnapshot private constructor(
                     config = config,
                     forecastConfig = ForecastConfig(spreadMultiplier = settings.windowSpread),
                 ),
-                basis = Forecast.basis(projection.cycles, settings.typicalCycleLength, config),
+                basis = basis,
                 flags = HealthFlags.evaluate(
                     projection = projection,
                     today = today,
                     expectedCycleLength = state.expectedCycleLength,
                     cycleConfig = config,
+                    lengthSource = basis.source,
                 ),
                 engine = engine,
             )

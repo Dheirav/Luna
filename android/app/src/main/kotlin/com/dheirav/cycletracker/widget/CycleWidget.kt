@@ -121,13 +121,17 @@ private suspend fun buildViews(context: Context): RemoteViews {
      * it leaks exactly what the launcher icon was deliberately designed not to. When off, the
      * widget still works as a one-tap logging shortcut, which is its real purpose anyway.
      */
+    val today = LocalDate.now()
+
     if (!settings.widgetShowsDetails) {
+        // Whether today is logged says nothing about the cycle, and it is the question this widget
+        // exists to answer at a glance, so discreet mode keeps it.
+        val logged = dao.logFor(today) != null
         views.setTextViewText(R.id.widget_headline, "Today")
-        views.setTextViewText(R.id.widget_detail, "Tap to log")
+        views.setTextViewText(R.id.widget_detail, if (logged) "Logged ✓" else "Tap to log")
         return views
     }
 
-    val today = LocalDate.now()
     // The same snapshot the app's screens render, so the widget cannot disagree with them.
     val snapshot = dao.snapshot(settings, today)
     val state = snapshot.state
@@ -167,10 +171,10 @@ private suspend fun buildViews(context: Context): RemoteViews {
         R.id.widget_detail,
         buildString {
             when {
-                // Lateness beats the window: once a period is overdue, the range it was due in is
-                // no longer the useful fact.
-                state.daysLate > 0 ->
-                    append("${state.daysLate} day${if (state.daysLate == 1) "" else "s"} late")
+                // Lateness beats the window, but only once the window has passed: counted from its
+                // last day, the same as Today's hero, so the two can never disagree.
+                window != null && window.daysPast(today) > 0 ->
+                    window.daysPast(today).let { append("$it day${if (it == 1) "" else "s"} past window") }
                 window != null -> append("Next ${windowLabel(window)}")
                 else -> append("Tap to log")
             }
