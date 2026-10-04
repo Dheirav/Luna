@@ -156,22 +156,28 @@ fun LogScreen(viewModel: LogViewModel, onDone: () -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
+                // Two explicit answers, as the reminder has. This was one toggle whose unselected
+                // label read "No" while meaning "not answered", so tapping "No" to answer it turned
+                // it into "Bleeding", and leaving it alone saved nothing. Tapping a selected answer
+                // clears it back to unanswered, so a mistake still costs one tap.
                 FilterChip(
-                    selected = entry.isBleeding,
-                    onClick = { viewModel.setBleeding(!entry.isBleeding) },
-                    // The visible label flips between "Bleeding" and "No"; spoken alone, a chip that
-                    // just says "No" tells you nothing about what is being answered.
-                    modifier = Modifier.semantics {
-                        contentDescription =
-                            if (entry.isBleeding) "Bleeding today: yes" else "Bleeding today: no"
-                    },
-                    label = { Text(if (entry.isBleeding) "Bleeding" else "No") },
+                    selected = entry.bleeding == false,
+                    onClick = { viewModel.setBleeding(if (entry.bleeding == false) null else false) },
+                    label = { Text("No bleeding") },
+                )
+                FilterChip(
+                    selected = entry.bleeding == true,
+                    onClick = { viewModel.setBleeding(if (entry.bleeding == true) null else true) },
+                    label = { Text("Bleeding") },
                 )
                 FlowLevel.entries.forEach { level ->
+                    val name = level.name.lowercase().replaceFirstChar { it.uppercase() }
                     FilterChip(
                         selected = entry.flow == level,
                         onClick = { viewModel.setFlow(level) },
-                        label = { Text(level.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                        // Spoken with what it grades; "Light, not checked" alone says nothing.
+                        modifier = Modifier.semantics { contentDescription = "Flow: $name" },
+                        label = { Text(name) },
                     )
                 }
             }

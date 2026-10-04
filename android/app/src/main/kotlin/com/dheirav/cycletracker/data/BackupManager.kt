@@ -32,6 +32,7 @@ class BackupManager(private val dao: LogDao) {
                     BackupDay(
                         date = log.date.toString(),
                         isBleeding = log.isBleeding,
+                        bleedingAnswered = log.bleedingAnswered || log.isBleeding,
                         flow = log.flow,
                         notes = log.notes,
                         source = log.source,
@@ -70,6 +71,7 @@ class BackupManager(private val dao: LogDao) {
                 DailyLogEntity(
                     date = LocalDate.parse(day.date),
                     isBleeding = day.isBleeding,
+                    bleedingAnswered = day.bleedingAnswered ?: day.isBleeding,
                     flow = day.flow,
                     notes = day.notes,
                     source = day.source,

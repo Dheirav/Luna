@@ -263,14 +263,16 @@ class ReminderWorker(
 
         if (!isTest) settings.lastReminderFired = Instant.now()
 
-        // Only nag if today has not been logged. A reminder for something already done is noise,
-        // and noise is how notifications get muted.
+        // Only nag if today's bleeding question is unanswered. A reminder for something already done
+        // is noise, and noise is how notifications get muted. A day with only a symptom on it still
+        // gets asked: the morning-symptom, evening-bleeding pattern is exactly what the reminder's
+        // buttons are for, and skipping any day with a row meant that question was never asked.
         //
         // A test ignores both that and the enable switch: someone pressing "Send one now" wants to
         // see the notification, and "nothing happened because today is already logged" is
         // indistinguishable from the failure they are testing for.
         val dao = (context as CycleTrackerApp).database.logDao()
-        val alreadyLogged = dao.logFor(LocalDate.now()) != null
+        val alreadyLogged = dao.logFor(LocalDate.now())?.let { it.bleedingAnswered || it.isBleeding } == true
         if (isTest || (!alreadyLogged && settings.reminderEnabled)) {
             notify(context)
         }

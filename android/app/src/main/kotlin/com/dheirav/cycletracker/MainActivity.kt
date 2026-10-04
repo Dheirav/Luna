@@ -66,7 +66,7 @@ class CycleTrackerApp : Application() {
         Room.databaseBuilder(this, TrackerDatabase::class.java, "cycle-tracker.db")
             // No destructive fallback anywhere in this chain, deliberately. A missing migration
             // should crash loudly in development, not wipe years of health data on a user's phone.
-            .addMigrations(TrackerDatabase.MIGRATION_1_2)
+            .addMigrations(TrackerDatabase.MIGRATION_1_2, TrackerDatabase.MIGRATION_2_3)
             .build()
     }
 

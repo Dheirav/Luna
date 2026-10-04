@@ -23,6 +23,8 @@ class LoggedSummaryTest {
         symptoms: Map<Symptom, Int> = emptyMap(),
         tags: Set<DayTag> = emptySet(),
         notes: String = "",
+        // Most cases here are an answered day; the unanswered case is tested on its own.
+        answered: Boolean = true,
     ) = DaySummary(
         isBleeding = bleeding,
         isAssumed = false,
@@ -31,6 +33,7 @@ class LoggedSummaryTest {
         notes = notes,
         symptoms = symptoms,
         tags = tags,
+        bleedingAnswered = answered || bleeding,
     )
 
     @Test
@@ -58,5 +61,12 @@ class LoggedSummaryTest {
             notes = "x",
         )
         assertEquals("No bleeding · Energy OK · Pain mild · +3 more", loggedSummary(summary))
+    }
+
+    /** A symptom logged on its own says nothing about bleeding, and the line must not pretend it does. */
+    @Test
+    fun `an unanswered bleeding question is said to be unrecorded, not no`() {
+        val summary = day(symptoms = mapOf(Symptom.ENERGY to 2), answered = false)
+        assertEquals("Bleeding not recorded · Energy OK", loggedSummary(summary))
     }
 }

@@ -103,13 +103,13 @@ class LogViewModel(app: Application) : AndroidViewModel(app) {
         _ui.value = _ui.value.copy(entry = _ui.value.original)
     }
 
-    fun setBleeding(bleeding: Boolean) = edit {
-        it.copy(isBleeding = bleeding, flow = if (bleeding) it.flow else null)
-    }
+    /** True, false, or null to clear the answer. Tapping the selected chip again clears it. */
+    fun setBleeding(answer: Boolean?) = edit { it.answeringBleeding(answer) }
 
     fun setFlow(flow: FlowLevel) = edit {
-        // Tapping the selected level again clears it — flow is optional even while bleeding.
-        it.copy(isBleeding = true, flow = if (it.flow == flow) null else flow)
+        // A flow is a "yes". Tapping the selected level again clears the flow, not the yes: flow is
+        // optional even while bleeding.
+        it.answeringBleeding(true).copy(flow = if (it.flow == flow) null else flow)
     }
 
     /** Tapping the selected level again unsets the symptom, so a mistake costs one tap to undo. */

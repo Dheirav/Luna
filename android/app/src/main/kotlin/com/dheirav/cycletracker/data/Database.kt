@@ -33,6 +33,12 @@ import java.time.LocalDate
 data class DailyLogEntity(
     @PrimaryKey val date: LocalDate,
     @ColumnInfo(name = "is_bleeding") val isBleeding: Boolean = false,
+    /**
+     * Whether bleeding was answered for this day (v3). With [isBleeding]: not answered, no, yes.
+     * Rows from v2 were migrated as answered only where `is_bleeding` was 1, because nothing recorded
+     * whether a stored 0 was a deliberate "No" (decided 5 Oct, see docs/COUNCIL_REVIEW.md, D2).
+     */
+    @ColumnInfo(name = "bleeding_answered", defaultValue = "0") val bleedingAnswered: Boolean = false,
     /** LIGHT / MEDIUM / HEAVY, or null when bleeding is logged without a flow level. */
     val flow: String? = null,
     val notes: String = "",
@@ -250,7 +256,7 @@ interface LogDao {
         DayTagEntity::class,
         PredictionEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -268,6 +274,23 @@ abstract class TrackerDatabase : RoomDatabase() {
          * The SQL must match Room's expectation exactly or it throws on first open. Verify
          * against `app/schemas/…/2.json` after changing the entity, not by eye.
          */
+        /**
+         * Adds `bleeding_answered`, so "no bleeding" and "not answered" stop being the same value.
+         *
+         * Existing bleeding days become answered, since bleeding is always an answer. Existing
+         * non-bleeding rows stay unanswered: some were a deliberate "No" from the reminder and some
+         * were a symptom logged on its own, and nothing recorded which, so the app does not claim an
+         * answer it cannot know. Cycle arithmetic is unaffected, because only bleeding days count.
+         */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `daily_logs` ADD COLUMN `bleeding_answered` INTEGER NOT NULL DEFAULT 0",
+                )
+                db.execSQL("UPDATE `daily_logs` SET `bleeding_answered` = 1 WHERE `is_bleeding` = 1")
+            }
+        }
+
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(

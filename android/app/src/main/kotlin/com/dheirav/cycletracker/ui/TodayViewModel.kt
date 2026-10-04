@@ -71,13 +71,14 @@ data class TodayUiState(
  * Today's entry in one line, for the button that opens it.
  *
  * At most three items, then a count, because it has to fit one button. Bleeding comes first and is
- * always stated, including "No bleeding": a logged no is an observation (rule 2), and the line would
- * otherwise read as though bleeding had not been considered.
+ * always stated: "No bleeding" when it was answered no, an observation (rule 2), and "Bleeding not
+ * recorded" when it was never answered, rather than passing silence off as a no.
  */
 fun loggedSummary(day: DaySummary): String {
     val items = buildList {
         add(
             when {
+                !day.bleedingAnswered -> "Bleeding not recorded"
                 !day.isBleeding -> "No bleeding"
                 day.flow != null -> "Bleeding, ${day.flow.name.lowercase()}"
                 else -> "Bleeding"

@@ -13,6 +13,13 @@ import java.time.LocalDate
 data class DayEntry(
     val date: LocalDate,
     val isBleeding: Boolean = false,
+    /**
+     * Whether the bleeding question was answered at all. With [isBleeding] this makes three states:
+     * not answered, no, and yes. "No" and "not answered" used to be one stored value, so a day
+     * answered "No bleeding" with nothing else counted as empty and was deleted on Save, and a
+     * symptom-only day was shown as "No bleeding", a claim the person never made.
+     */
+    val bleedingAnswered: Boolean = false,
     val flow: FlowLevel? = null,
     val symptoms: Map<Symptom, Int> = emptyMap(),
     val tags: Set<DayTag> = emptySet(),
@@ -24,7 +31,21 @@ data class DayEntry(
     val source: Source = Source.OBSERVED,
     /** False when this date has no row at all, which is distinct from a row saying "no bleeding". */
     val exists: Boolean = false,
-)
+) {
+    /** Null when not answered. A bleeding row counts as answered even from before the flag existed. */
+    val bleeding: Boolean? get() = if (bleedingAnswered || isBleeding) isBleeding else null
+
+    /** Nothing at all recorded, so the row is deleted rather than kept. An answered "No" is not this. */
+    val isEmpty: Boolean
+        get() = bleeding == null && symptoms.isEmpty() && tags.isEmpty() && notes.isBlank()
+
+    /** Sets the bleeding answer: true, false, or null to clear it. Flow only survives a "yes". */
+    fun answeringBleeding(answer: Boolean?): DayEntry = copy(
+        isBleeding = answer == true,
+        bleedingAnswered = answer != null,
+        flow = if (answer == true) flow else null,
+    )
+}
 
 /**
  * One logged day, as the history screen needs it.
@@ -44,6 +65,8 @@ data class DaySummary(
     val notes: String = "",
     val symptoms: Map<Symptom, Int> = emptyMap(),
     val tags: Set<DayTag> = emptySet(),
+    /** See [DayEntry.bleedingAnswered]. A bleeding day is always an answer. */
+    val bleedingAnswered: Boolean = isBleeding,
 ) {
     /** Whether there is anything to show beyond the bleeding state. */
     val hasDetail: Boolean get() = symptoms.isNotEmpty() || tags.isNotEmpty() || notes.isNotBlank()
@@ -62,6 +85,7 @@ class LogRepository(private val dao: LogDao) {
         return DayEntry(
             date = date,
             isBleeding = log?.isBleeding ?: false,
+            bleedingAnswered = log?.let { it.bleedingAnswered || it.isBleeding } ?: false,
             flow = log?.flow?.let { runCatching { FlowLevel.valueOf(it) }.getOrNull() },
             symptoms = symptoms,
             tags = tags,
@@ -86,6 +110,7 @@ class LogRepository(private val dao: LogDao) {
             logs.associate { log ->
                 log.date to DaySummary(
                     isBleeding = log.isBleeding,
+                    bleedingAnswered = log.bleedingAnswered || log.isBleeding,
                     isAssumed = log.source == "ASSUMED",
                     flow = log.flow?.let { runCatching { FlowLevel.valueOf(it) }.getOrNull() },
                     hasNotes = log.notes.isNotBlank(),
@@ -130,12 +155,8 @@ class LogRepository(private val dao: LogDao) {
     }
 
     private suspend fun write(entry: DayEntry, source: Source) {
-        val isEmpty = !entry.isBleeding &&
-            entry.symptoms.isEmpty() &&
-            entry.tags.isEmpty() &&
-            entry.notes.isBlank()
-
-        if (isEmpty) {
+        // An answered "No bleeding" is a record, not an empty day. See DayEntry.isEmpty.
+        if (entry.isEmpty) {
             dao.deleteDay(entry.date)
             return
         }
@@ -144,6 +165,7 @@ class LogRepository(private val dao: LogDao) {
             log = DailyLogEntity(
                 date = entry.date,
                 isBleeding = entry.isBleeding,
+                bleedingAnswered = entry.bleeding != null,
                 flow = entry.flow?.name,
                 notes = entry.notes,
                 source = source.name,
@@ -183,7 +205,7 @@ class LogRepository(private val dao: LogDao) {
     suspend fun logPeriod(start: LocalDate, end: LocalDate) {
         var day = start
         while (!day.isAfter(end)) {
-            save(load(day).copy(isBleeding = true))
+            save(load(day).answeringBleeding(true))
             day = day.plusDays(1)
         }
     }

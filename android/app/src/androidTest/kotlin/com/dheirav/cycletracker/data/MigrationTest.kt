@@ -117,18 +117,90 @@ class MigrationTest {
     }
 
     /**
+     * 2→3 adds `bleeding_answered`, so "no bleeding" and "not answered" stop being one value.
+     *
+     * The rule under test is the decided one (docs/COUNCIL_REVIEW.md, D2): a bleeding day becomes
+     * answered, and a non-bleeding day stays unanswered, because nothing in v2 recorded whether a
+     * stored 0 was a deliberate "No". And, as with 1→2, the rows themselves must survive intact.
+     */
+    @Test
+    fun migrate2To3_marksBleedingDaysAnsweredAndLeavesTheRestUnanswered() {
+        helper.createDatabase(TEST_DB, 2).use { db ->
+            db.execSQL(
+                """
+                INSERT INTO daily_logs (date, is_bleeding, flow, notes, raw_text, source)
+                VALUES ('2025-03-01', 1, 'MEDIUM', 'a note', NULL, 'OBSERVED'),
+                       ('2025-03-10', 0, NULL, '', NULL, 'OBSERVED')
+                """.trimIndent(),
+            )
+            db.execSQL(
+                "INSERT INTO symptom_values (date, key, value) VALUES ('2025-03-10', 'energy', 1)",
+            )
+        }
+
+        // validateMigration = true: the result is checked against schemas/3.json.
+        val db = helper.runMigrationsAndValidate(
+            TEST_DB, 3, true, TrackerDatabase.MIGRATION_2_3,
+        )
+
+        db.query("SELECT date, is_bleeding, bleeding_answered, flow, notes FROM daily_logs ORDER BY date").use { c ->
+            assertEquals("daily_logs gained or lost rows", 2, c.count)
+
+            assertTrue(c.moveToFirst())
+            assertEquals("2025-03-01", c.getString(0))
+            assertEquals(1, c.getInt(1))
+            assertEquals("a bleeding day is an answer", 1, c.getInt(2))
+            assertEquals("MEDIUM", c.getString(3))
+            assertEquals("a note", c.getString(4))
+
+            assertTrue(c.moveToNext())
+            assertEquals("2025-03-10", c.getString(0))
+            assertEquals(0, c.getInt(1))
+            assertEquals("a stored 0 was never known to be a deliberate No", 0, c.getInt(2))
+        }
+
+        db.query("SELECT key, value FROM symptom_values").use { c ->
+            assertTrue("the symptom did not survive", c.moveToFirst())
+            assertEquals("energy", c.getString(0))
+        }
+    }
+
+    /** A v1 database reaches v3 through both migrations in order, as an old install would. */
+    @Test
+    fun migrate1To3_runsBothInOrder() {
+        helper.createDatabase(TEST_DB, 1).use { db ->
+            db.execSQL(
+                """
+                INSERT INTO daily_logs (date, is_bleeding, flow, notes, raw_text, source)
+                VALUES ('2025-03-01', 1, NULL, '', NULL, 'ASSUMED')
+                """.trimIndent(),
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(
+            TEST_DB, 3, true, TrackerDatabase.MIGRATION_1_2, TrackerDatabase.MIGRATION_2_3,
+        )
+
+        db.query("SELECT bleeding_answered, source FROM daily_logs").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(1, c.getInt(0))
+            assertEquals("an estimated day must stay estimated", "ASSUMED", c.getString(1))
+        }
+    }
+
+    /**
      * Migrating twice is not attempted; migrating an already-current database is.
      *
      * Room decides which migrations to run from the recorded user_version, so the guard that matters
-     * is that opening a v2 database at v2 needs no migration at all. If this ever starts failing, some
+     * is that opening a v3 database at v3 needs no migration at all. If this ever starts failing, some
      * migration has begun mutating state it does not own.
      */
     @Test
     fun aCurrentDatabaseNeedsNoMigration() {
-        helper.createDatabase(TEST_DB, 2).close()
+        helper.createDatabase(TEST_DB, 3).close()
 
         // No migrations supplied. Room must be satisfied with the schema as it stands.
-        helper.runMigrationsAndValidate(TEST_DB, 2, true)
+        helper.runMigrationsAndValidate(TEST_DB, 3, true)
     }
 
     private companion object {

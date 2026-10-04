@@ -69,6 +69,8 @@ class LogActionReceiver : BroadcastReceiver() {
                     DailyLogEntity(
                         date = today,
                         isBleeding = bleeding,
+                        // Either button is an answer, and "No bleeding" is the one that matters here.
+                        bleedingAnswered = true,
                         flow = if (bleeding) existing?.flow else null,
                         notes = existing?.notes.orEmpty(),
                         rawText = existing?.rawText,

@@ -179,6 +179,15 @@ private fun LogRow(date: LocalDate, summary: DaySummary, onPickDate: (LocalDate)
                     date.format(DateTimeFormatter.ofPattern("EEE d MMM")),
                     style = MaterialTheme.typography.titleSmall,
                 )
+                // An answered "No" is shown too: it is an observation, and without it a day logged
+                // as no bleeding looked the same as one where the question was skipped.
+                if (summary.bleedingAnswered && !summary.isBleeding) {
+                    Text(
+                        "No bleeding",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 if (summary.isBleeding) {
                     Text(
                         buildString {
@@ -228,7 +237,7 @@ private fun LogRow(date: LocalDate, summary: DaySummary, onPickDate: (LocalDate)
                 )
             }
 
-            if (!summary.isBleeding && !summary.hasDetail) {
+            if (!summary.bleedingAnswered && !summary.hasDetail) {
                 Text(
                     "Logged, nothing recorded",
                     style = MaterialTheme.typography.bodySmall,

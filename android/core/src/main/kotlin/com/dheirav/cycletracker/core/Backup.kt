@@ -24,6 +24,8 @@ import javax.crypto.spec.SecretKeySpec
 data class BackupDay(
     val date: String,
     val isBleeding: Boolean = false,
+    /** Null in backups made before bleeding had three states; restored as "answered only if bleeding". */
+    val bleedingAnswered: Boolean? = null,
     val flow: String? = null,
     val notes: String = "",
     val source: String = "OBSERVED",
