@@ -243,4 +243,37 @@ class HealthFlagsTest {
         assertTrue(absent.detail, Regex("""started on 1 \S+ 2026""").containsMatchIn(absent.detail))
         assertFalse(absent.detail, absent.detail.contains("2026-01-01"))
     }
+
+    // -- severe period pain (decided 5 Oct 2026) ----------------------------------
+
+    /** Five observed five-day periods, 28 days apart, from 2026-01-05. */
+    private val fivePeriods = projection(28, 28, 28, 28)
+
+    private fun periodDay(index: Int, day: Int) = date("2026-01-05").plusDays(index * 28L + day)
+
+    @Test
+    fun `severe pain in two of the last three periods is flagged, with the counts`() {
+        val pain = mapOf(periodDay(3, 0) to 3, periodDay(4, 1) to 4)
+
+        val flag = HealthFlags.evaluate(fivePeriods, date("2026-05-20"), 28, painByDate = pain)
+            .single { it.kind == HealthFlagKind.PAIN_SEVERE_DURING_PERIODS }
+
+        assertTrue(flag.headline, flag.headline.contains("2 of your last 3 periods"))
+        assertFalse("reported, never diagnosed", flag.detail.contains("endometriosis", ignoreCase = true))
+    }
+
+    @Test
+    fun `severe pain in one period is not a pattern`() {
+        val pain = mapOf(periodDay(4, 0) to 4, periodDay(3, 0) to 2)
+        val flags = HealthFlags.evaluate(fivePeriods, date("2026-05-20"), 28, painByDate = pain)
+        assertFalse(HealthFlagKind.PAIN_SEVERE_DURING_PERIODS in kinds(flags))
+    }
+
+    @Test
+    fun `pain on estimated periods never raises the flag`() {
+        val assumed = projection(28, 28, 28, 28, source = Source.ASSUMED)
+        val pain = mapOf(periodDay(3, 0) to 4, periodDay(4, 0) to 4)
+        val flags = HealthFlags.evaluate(assumed, date("2026-05-20"), 28, painByDate = pain)
+        assertFalse(HealthFlagKind.PAIN_SEVERE_DURING_PERIODS in kinds(flags))
+    }
 }

@@ -74,6 +74,8 @@ class CycleSnapshot private constructor(
             noBleedingDays: Set<LocalDate> = emptySet(),
             /** Every day with a row. Needed to tell a forgotten day from one answered "no". */
             loggedDays: Set<LocalDate> = bleedingDays.toSet() + noBleedingDays,
+            /** Logged pain per day, for the severe-period-pain flag. */
+            painByDate: Map<LocalDate, Int> = emptyMap(),
         ): CycleSnapshot {
             val engine = CycleEngine(config)
             val bleeding = bleedingDays.toSet()
@@ -112,6 +114,7 @@ class CycleSnapshot private constructor(
                     cycleConfig = config,
                     lengthSource = basis.source,
                     heldSpotting = gaps.map { it.resumesOn }.toSet(),
+                    painByDate = painByDate,
                 ),
                 unloggedGaps = gaps,
                 engine = engine,

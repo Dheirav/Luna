@@ -282,6 +282,10 @@ quietly do not count, that is how people stop.
   plus the in-app walkthrough requested the same day, which also covers most of F1. 166 unit tests
   pass.
 
+- **5 Oct, second batch done:** D2 (three-state bleeding, Room v3), D3 (gap question), D4 (spec
+  §5.1 amended), H3 (doctor summary and the pain flag), F2 (backup). 207 unit tests pass; the
+  migration tests passed on the CI emulator. Not yet seen on the phone at the time of writing.
+
 ## Suggested order
 
 1. **Now, no decisions needed:**

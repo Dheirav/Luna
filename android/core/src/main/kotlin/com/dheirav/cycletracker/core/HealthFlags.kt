@@ -70,6 +70,14 @@ enum class HealthFlagKind {
      * nothing ever read them.
      */
     SPOTTING_BETWEEN_PERIODS,
+
+    /**
+     * Severe or worse pain logged during most recent periods.
+     *
+     * Added 5 Oct 2026, by decision. Pain was logged daily and reported nowhere. Like the others it
+     * reports what was logged and names no condition.
+     */
+    PAIN_SEVERE_DURING_PERIODS,
 }
 
 /**
@@ -124,6 +132,8 @@ object HealthFlags {
          * were simply not logged.
          */
         heldSpotting: Set<LocalDate> = emptySet(),
+        /** Logged pain per day, 0 None to 4 Extreme. */
+        painByDate: Map<LocalDate, Int> = emptyMap(),
     ): List<HealthFlag> {
         val flags = mutableListOf<HealthFlag>()
 
@@ -213,6 +223,23 @@ object HealthFlags {
                     on = period.start,
                 )
             }
+
+        // -- severe pain during periods --------------------------------------
+        // Observed periods only (§3.2), the last three, and a pattern means two or more: one bad
+        // period is ordinary.
+        val recentPeriods = projection.periods.filter { it.source == Source.OBSERVED }.takeLast(3)
+        val painful = recentPeriods.count { period ->
+            (0 until period.spanDays).any { (painByDate[period.start.plusDays(it.toLong())] ?: -1) >= 3 }
+        }
+        if (recentPeriods.size == 3 && painful >= 2) {
+            flags += HealthFlag(
+                kind = HealthFlagKind.PAIN_SEVERE_DURING_PERIODS,
+                headline = "Severe pain logged during $painful of your last 3 periods",
+                detail = "Logged as Severe or Extreme on at least one day of each. Period pain that " +
+                    "regularly gets in the way of ordinary days is worth raising with a doctor.",
+                on = recentPeriods.last().start,
+            )
+        }
 
         // -- bleeding between periods ---------------------------------------
         projection.spotting.filter { it.start !in heldSpotting }.maxByOrNull { it.start }?.let { event ->

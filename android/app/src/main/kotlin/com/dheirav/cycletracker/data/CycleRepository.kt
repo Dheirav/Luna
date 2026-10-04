@@ -2,6 +2,7 @@ package com.dheirav.cycletracker.data
 
 import com.dheirav.cycletracker.core.CycleSnapshot
 import com.dheirav.cycletracker.core.Source
+import com.dheirav.cycletracker.core.Symptom
 import com.dheirav.cycletracker.core.UserCycleSettings
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -21,7 +22,11 @@ import java.time.LocalDateTime
  * Every surface used to filter `isBleeding` and compare `source` to "ASSUMED" for itself, seven
  * times over. Kept here so the rule cannot drift between copies.
  */
-fun List<DailyLogEntity>.snapshot(settings: UserCycleSettings, today: LocalDate): CycleSnapshot =
+fun List<DailyLogEntity>.snapshot(
+    settings: UserCycleSettings,
+    today: LocalDate,
+    painByDate: Map<LocalDate, Int> = emptyMap(),
+): CycleSnapshot =
     CycleSnapshot.build(
         bleedingDays = filter { it.isBleeding }.map { it.date },
         assumedDays = filter { it.isBleeding && it.source == Source.ASSUMED.name }.map { it.date }.toSet(),
@@ -30,14 +35,19 @@ fun List<DailyLogEntity>.snapshot(settings: UserCycleSettings, today: LocalDate)
         // Answered "no", not merely absent: only these close a period (CYCLE_RULES §5.1).
         noBleedingDays = filter { it.bleedingAnswered && !it.isBleeding }.map { it.date }.toSet(),
         loggedDays = map { it.date }.toSet(),
+        painByDate = painByDate,
     )
+
+/** Logged pain by day, the one symptom a flag reads. */
+fun List<SymptomValueEntity>.painByDate(): Map<LocalDate, Int> =
+    filter { it.key == Symptom.PAIN.key }.associate { it.date to it.value }
 
 /**
  * A one-off snapshot, for the callers that cannot follow a flow: the widgets, the reminder worker
  * and the doctor summary. Same inputs as the screens, which is the point.
  */
 suspend fun LogDao.snapshot(settings: Settings, today: LocalDate = LocalDate.now()): CycleSnapshot =
-    allLogsOnce().snapshot(settings.forEngine(), today)
+    allLogsOnce().snapshot(settings.forEngine(), today, allSymptomsOnce().painByDate())
 
 /**
  * The live cycle state every screen renders from.
@@ -75,7 +85,7 @@ class CycleRepository(private val dao: LogDao, private val settings: Settings) {
     private val today: Flow<LocalDate> = merge(midnights, resumes.map { }).map { LocalDate.now() }
 
     val snapshots: Flow<CycleSnapshot> =
-        combine(dao.allLogs(), settings.engineSettings(), today) { logs, engineSettings, day ->
-            logs.snapshot(engineSettings, day)
+        combine(dao.allLogs(), dao.allSymptoms(), settings.engineSettings(), today) { logs, symptoms, engineSettings, day ->
+            logs.snapshot(engineSettings, day, symptoms.painByDate())
         }
 }

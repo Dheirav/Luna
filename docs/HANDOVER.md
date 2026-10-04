@@ -38,7 +38,7 @@ Governing rules (full list in the plan artifact):
 | | Verified how |
 |---|---|
 | Phase 0 — spec + golden fixture | 34 cases, `spec/cycle_fixtures.json` |
-| Cycle/period/phase engine (`:core`) | `./gradlew :core:test`: **134 tests, all pass** (plus 32 in `:app`, and 3 instrumented) |
+| Cycle/period/phase engine (`:core`) | `./gradlew :core:test`: **158 tests, all pass** (plus 49 in `:app`, and 5 instrumented) |
 | Encrypted backup codec | 11 tests incl. tamper detection, wrong-passphrase, no-plaintext-leak |
 | Forecast window / prediction scorer | 16 + 13 tests |
 | Health flags, symptom patterns, clinical summary | 14 + 12 + 11 tests |
@@ -544,6 +544,24 @@ scrolled.
 
 Still open from the council: three-state bleeding (Room v3, decided), the gap prompt (decided),
 the doctor summary, backup safety, and whether to amend §5.1 for an open period.
+
+### The decided council items (2026-10-05, second batch)
+
+- **Bleeding has three states** (Room **v3**, `bleeding_answered`). Not answered / no / yes. v2 rows
+  migrated answered only where bleeding, by decision. `DayEntry.isEmpty` treats an answered No as a
+  record. The form has "No bleeding" and "Bleeding" chips; the reminder still asks on a symptom-only
+  day. Migration tests 2→3 and 1→3 passed on the CI emulator before the build went near a phone.
+- **CYCLE_RULES §5.1 amended**: a period stays open until a later day is answered "no" or the next
+  period starts, and its phase length is then `max(span, expected)`. §3.1 clarified to finished,
+  observed periods. No golden fixture changed.
+- **Unlogged gaps** (`core/UnloggedGaps`): two or three never-logged days between bleeding days get a
+  "Were you bleeding on …?" card on Today; the spotting flag waits for the answer.
+- **Backup**: passphrase twice, export read back before it counts, restore previews against the phone
+  and can be undone while Settings is open, settings travel in the backup (`BackupSettings`), and a
+  quiet "Last backup … · Back up" line on Today after 30 days.
+- **Doctor summary**: previewed in the app with Share and Save; covers every phase, heaviest flow per
+  period, pain during periods, ESTIMATED on the latest period, and where the working estimate came
+  from. New flag `PAIN_SEVERE_DURING_PERIODS`: severe pain in two of the last three observed periods.
 
 ### Not started
 

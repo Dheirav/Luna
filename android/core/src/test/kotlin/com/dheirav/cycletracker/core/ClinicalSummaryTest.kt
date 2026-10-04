@@ -257,4 +257,69 @@ class ClinicalSummaryTest {
         assertTrue(text, text.contains("across 9 days"))
         assertTrue(text, text.contains("vs 0.8 in other phases"))
     }
+
+    // -- 5 Oct 2026: what a doctor asks about ------------------------------------
+
+    private fun twoObserved() = CycleProjector.fromPeriods(
+        periods("2024-04-01" to Source.OBSERVED, "2024-04-29" to Source.OBSERVED),
+    )
+
+    /** It summarised only today's phase, under a heading that read as if it covered them all. */
+    @Test
+    fun `symptoms are listed for every phase that has them, each named`() {
+        val pain = PhaseSymptomSummary(Symptom.PAIN, phaseMean = 3.0, elsewhereMean = 0.5, daysObserved = 6)
+        val energy = PhaseSymptomSummary(Symptom.ENERGY, phaseMean = 1.0, elsewhereMean = 2.0, daysObserved = 7)
+
+        val text = ClinicalSummary.build(
+            twoObserved(), date("2024-06-01"), 28,
+            symptomsByPhase = mapOf(Phase.MENSTRUATION to listOf(pain), Phase.LUTEAL to listOf(energy)),
+        )
+
+        assertTrue(text, text.contains("Menstruation"))
+        assertTrue(text, text.contains("Luteal"))
+        assertTrue(text, text.contains("Pain: Severe"))
+        assertTrue(text, text.contains("phases worked out by the app"))
+    }
+
+    @Test
+    fun `each period shows its heaviest logged flow`() {
+        val text = ClinicalSummary.build(
+            twoObserved(), date("2024-06-01"), 28,
+            flowByDate = mapOf(date("2024-04-02") to FlowLevel.HEAVY, date("2024-04-03") to FlowLevel.LIGHT),
+        )
+        assertTrue(text, text.contains("heaviest flow heavy"))
+        assertTrue("a period with no flow logged says so", text.contains("flow not logged"))
+    }
+
+    @Test
+    fun `pain on period days is counted, and its absence is stated`() {
+        val withPain = ClinicalSummary.build(
+            twoObserved(), date("2024-06-01"), 28,
+            painByDate = mapOf(date("2024-04-01") to 4, date("2024-04-02") to 1, date("2024-04-29") to 3),
+        )
+        val without = ClinicalSummary.build(twoObserved(), date("2024-06-01"), 28)
+
+        assertTrue(withPain, withPain.contains("PAIN DURING PERIODS"))
+        assertTrue(withPain, withPain.contains("severe or worse on 2 of 3"))
+        assertTrue(without, without.contains("No pain logged during a period."))
+    }
+
+    @Test
+    fun `an estimated most recent period is tagged where it is named`() {
+        val text = ClinicalSummary.build(
+            CycleProjector.fromPeriods(periods("2024-04-01" to Source.OBSERVED, "2024-04-29" to Source.ASSUMED)),
+            date("2024-06-01"), 28,
+        )
+        val line = text.lines().single { it.contains("Most recent period began") }
+        assertTrue(line, line.contains("ESTIMATED"))
+    }
+
+    @Test
+    fun `the working estimate says where it came from`() {
+        val text = ClinicalSummary.build(
+            twoObserved(), date("2024-06-01"), 28, lengthSource = LengthSource.APP_DEFAULT,
+        )
+        val line = text.lines().single { it.contains("App's working estimate") }
+        assertTrue(line, line.contains("app default"))
+    }
 }

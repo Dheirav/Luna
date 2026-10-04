@@ -70,6 +70,17 @@ object ClinicalSummary {
          */
         anySymptomsLogged: Boolean = false,
         config: CycleConfig = CycleConfig.Default,
+        /**
+         * Symptom summaries for every phase that has enough logged. Supersedes [symptomSummaries],
+         * which covered only today's phase under a heading that read as if it covered them all.
+         */
+        symptomsByPhase: Map<Phase, List<PhaseSymptomSummary>> = emptyMap(),
+        /** Logged flow per day, for the heaviest flow of each period. */
+        flowByDate: Map<LocalDate, FlowLevel> = emptyMap(),
+        /** Logged pain per day (0 None to 4 Extreme), for pain during periods. */
+        painByDate: Map<LocalDate, Int> = emptyMap(),
+        /** Where [expectedCycleLength] came from, so the working estimate is not read as measured. */
+        lengthSource: LengthSource? = null,
     ): String = buildString {
         appendLine("CYCLE SUMMARY")
         appendLine("Generated ${today.format(long)} from the Luna app")
@@ -102,10 +113,13 @@ object ClinicalSummary {
         } else {
             appendLine("  Median observed length ..... not enough observed cycles")
         }
-        appendLine("  App's working estimate ..... $expectedCycleLength days")
+        appendLine("  App's working estimate ..... $expectedCycleLength days" + sourceNote(lengthSource))
 
         projection.periods.lastOrNull()?.let {
-            appendLine("  Most recent period began ... ${it.start.format(short)}")
+            appendLine(
+                "  Most recent period began ... ${it.start.format(short)}" +
+                    if (it.source == Source.ASSUMED) "   ESTIMATED" else "",
+            )
             appendLine("  Days since ................. ${daysBetween(it.start, today)}")
         }
         appendLine()
@@ -129,7 +143,8 @@ object ClinicalSummary {
         projection.currentCycle?.takeIf { it.isOpen }?.let {
             appendLine(
                 "  ${it.start.format(short)} to present" +
-                    "  ${daysBetween(it.start, today) + 1} days so far   IN PROGRESS",
+                    "  ${daysBetween(it.start, today) + 1} days so far   IN PROGRESS" +
+                    if (it.source == Source.ASSUMED) "   ESTIMATED" else "",
             )
         }
         appendLine()
@@ -141,13 +156,39 @@ object ClinicalSummary {
             none("No periods recorded.")
         } else {
             recentPeriods.forEach { period ->
+                val heaviest = period.days().mapNotNull { flowByDate[it] }.maxByOrNull { it.ordinal }
                 appendLine(
                     "  ${period.start.format(short)}" +
-                        "  ${period.spanDays} days span, ${period.bleedingDayCount} bleeding" +
+                        "  ${period.spanDays} days span, ${period.bleedingDayCount} bleeding, " +
+                        (heaviest?.let { "heaviest flow ${it.name.lowercase()}" } ?: "flow not logged") +
                         if (period.source == Source.ASSUMED) "   ESTIMATED" else "",
                 )
             }
             truncationNote(recentPeriods.size, projection.periods.size)
+        }
+        appendLine()
+
+        // -- pain during periods --------------------------------------------
+        // Painful periods are among the commonest reasons to see someone, and pain was logged daily
+        // and never reported. Counts only, over observed periods; no interpretation.
+        appendLine("PAIN DURING PERIODS")
+        val observedPeriods = projection.periods.filter { it.source == Source.OBSERVED }.takeLast(DETAIL_ROWS)
+        val painDays = observedPeriods.flatMap { p -> p.days().mapNotNull { painByDate[it] } }
+        if (painDays.isEmpty()) {
+            none("No pain logged during a period.")
+        } else {
+            val severe = painDays.count { it >= SEVERE_PAIN }
+            appendLine(
+                "  Pain logged on ${painDays.size} period day${if (painDays.size == 1) "" else "s"}; " +
+                    "severe or worse on $severe of ${painDays.size}.",
+            )
+            observedPeriods.forEach { p ->
+                val logged = p.days().mapNotNull { painByDate[it] }
+                if (logged.isNotEmpty()) {
+                    val worst = Symptom.PAIN.levelLabel(logged.max()) ?: logged.max().toString()
+                    appendLine("  ${p.start.format(short)}  worst: $worst, on ${logged.size} day(s) logged")
+                }
+            }
         }
         appendLine()
 
@@ -182,7 +223,14 @@ object ClinicalSummary {
 
         // -- symptoms -------------------------------------------------------
         appendLine("SYMPTOMS BY PHASE")
-        if (symptomSummaries.isEmpty()) {
+        val phased = symptomsByPhase.filterValues { it.isNotEmpty() }
+        if (phased.isNotEmpty()) {
+            appendLine("  Averages of what was logged, by phases worked out by the app. Scales run 0–4.")
+            Phase.entries.filter { it in phased }.forEach { phase ->
+                appendLine("  ${phase.name.lowercase().replaceFirstChar { it.uppercase() }}:")
+                phased.getValue(phase).forEach { s -> appendLine("    " + symptomLine(s)) }
+            }
+        } else if (symptomSummaries.isEmpty()) {
             // Two different absences, and the caller is the only one who can tell them apart —
             // hence [anySymptomsLogged]. "No symptoms logged" and "logged but unattributable" would
             // mean the same blank otherwise, and they are not the same fact.
@@ -193,16 +241,28 @@ object ClinicalSummary {
             }
         } else {
             appendLine("  Averages of what was logged. Scales run 0–4.")
-            symptomSummaries.forEach { s ->
-                appendLine(
-                    "  ${s.symptom.label}: ${s.label()} (%.1f) across ${s.daysObserved} days"
-                        .format(s.phaseMean) +
-                        (s.elsewhereMean?.let { " vs %.1f in other phases".format(it) } ?: ""),
-                )
-            }
+            symptomSummaries.forEach { s -> appendLine("  " + symptomLine(s)) }
         }
         appendLine()
 
         appendLine("END OF SUMMARY")
     }
+
+    /** Pain at or above this level (Severe) counts as severe. */
+    private const val SEVERE_PAIN = 3
+
+    private fun symptomLine(s: PhaseSymptomSummary): String =
+        "${s.symptom.label}: ${s.label()} (%.1f) across ${s.daysObserved} days".format(s.phaseMean) +
+            (s.elsewhereMean?.let { " vs %.1f in other phases".format(it) } ?: "")
+
+    /** Where the working estimate came from, in a doctor's terms. */
+    private fun sourceNote(source: LengthSource?): String = when (source) {
+        LengthSource.MEDIAN_OF_OBSERVED -> " (median of observed cycles)"
+        LengthSource.USER_STATED -> " (as stated by the patient)"
+        LengthSource.MEDIAN_WITH_ESTIMATES -> " (mostly from estimated cycles)"
+        LengthSource.APP_DEFAULT -> " (app default, not measured)"
+        null -> ""
+    }
+
+    private fun Period.days(): List<LocalDate> = (0 until spanDays).map { start.plusDays(it.toLong()) }
 }
