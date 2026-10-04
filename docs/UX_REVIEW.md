@@ -227,7 +227,8 @@ screen that the selected cell is now clickable.
   length; its reassurance line moved into the hero. The flag still reaches the doctor summary.
 - History's "· estimated" label uses the normal secondary text colour.
 
-Every step in this review is now done.
+Every step in this review is done except one item: "FlowRow for the flow chips" from step 6 was
+never made, which the council review of 5 Oct caught (`docs/COUNCIL_REVIEW.md`, A5).
 
 1. **The four bugs in section 2.** Small, and 2.1 corrupts data that can never be recovered,
    because the ledger only records forward. Each gets a test in `:core` or `:app` before the fix.
