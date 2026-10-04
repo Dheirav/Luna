@@ -26,8 +26,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
@@ -195,11 +195,13 @@ fun AppLockSection() {
     var enabled by remember { mutableStateOf(settings.appLockEnabled) }
     var screenshots by remember { mutableStateOf(settings.allowScreenshots) }
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
+    SettingsCard(
+        "Lock and screenshots",
+        about = "The database itself is not separately encrypted: Android already encrypts app " +
+            "storage at rest, and the lock covers the realistic risk, which is someone opening the " +
+            "app on your unlocked phone.",
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -219,8 +221,7 @@ fun AppLockSection() {
             Text(
                 if (available) {
                     "Fingerprint, face or device PIN before the app opens, and again after a " +
-                        "minute in the background. The database itself is not separately " +
-                        "encrypted — Android already encrypts app storage at rest."
+                        "minute in the background."
                 } else {
                     "Unavailable: this device has no screen lock set up. Add a PIN, pattern or " +
                         "fingerprint in system settings to use the lock."

@@ -6,8 +6,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -15,8 +13,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.dheirav.cycletracker.CycleTrackerApp
 import com.dheirav.cycletracker.core.ClinicalSummary
@@ -67,23 +63,14 @@ fun SummarySection() {
         }
     }
 
-    Card(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text(
-                "Summary for a doctor",
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.semantics { heading() },
-            )
-            Text(
-                "Your cycle lengths, period lengths, anything the app flagged, and symptom " +
-                    "averages — as plain text you can print or email. Estimated days are marked " +
-                    "as estimated.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+    SettingsCard(
+        "Summary for a doctor",
+        about = "Your cycle lengths, period lengths, anything the app flagged, and symptom " +
+            "averages. Estimated days are marked as estimated, and nothing is interpreted.",
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            // Stays visible rather than going behind the info button: it is the one trade this card
+            // asks you to accept before pressing it.
             Text(
                 "Not encrypted, unlike a backup — a file only this app can open is no use in an " +
                     "appointment. Save it somewhere you are happy for it to be readable.",

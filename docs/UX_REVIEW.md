@@ -200,7 +200,22 @@ Two more fixes came out of that check, built and installed but **not yet seen on
   stub), so TalkBack would read "Energy: OK, OK, radio button". Each cell is now one node carrying the
   description, the radio role, the selected state and the click.
 
-Steps 4 to 6 are open.
+Both were confirmed on screen on 2026-10-05: Undo was still showing after seven seconds and restored
+the day, and each cell is now a single radio button carrying its label and checked state.
+
+**Step 4 (Settings) was done on 2026-10-05 and checked on screen.** Three headed groups: Predictions,
+Reminder and widget (the widget is the reminder's fallback), Privacy and data. Each card keeps the
+line saying what its controls do now and moves the reasoning behind an info button; the two privacy
+trades (what screenshots expose, and the unencrypted doctor summary) stay visible on purpose. The
+reminder card folds to one status line (`reminderHeadline`, 6 tests) with the diagnostics behind
+"Details", and opens itself, with no Hide, when notifications are blocked or the reminder stopped.
+Backup and the summary moved onto the shared card, which was a step 6 item.
+
+Open from that check: a *selected* level cell reports itself as not clickable, which Android does for
+any selected radio button, so TalkBack can choose a level but not clear one, while a finger tap clears
+it. Dropping the radio role in favour of a state description would fix it.
+
+Steps 5 and 6 are open.
 
 1. **The four bugs in section 2.** Small, and 2.1 corrupts data that can never be recovered,
    because the ledger only records forward. Each gets a test in `:core` or `:app` before the fix.

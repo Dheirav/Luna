@@ -1,5 +1,6 @@
 package com.dheirav.cycletracker.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,7 +13,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
@@ -24,12 +29,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -44,6 +50,7 @@ import com.dheirav.cycletracker.data.Settings
 import com.dheirav.cycletracker.reminder.ReminderScheduler
 import com.dheirav.cycletracker.reminder.ReminderStatus
 import com.dheirav.cycletracker.widget.refreshWidgets
+import java.time.Instant
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
@@ -64,6 +71,9 @@ private val stamp = DateTimeFormatter.ofPattern("d MMM, HH:mm")
  *
  * Moved off Today at the same time, per the design brief — these are touched about twice a year
  * and were occupying a third of the screen looked at daily.
+ *
+ * Each card shows what its controls do *now* and keeps the reasoning behind an info button. The
+ * reasoning was always on screen, and after the first read it was only scrolling between switches.
  */
 @Composable
 fun SettingsScreen() {
@@ -79,18 +89,21 @@ fun SettingsScreen() {
     ) {
         BackBar(title = "Settings")
 
+        // Grouped by what a setting changes, so the two that alter the numbers on Today are not
+        // buried among the twice-a-year ones. It was one flat run of seven cards.
+        SettingsGroup("Predictions")
         YourCyclesCard(settings = settings)
-
         PredictionCard(settings = settings)
 
+        // The widget sits with the reminder because it is the reminder's fallback: it keeps working
+        // when the phone kills background work.
+        SettingsGroup("Reminder and widget")
         ReminderCard(settings = settings)
-
         WidgetCard(settings = settings)
 
+        SettingsGroup("Privacy and data")
         AppLockSection()
-
         BackupSection()
-
         SummarySection()
 
         Text(
@@ -114,7 +127,12 @@ private fun YourCyclesCard(settings: Settings) {
     var cycle by remember { mutableStateOf(settings.typicalCycleLength) }
     var period by remember { mutableStateOf(settings.typicalPeriodLength) }
 
-    SettingsCard("Your cycles") {
+    SettingsCard(
+        "Your cycles",
+        about = "Used until three of your own cycles have been observed — after that the app goes " +
+            "by what it measured, and these stop applying. They still outrank the app's own " +
+            "estimates, which used 28 and 5.",
+    ) {
         Stepper(
             label = "Usual cycle length",
             value = cycle,
@@ -138,9 +156,7 @@ private fun YourCyclesCard(settings: Settings) {
             },
         )
         Text(
-            "Used until three of your own cycles have been observed — after that the app goes by " +
-                "what it measured, and these stop applying. They still outrank the app's own " +
-                "estimates, which used 28 and 5.",
+            "Only used until three of your cycles have been observed.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -151,7 +167,11 @@ private fun YourCyclesCard(settings: Settings) {
 private fun PredictionCard(settings: Settings) {
     var width by remember { mutableStateOf(settings.windowWidth) }
 
-    SettingsCard("Prediction window") {
+    SettingsCard(
+        "Prediction window",
+        about = "This chooses how much of the uncertainty to show, not how much there is. A narrow " +
+            "setting cannot make an erratic history look regular.",
+    ) {
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
             WindowWidth.entries.forEachIndexed { index, option ->
                 SegmentedButton(
@@ -178,12 +198,6 @@ private fun PredictionCard(settings: Settings) {
                 WindowWidth.WIDE -> "Right about nine times in ten, at the cost of a noticeably " +
                     "broader range."
             },
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            "This chooses how much of the uncertainty to show, not how much there is. A narrow " +
-                "setting cannot make an erratic history look regular.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -230,7 +244,16 @@ private fun ReminderCard(settings: Settings) {
         value = ReminderScheduler.status(context)
     }
 
-    SettingsCard("Daily reminder") {
+    val headline = status?.let { reminderHeadline(it) { at -> LocalDateTime.ofInstant(at, ZoneId.systemDefault()).format(stamp) } }
+    var showDetails by remember { mutableStateOf(false) }
+    // A fault opens the details by itself; nobody should have to know to look.
+    val detailsOpen = showDetails || headline?.problem == true
+
+    SettingsCard(
+        "Daily reminder",
+        about = "Skips days you have already logged. The heads-up comes once per cycle, before the " +
+            "window opens.",
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -259,12 +282,6 @@ private fun ReminderCard(settings: Settings) {
                 Text(time.format(clock), style = MaterialTheme.typography.titleMedium)
             }
         }
-        Text(
-            "Skips days you have already logged.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
         HorizontalDivider()
 
         Row(
@@ -294,69 +311,41 @@ private fun ReminderCard(settings: Settings) {
                 },
             )
         }
-        Text(
-            "Once per cycle, before the window opens.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
         HorizontalDivider()
-
-        ReminderStatusBlock(status)
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = {
-                ReminderScheduler.sendTestReminder(context)
-                sent = true
-                probe++
-            }) { Text("Send one now") }
-            if (sent) {
-                Text(
-                    "Sent — check your shade",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            Text(
+                headline?.text ?: "Checking…",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (headline?.problem == true) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier.weight(1f),
+            )
+            // No toggle while a fault holds the details open: a "Hide" that did nothing would be
+            // worse than none.
+            if (headline?.problem != true) {
+                TextButton(onClick = { showDetails = !showDetails }) {
+                    Text(if (showDetails) "Hide" else "Details")
+                }
             }
         }
-        // Two claims survive the trim, and only two: what the test cannot establish, and that its
-        // buttons are live. Everything else about it — that it goes through WorkManager rather than
-        // posting directly, that it skips the bookkeeping — is in Reminders.kt, where the next person
-        // to touch this will actually be looking.
-        Text(
-            "Its buttons write a real entry for today. It cannot tell you whether the " +
-                "${time.format(clock)} one survives the night — only a few days can.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
 
-        status?.let { s ->
-            if (!s.notificationsAllowed) {
-                FixRow(
-                    message = "Notifications are blocked. No reminder can arrive however these " +
-                        "switches are set.",
-                    action = "Open notification settings",
-                    onClick = {
-                        runCatching {
-                            context.startActivity(
-                                ReminderScheduler.appNotificationSettingsIntent(context),
-                            )
-                        }
-                    },
-                )
-            }
-            if (!s.batteryUnrestricted) {
-                FixRow(
-                    message = "Battery use is restricted. Autostart, if this ROM has it, needs " +
-                        "granting by hand too.",
-                    // A risk, not a fault: nothing has failed yet. Same weight as Today's footnote.
-                    severe = false,
-                    action = "Open battery settings",
-                    onClick = {
-                        runCatching { context.startActivity(ReminderScheduler.batterySettingsIntent()) }
+        AnimatedVisibility(visible = detailsOpen) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                ReminderDetails(
+                    status = status,
+                    time = time,
+                    sent = sent,
+                    onSend = {
+                        ReminderScheduler.sendTestReminder(context)
+                        sent = true
+                        probe++
                     },
                 )
             }
@@ -384,6 +373,102 @@ private fun ReminderCard(settings: Settings) {
         )
     }
 }
+
+/** The reminder's one-line state, and whether it is a fault that should open the details. */
+data class ReminderHeadline(val text: String, val problem: Boolean)
+
+/**
+ * Summarises [ReminderStatus] for the folded card.
+ *
+ * Faults are checked first and always win, so a broken reminder can never sit under a reassuring
+ * line. A restricted battery is appended rather than promoted: it is a risk, and treating it as a
+ * fault would force the details open on every visit for a phone that may never kill anything.
+ */
+fun reminderHeadline(status: ReminderStatus, stamp: (Instant) -> String): ReminderHeadline {
+    if (!status.enabled) return ReminderHeadline("Off", problem = false)
+    if (!status.notificationsAllowed) {
+        return ReminderHeadline("Blocked: notifications are off for this app", problem = true)
+    }
+    if (status.looksBroken) {
+        return ReminderHeadline("Stopped: a reminder was due and did not fire", problem = true)
+    }
+    val base = status.lastFired?.let { "Working · last fired ${stamp(it)}" } ?: "Set, has not fired yet"
+    val text = if (status.batteryUnrestricted) base else "$base · battery restricted"
+    return ReminderHeadline(text, problem = false)
+}
+
+/**
+ * Everything behind "Details": the raw status, the test button, and the fixes.
+ *
+ * Folded because it is what you need when something is wrong and noise when it is not, and most
+ * visits are the second kind. [reminderHeadline] decides when it opens itself.
+ */
+@Composable
+private fun ReminderDetails(
+    status: ReminderStatus?,
+    time: LocalTime,
+    sent: Boolean,
+    onSend: () -> Unit,
+) {
+    val context = LocalContext.current
+
+    ReminderStatusBlock(status)
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TextButton(onClick = onSend) { Text("Send one now") }
+        if (sent) {
+            Text(
+                "Sent — check your shade",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+    // Two claims survive the trim, and only two: what the test cannot establish, and that its
+    // buttons are live. Everything else about it — that it goes through WorkManager rather than
+    // posting directly, that it skips the bookkeeping — is in Reminders.kt, where the next person
+    // to touch this will actually be looking.
+    Text(
+        "Its buttons write a real entry for today. It cannot tell you whether the " +
+            "${time.format(clock)} one survives the night — only a few days can.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+
+    status?.let { s ->
+        if (!s.notificationsAllowed) {
+            FixRow(
+                message = "Notifications are blocked. No reminder can arrive however these " +
+                    "switches are set.",
+                action = "Open notification settings",
+                onClick = {
+                    runCatching {
+                        context.startActivity(
+                            ReminderScheduler.appNotificationSettingsIntent(context),
+                        )
+                    }
+                },
+            )
+        }
+        if (!s.batteryUnrestricted) {
+            FixRow(
+                message = "Battery use is restricted. Autostart, if this ROM has it, needs " +
+                    "granting by hand too.",
+                // A risk, not a fault: nothing has failed yet. Same weight as Today's footnote.
+                severe = false,
+                action = "Open battery settings",
+                onClick = {
+                    runCatching { context.startActivity(ReminderScheduler.batterySettingsIntent()) }
+                },
+            )
+        }
+    }
+}
+
 
 /**
  * What the app knows about whether the reminder will arrive.
@@ -480,7 +565,11 @@ private fun WidgetCard(settings: Settings) {
     val context = LocalContext.current
     var details by remember { mutableStateOf(settings.widgetShowsDetails) }
 
-    SettingsCard("Home screen widget") {
+    SettingsCard(
+        "Home screen widget",
+        about = "Add it by long-pressing your home screen. Worth having: it needs no background " +
+            "permission, so it keeps working even when this phone kills the daily reminder.",
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -507,28 +596,71 @@ private fun WidgetCard(settings: Settings) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Text(
-            "Add it by long-pressing your home screen. Worth having: it needs no background " +
-                "permission, so it keeps working even when this phone kills the daily reminder.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 
+/** A heading over a run of cards, so the screen reads as three sections rather than one list. */
 @Composable
-private fun SettingsCard(title: String, content: @Composable () -> Unit) {
+private fun SettingsGroup(title: String) {
+    Text(
+        title,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier
+            .padding(top = 8.dp, start = 4.dp)
+            .semantics { heading() },
+    )
+}
+
+/**
+ * One settings card.
+ *
+ * [about] is the reasoning behind the card's controls, shown on demand from the info button. The card
+ * body keeps only what a control does now; why it works that way is worth reading once, and was
+ * costing a scroll on every visit after.
+ */
+@Composable
+internal fun SettingsCard(title: String, about: String? = null, content: @Composable () -> Unit) {
+    var showAbout by rememberSaveable(title) { mutableStateOf(false) }
     Card(modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large) {
         Column(
-            modifier = Modifier.padding(18.dp),
+            modifier = Modifier.padding(start = 18.dp, end = 6.dp, top = 6.dp, bottom = 18.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text(
-                title,
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.semantics { heading() },
-            )
-            content()
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(vertical = 12.dp)
+                        .semantics { heading() },
+                )
+                if (about != null) {
+                    IconButton(onClick = { showAbout = !showAbout }) {
+                        Icon(
+                            Icons.Outlined.Info,
+                            contentDescription = if (showAbout) "Hide details about $title" else "About $title",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+            Column(
+                modifier = Modifier.padding(end = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                if (about != null) {
+                    AnimatedVisibility(visible = showAbout) {
+                        Text(
+                            about,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                content()
+            }
         }
     }
 }

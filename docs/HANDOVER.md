@@ -38,7 +38,7 @@ Governing rules (full list in the plan artifact):
 | | Verified how |
 |---|---|
 | Phase 0 — spec + golden fixture | 34 cases, `spec/cycle_fixtures.json` |
-| Cycle/period/phase engine (`:core`) | `./gradlew :core:test`: **130 tests, all pass** (plus 16 in `:app`, and 3 instrumented) |
+| Cycle/period/phase engine (`:core`) | `./gradlew :core:test`: **130 tests, all pass** (plus 22 in `:app`, and 3 instrumented) |
 | Encrypted backup codec | 11 tests incl. tamper detection, wrong-passphrase, no-plaintext-leak |
 | Forecast window / prediction scorer | 16 + 13 tests |
 | Health flags, symptom patterns, clinical summary | 14 + 12 + 11 tests |

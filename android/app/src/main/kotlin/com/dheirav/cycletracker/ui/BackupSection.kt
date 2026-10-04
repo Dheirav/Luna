@@ -5,10 +5,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -16,10 +14,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -73,15 +70,17 @@ fun BackupSection() {
         }
     }
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text("Backup", style = MaterialTheme.typography.titleSmall)
+    // On the shared card now. It was the one settings card built by hand, with its own padding and
+    // shape and no heading for a screen reader to jump to.
+    SettingsCard(
+        "Backup",
+        about = "Restoring replaces everything in the app; there is no merge, because two versions " +
+            "of the same day have no correct answer. The passphrase is never stored.",
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                "Encrypted with a passphrase you choose. Nothing leaves the device unless you " +
-                    "put it somewhere else yourself.",
+                "Encrypted with a passphrase you choose. Nothing leaves the phone unless you put " +
+                    "it somewhere yourself.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
