@@ -241,6 +241,8 @@ fun TodayScreen(
                 WhyCard(basis = ui.basis, accuracy = ui.accuracy, state = state)
 
         if (!ui.reminderBroken && ui.batteryRestricted) ReminderAtRisk()
+
+        ui.backupDueSince?.let { BackupNudge(lastBackup = it, onBackUp = onSettings) }
     }
 }
 
@@ -749,6 +751,31 @@ private fun ReminderStopped() {
                 runCatching { context.startActivity(ReminderScheduler.batterySettingsIntent()) }
             }) { Text("Open battery settings") }
         }
+    }
+}
+
+/**
+ * A quiet line when there has been no backup for 30 days, or none at all after a month of logging.
+ *
+ * Offline means one lost phone from gone, and nothing used to say how long it had been. A line at the
+ * foot of the screen rather than a card or a notification, by decision: it should be findable, not
+ * insistent. [lastBackup] is EPOCH when there has never been one.
+ */
+@Composable
+private fun BackupNudge(lastBackup: java.time.Instant, onBackUp: () -> Unit) {
+    val text = if (lastBackup == java.time.Instant.EPOCH) {
+        "Not backed up yet."
+    } else {
+        "Last backup ${lastBackup.atZone(java.time.ZoneId.systemDefault()).toLocalDate().format(dayMonth)}."
+    }
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = onBackUp) { Text("Back up") }
     }
 }
 

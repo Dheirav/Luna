@@ -2,6 +2,7 @@ package com.dheirav.cycletracker.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.dheirav.cycletracker.core.BackupSettings
 import com.dheirav.cycletracker.core.UserCycleSettings
 import com.dheirav.cycletracker.core.WindowWidth
 import kotlinx.coroutines.channels.awaitClose
@@ -183,6 +184,48 @@ class Settings(context: Context) {
         get() = prefs.getBoolean(KEY_ONBOARDING_DONE, false)
         set(value) = prefs.edit().putBoolean(KEY_ONBOARDING_DONE, value).apply()
 
+    /**
+     * When a backup was last exported *and read back successfully*. Null if never.
+     *
+     * Offline means one lost phone from gone, and nothing told the person how long it had been.
+     * Shown on the Backup card, and after 30 days as a quiet line on Today.
+     */
+    var lastBackupAt: Instant?
+        get() = prefs.getLong(KEY_LAST_BACKUP, 0L).takeIf { it > 0 }?.let(Instant::ofEpochMilli)
+        set(value) = prefs.edit().putLong(KEY_LAST_BACKUP, value?.toEpochMilli() ?: 0L).apply()
+
+    /** The settings a backup carries. See [BackupSettings] for what is left out and why. */
+    fun toBackup(): BackupSettings = BackupSettings(
+        typicalCycleLength = typicalCycleLength,
+        typicalPeriodLength = typicalPeriodLength,
+        windowWidth = windowWidth.name,
+        reminderEnabled = reminderEnabled,
+        reminderTimeSeconds = reminderTime.toSecondOfDay().toLong(),
+        periodWarningEnabled = periodWarningEnabled,
+        periodWarningLeadDays = periodWarningLeadDays,
+        widgetShowsDetails = widgetShowsDetails,
+        appLockEnabled = appLockEnabled,
+        allowScreenshots = allowScreenshots,
+    )
+
+    /**
+     * Applies a backup's settings. A null field leaves this phone's own value, so an older backup
+     * changes nothing. Cycle and period length are applied as stated, including absent, because
+     * "not set" is itself the setting.
+     */
+    fun applyBackup(backup: BackupSettings) {
+        typicalCycleLength = backup.typicalCycleLength
+        typicalPeriodLength = backup.typicalPeriodLength
+        backup.windowWidth?.let { name -> runCatching { WindowWidth.valueOf(name) }.getOrNull()?.let { windowWidth = it } }
+        backup.reminderEnabled?.let { reminderEnabled = it }
+        backup.reminderTimeSeconds?.let { reminderTime = LocalTime.ofSecondOfDay(it.coerceIn(0, 86_399)) }
+        backup.periodWarningEnabled?.let { periodWarningEnabled = it }
+        backup.periodWarningLeadDays?.let { periodWarningLeadDays = it }
+        backup.widgetShowsDetails?.let { widgetShowsDetails = it }
+        backup.appLockEnabled?.let { appLockEnabled = it }
+        backup.allowScreenshots?.let { allowScreenshots = it }
+    }
+
     /** The settings the engine reads, as one value. See [UserCycleSettings] for why it is one value. */
     fun forEngine(): UserCycleSettings = UserCycleSettings(
         typicalCycleLength = typicalCycleLength,
@@ -233,6 +276,7 @@ class Settings(context: Context) {
         private const val KEY_APP_LOCK = "app_lock_enabled"
         private const val KEY_ALLOW_SCREENSHOTS = "allow_screenshots"
         private const val KEY_ONBOARDING_DONE = "onboarding_done"
+        private const val KEY_LAST_BACKUP = "last_backup_at"
 
         /** 21:00 — late enough that the day is done, early enough not to be asleep. */
         private val DEFAULT_REMINDER_SECONDS = LocalTime.of(21, 0).toSecondOfDay().toLong()

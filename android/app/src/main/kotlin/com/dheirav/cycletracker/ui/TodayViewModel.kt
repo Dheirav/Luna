@@ -68,6 +68,8 @@ data class TodayUiState(
     val todayMood: MoodFace? = null,
     /** The most recent unanswered gap inside a period, asked about on Today. One at a time. */
     val gap: UnloggedGap? = null,
+    /** Null unless a backup reminder is due; then the last backup time, or EPOCH if never. */
+    val backupDueSince: java.time.Instant? = null,
 )
 
 /**
@@ -116,7 +118,7 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
         // open past midnight, kept showing a state that was no longer true.
         viewModelScope.launch {
             combine(cycles.snapshots, repo.summaries()) { snapshot, days -> snapshot to days }
-                .collect { (snapshot, days) -> render(snapshot, days[snapshot.today]) }
+                .collect { (snapshot, days) -> render(snapshot, days) }
         }
     }
 
@@ -128,7 +130,8 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
     /**
      * Renders one snapshot. The projection is rebuilt whole upstream (§1.1), never patched here.
      */
-    private suspend fun render(snapshot: CycleSnapshot, today: DaySummary?) {
+    private suspend fun render(snapshot: CycleSnapshot, days: Map<java.time.LocalDate, DaySummary>) {
+        val today = days[snapshot.today]
         // Write the prediction down before rendering it, from the same snapshot that is rendered. A
         // prediction that was shown but never recorded is one the app can never be held to.
         ledger.record(snapshot.state)
@@ -156,6 +159,9 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
                 phase = snapshot.state.phase,
             ).takeIf { it.source == MoodSource.TODAY }?.face,
             gap = snapshot.unloggedGaps.lastOrNull(),
+            backupDueSince = settings.lastBackupAt.let { last ->
+                if (backupDue(last, days.keys.minOrNull())) last ?: java.time.Instant.EPOCH else null
+            },
         )
     }
 }

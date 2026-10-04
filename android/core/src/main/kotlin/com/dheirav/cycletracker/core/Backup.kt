@@ -50,6 +50,28 @@ data class BackupPrediction(
     val variability: Double? = null,
 )
 
+/**
+ * The user's settings, carried through a backup since 5 Oct 2026.
+ *
+ * Moving to a new phone used to reset cycle and period length, the reminder, the widget's privacy
+ * and the lock, so a careful restore still left the app quietly behaving differently. Every field is
+ * nullable: null means "not in this backup, leave the phone's own value". Bookkeeping such as when
+ * the reminder last fired is left out on purpose, because it describes the old phone, not the person.
+ */
+@Serializable
+data class BackupSettings(
+    val typicalCycleLength: Int? = null,
+    val typicalPeriodLength: Int? = null,
+    val windowWidth: String? = null,
+    val reminderEnabled: Boolean? = null,
+    val reminderTimeSeconds: Long? = null,
+    val periodWarningEnabled: Boolean? = null,
+    val periodWarningLeadDays: Int? = null,
+    val widgetShowsDetails: Boolean? = null,
+    val appLockEnabled: Boolean? = null,
+    val allowScreenshots: Boolean? = null,
+)
+
 @Serializable
 data class BackupSnapshot(
     val formatVersion: Int = BackupCodec.FORMAT_VERSION,
@@ -61,6 +83,8 @@ data class BackupSnapshot(
      * [BackupCodec.FORMAT_VERSION] does not need to move for a purely additive field.
      */
     val predictions: List<BackupPrediction> = emptyList(),
+    /** Null in backups made before settings were included; restoring one leaves settings alone. */
+    val settings: BackupSettings? = null,
 )
 
 class BackupException(message: String, cause: Throwable? = null) : Exception(message, cause)

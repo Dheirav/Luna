@@ -160,4 +160,35 @@ class BackupCodecTest {
             BackupCodec.encrypt(BackupCodec.encode(snapshot), charArrayOf())
         }
     }
+
+    // -- settings and three-state bleeding (5 Oct 2026) --------------------------
+
+    /** A new phone used to come back with every setting reset; they travel with the data now. */
+    @Test
+    fun `settings and the bleeding answer survive the round trip`() {
+        val withSettings = snapshot.copy(
+            days = snapshot.days + BackupDay(date = "2024-03-20", isBleeding = false, bleedingAnswered = true),
+            settings = BackupSettings(typicalCycleLength = 31, reminderTimeSeconds = 75_600, widgetShowsDetails = false),
+        )
+        val passphrase = "correct horse battery staple".toCharArray()
+
+        val back = BackupCodec.decode(
+            BackupCodec.decrypt(BackupCodec.encrypt(BackupCodec.encode(withSettings), passphrase.copyOf()), passphrase),
+        )
+
+        assertEquals(withSettings.settings, back.settings)
+        assertEquals(true, back.days.last().bleedingAnswered)
+    }
+
+    /** Older backups have neither field, and must still restore exactly as before. */
+    @Test
+    fun `a backup from before settings and answers still decodes`() {
+        val old = """{"formatVersion":1,"exportedAt":"2024-03-25T01:45:00Z",""" +
+            """"days":[{"date":"2024-03-11","isBleeding":false}]}"""
+
+        val decoded = BackupCodec.decode(old.toByteArray(Charsets.UTF_8))
+
+        assertNull(decoded.settings)
+        assertNull("an old day carries no answer, which restores as unanswered", decoded.days.single().bleedingAnswered)
+    }
 }
