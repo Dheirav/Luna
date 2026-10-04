@@ -259,7 +259,22 @@ quietly do not count, that is how people stop.
 - **P2 and P3, privacy:** widgets discreet by default; a neutral public version of both notifications
   on the lock screen; the Bleeding / No bleeding actions require unlocking.
 - **H7, lateness wording:** add a "worth raising with a doctor" point, with no pregnancy line.
-- **D4, open-period length (a spec change):** not yet decided.
+- **D4, open-period length:** amend CYCLE_RULES §5.1. While no non-bleeding day has been logged
+  after a period's last bleeding day, its length for phase purposes is the larger of the span so far
+  and the expected period length, which also makes the "Usual period length" setting take effect.
+  Record the amendment and its reason in the spec. (Decided 5 Oct.)
+- **D2 migration detail:** existing rows with no bleeding become "not answered", because the app
+  never recorded whether they were a deliberate No. Cycle maths is unaffected, since only bleeding
+  days count.
+- **D3 detail:** a card on Today when a period has up to 3 never-logged days inside it, offering
+  Yes / No for those days; the spotting flag waits for the answer.
+- **H3, doctor summary:** cover all four phases, flow per period and "pain severe or worse on N of M
+  period days", with estimated items tagged; preview it in the app with Android's share sheet; add a
+  "severe period pain" flag, reported and never diagnosed.
+- **F2, backup:** passphrase typed twice; restore shows the chosen backup's date and day count
+  before replacing; a hidden copy of current data allows undoing a restore; settings included in the
+  backup; "Last backup" on the card; and, by decision, a quiet line at the bottom of Today after 30
+  days without a backup. No notification.
 
 ## Progress
 
