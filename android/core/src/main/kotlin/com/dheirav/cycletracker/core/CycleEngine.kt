@@ -20,6 +20,11 @@ class CycleEngine(
         userTypicalCycleLength: Int? = null,
         userTypicalPeriodLength: Int? = null,
         lutealLength: Int = config.defaultLutealLength,
+        /**
+         * Days answered "no bleeding". Only these close a period (§5.1 as amended): an unlogged day
+         * after the last bleeding day is unknown, not a no.
+         */
+        noBleedingDays: Set<LocalDate> = emptySet(),
     ): CycleState {
         val expectedCycleLength = CycleStats.expectedCycleLength(
             projection.cycles, userTypicalCycleLength, config,
@@ -47,10 +52,25 @@ class CycleEngine(
         val cycleDay = daysBetween(cycle.start, date) + 1
         val daysLate = maxOf(0, cycleDay - expectedCycleLength)
 
-        val periodLength = projection.periods
-            .firstOrNull { it.start == cycle.start }
-            ?.spanDays
-            ?: CycleStats.expectedPeriodLength(projection.periods, userTypicalPeriodLength, config)
+        // §5.1 as amended 2026-10-05. A period is over once a non-bleeding day has been *answered*
+        // after its last bleeding day, or once the next period has begun. Until then it may still be
+        // going, and its length for phase purposes is at least the expected period length. Without
+        // this, day 3 of a period read "Follicular" until day 3 was logged, and the usual-period-length
+        // setting could never apply.
+        val period = projection.periods.firstOrNull { it.start == cycle.start }
+        val closed = period != null &&
+            (cycle.end != null || noBleedingDays.any { it.isAfter(period.end) })
+        val expectedPeriod = CycleStats.expectedPeriodLength(
+            projection.periods,
+            userTypicalPeriodLength,
+            config,
+            exclude = period?.takeIf { !closed },
+        )
+        val periodLength = when {
+            period == null -> expectedPeriod
+            closed -> period.spanDays
+            else -> maxOf(period.spanDays, expectedPeriod)
+        }
 
         val boundaries = PhaseAnchor.boundaries(expectedCycleLength, periodLength, lutealLength)
         val computedPhase = boundaries.phaseFor(cycleDay)

@@ -164,6 +164,11 @@ expectedPeriodLength =
 
 A period is "completed" once ≥ `maxIntraPeriodGapDays + 1` non-bleeding days follow it.
 
+**Clarified 2026-10-05:** "completed" and "observed" both apply. Only periods whose `source` is
+observed count, and the period still in progress (see §5.1) is left out. The implementation had been
+counting estimated periods and the current partial one, so a two-day-old period pulled the median
+down while it was still going.
+
 ---
 
 ## 4. Cycle day
@@ -213,7 +218,9 @@ that most need a tracker.
 
 ```
 lutealLength  = user.lutealLength ?: defaultLutealLength        // 14
-periodLength  = current cycle's observed span, else expectedPeriodLength
+periodLength  = current period's span            if the period is closed
+                max(span so far, expectedPeriodLength)   if it may still be going
+                expectedPeriodLength             if the cycle has no period (never, in practice)
 
 ovulationDay  = max(periodLength + 4, expectedCycleLength - lutealLength)
 ```
@@ -226,6 +233,15 @@ Boundaries, all 1-indexed and inclusive:
 | Follicular | `periodLength + 1 .. ovulationDay - 3` |
 | Ovulation | `ovulationDay - 2 .. ovulationDay + 1` |
 | Luteal | `ovulationDay + 2 .. ∞` |
+
+**Amended 2026-10-05: a period in progress.** A period is *closed* once a day after its last bleeding
+day has been answered "no bleeding", or once the next period has begun. Until then it may still be
+going. The original rule used the span logged so far, which treated every unlogged day as a "no": with
+bleeding logged on days 1 and 2, day 3 read Follicular until day 3 was logged, and the user's stated
+period length could never take effect, because a current period always existed to take precedence.
+That is "absent is not zero" broken by the spec itself. Only an *answered* no closes a period, which
+became possible when bleeding gained three states (not answered, no, yes) in schema v3. The 34 golden
+fixtures were unchanged by the amendment. Tests: `PeriodInProgressTest`.
 
 The `periodLength + 4` floor guarantees at least one follicular day on very short cycles.
 Luteal is open-ended so a late cycle stays luteal instead of falling off the end.

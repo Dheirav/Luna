@@ -33,6 +33,8 @@ class CycleSnapshot private constructor(
     val today: LocalDate,
     val projection: Projection,
     val bleedingDays: Set<LocalDate>,
+    /** Days answered "no bleeding"; they close a period (§5.1 as amended). */
+    val noBleedingDays: Set<LocalDate>,
     val settings: UserCycleSettings,
     /** Where the cycle stands today. */
     val state: CycleState,
@@ -57,6 +59,7 @@ class CycleSnapshot private constructor(
             bleedingDays = bleedingDays,
             userTypicalCycleLength = settings.typicalCycleLength,
             userTypicalPeriodLength = settings.typicalPeriodLength,
+            noBleedingDays = noBleedingDays,
         )
 
     companion object {
@@ -66,6 +69,7 @@ class CycleSnapshot private constructor(
             settings: UserCycleSettings,
             today: LocalDate,
             config: CycleConfig = CycleConfig.Default,
+            noBleedingDays: Set<LocalDate> = emptySet(),
         ): CycleSnapshot {
             val engine = CycleEngine(config)
             val bleeding = bleedingDays.toSet()
@@ -76,6 +80,7 @@ class CycleSnapshot private constructor(
                 bleedingDays = bleeding,
                 userTypicalCycleLength = settings.typicalCycleLength,
                 userTypicalPeriodLength = settings.typicalPeriodLength,
+                noBleedingDays = noBleedingDays,
             )
 
             val basis = Forecast.basis(projection.cycles, settings.typicalCycleLength, config)
@@ -84,6 +89,7 @@ class CycleSnapshot private constructor(
                 today = today,
                 projection = projection,
                 bleedingDays = bleeding,
+                noBleedingDays = noBleedingDays,
                 settings = settings,
                 state = state,
                 window = Forecast.periodWindow(

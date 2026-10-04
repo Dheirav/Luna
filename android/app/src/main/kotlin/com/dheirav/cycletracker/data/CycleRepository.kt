@@ -27,6 +27,8 @@ fun List<DailyLogEntity>.snapshot(settings: UserCycleSettings, today: LocalDate)
         assumedDays = filter { it.isBleeding && it.source == Source.ASSUMED.name }.map { it.date }.toSet(),
         settings = settings,
         today = today,
+        // Answered "no", not merely absent: only these close a period (CYCLE_RULES §5.1).
+        noBleedingDays = filter { it.bleedingAnswered && !it.isBleeding }.map { it.date }.toSet(),
     )
 
 /**

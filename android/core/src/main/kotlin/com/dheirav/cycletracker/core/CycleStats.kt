@@ -129,8 +129,15 @@ object CycleStats {
         periods: List<Period>,
         userTypicalPeriodLength: Int? = null,
         config: CycleConfig = CycleConfig.Default,
+        /** A period still in progress, whose span so far is not a length yet. */
+        exclude: Period? = null,
     ): Int {
-        val spans = periods.takeLast(config.cycleLengthSampleSize).map { it.spanDays }
+        // §3.1: finished, observed periods only. It used to count estimated periods and the partial
+        // current one, so a two-day-old period pulled the median down while it was still going.
+        val spans = periods
+            .filter { it.source == Source.OBSERVED && it != exclude }
+            .takeLast(config.cycleLengthSampleSize)
+            .map { it.spanDays }
         return when {
             spans.size >= 2 -> roundHalfUp(median(spans))
             userTypicalPeriodLength != null -> userTypicalPeriodLength
