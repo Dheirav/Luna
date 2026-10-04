@@ -125,16 +125,23 @@ fun Cloud(color: Color, modifier: Modifier = Modifier, width: Dp = 34.dp) {
 }
 
 /**
- * How the mascot is feeling. **None of these is cheerful, by design.**
+ * The mascot's face. **It reacts only to mood logged today, never to the phase.**
  *
- * A character that reacts to the cycle is the obvious cutesy move and also the easy way to be
- * obnoxious: a grinning face on day one of a painful period reads as the app celebrating something
- * the user is enduring. So the range runs from *resting* to *bright* and stops well short of
- * excited, and the bleeding phase gets the sleepiest, coziest face rather than the happiest.
+ * It used to follow the phase (sleepy while bleeding, bright at ovulation), which meant it smiled on
+ * day 41 of a 28-day cycle and was, in effect, the app telling the user how they felt from a
+ * calendar. Phase guidance and the user's own logs are separate surfaces, and a face is the most
+ * first-person thing on the screen, so it now comes from today's log alone:
  *
- * The mascot is never the only indicator of anything — the phase is always spelled out beside it.
+ *  - [RESTING]: nothing logged today, or a middling day. Eyes open, mouth level. Deliberately not a
+ *    smile, because a smile is a claim and there is nothing to base one on.
+ *  - [CALM]: mood logged as settled. A small smile, and no more than that.
+ *  - [TENDER]: mood logged as heavy. Eyes softly closed, mouth turned down a little. Sympathy, not
+ *    alarm.
+ *
+ * The range still stops well short of cheerful or distressed. The mascot is never the only indicator
+ * of anything, and the phase is always spelled out beside it.
  */
-enum class MascotMood { SLEEPY, CALM, BRIGHT }
+enum class MascotMood { RESTING, CALM, TENDER }
 
 /**
  * A small cloud character.
@@ -176,41 +183,54 @@ fun MascotCloud(
         drawCircle(blush, radius = h * 0.085f, center = Offset(w * 0.72f, h * 0.61f))
 
         when (mood) {
-            // Closed, contented eyes — arcs curving upward like a drawn "^" softened.
-            MascotMood.SLEEPY -> {
-                listOf(leftX, rightX).forEach { x ->
-                    drawArc(
-                        color = face,
-                        startAngle = 200f,
-                        sweepAngle = 140f,
-                        useCenter = false,
-                        topLeft = Offset(x - eyeR * 1.6f, eyeY - eyeR * 0.9f),
-                        size = Size(eyeR * 3.2f, eyeR * 2.0f),
-                        style = stroke,
-                    )
-                }
+            // Softly closed: the lower half of an arc, like lowered lids.
+            MascotMood.TENDER -> listOf(leftX, rightX).forEach { x ->
+                drawArc(
+                    color = face,
+                    startAngle = 20f,
+                    sweepAngle = 140f,
+                    useCenter = false,
+                    topLeft = Offset(x - eyeR * 1.6f, eyeY - eyeR * 1.2f),
+                    size = Size(eyeR * 3.2f, eyeR * 2.0f),
+                    style = stroke,
+                )
             }
-            MascotMood.CALM, MascotMood.BRIGHT -> {
+            MascotMood.RESTING, MascotMood.CALM -> {
                 drawCircle(face, radius = eyeR, center = Offset(leftX, eyeY))
                 drawCircle(face, radius = eyeR, center = Offset(rightX, eyeY))
             }
         }
 
-        // A small smile in every mood. Wider when bright, barely there when sleepy.
-        val smileWidth = when (mood) {
-            MascotMood.SLEEPY -> w * 0.09f
-            MascotMood.CALM -> w * 0.11f
-            MascotMood.BRIGHT -> w * 0.15f
+        val mouthY = h * 0.64f
+        val mouthW = w * 0.10f
+        when (mood) {
+            MascotMood.RESTING -> drawLine(
+                color = face,
+                start = Offset(w * 0.50f - mouthW / 2f, mouthY),
+                end = Offset(w * 0.50f + mouthW / 2f, mouthY),
+                strokeWidth = stroke.width,
+                cap = StrokeCap.Round,
+            )
+            MascotMood.CALM -> drawArc(
+                color = face,
+                startAngle = 15f,
+                sweepAngle = 150f,
+                useCenter = false,
+                topLeft = Offset(w * 0.50f - mouthW / 2f, h * 0.58f),
+                size = Size(mouthW, h * 0.11f),
+                style = stroke,
+            )
+            // The same arc turned over and flattened, so it reads as subdued rather than upset.
+            MascotMood.TENDER -> drawArc(
+                color = face,
+                startAngle = 200f,
+                sweepAngle = 140f,
+                useCenter = false,
+                topLeft = Offset(w * 0.50f - mouthW / 2f, mouthY - h * 0.01f),
+                size = Size(mouthW, h * 0.08f),
+                style = stroke,
+            )
         }
-        drawArc(
-            color = face,
-            startAngle = 15f,
-            sweepAngle = 150f,
-            useCenter = false,
-            topLeft = Offset(w * 0.50f - smileWidth / 2f, h * 0.58f),
-            size = Size(smileWidth, h * 0.11f),
-            style = stroke,
-        )
     }
 }
 

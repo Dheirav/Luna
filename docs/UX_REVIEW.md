@@ -211,11 +211,23 @@ reminder card folds to one status line (`reminderHeadline`, 6 tests) with the di
 "Details", and opens itself, with no Hide, when notifications are blocked or the reminder stopped.
 Backup and the summary moved onto the shared card, which was a step 6 item.
 
-Open from that check: a *selected* level cell reports itself as not clickable, which Android does for
-any selected radio button, so TalkBack can choose a level but not clear one, while a finger tap clears
-it. Dropping the radio role in favour of a state description would fix it.
+That check also found that a *selected* level cell reported itself as not clickable, which Android
+does for any selected radio button, so TalkBack could choose a level but never clear one. Fixed on
+2026-10-05 by dropping the radio role for a state description and a "clear" action; confirmed on
+screen that the selected cell is now clickable.
 
-Steps 5 and 6 are open.
+**Steps 5 and 6 were done on 2026-10-05 and checked on screen.**
+
+- The hero names where its cycle length came from (`cycleLengthPhrase`): "of a 28-day cycle" when
+  measured, "from your setting" when stated, "assumed to be" otherwise.
+- The mascot's face comes from mood logged today (`mascotMoodFor`): resting with a level mouth when
+  nothing is logged, a small smile when settled, eyes closed and a slight frown when heavy. It no
+  longer follows the phase, so it stopped smiling at day 41 of a 28-day cycle.
+- The late-period card is not shown on Today, since it repeated the hero's lateness, day and cycle
+  length; its reassurance line moved into the hero. The flag still reaches the doctor summary.
+- History's "· estimated" label uses the normal secondary text colour.
+
+Every step in this review is now done.
 
 1. **The four bugs in section 2.** Small, and 2.1 corrupts data that can never be recovered,
    because the ledger only records forward. Each gets a test in `:core` or `:app` before the fix.

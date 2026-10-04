@@ -41,7 +41,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dheirav.cycletracker.core.HealthFlagKind
 import com.dheirav.cycletracker.core.LengthSource
+import com.dheirav.cycletracker.core.MoodFace
 import com.dheirav.cycletracker.core.PeriodWindow
 import com.dheirav.cycletracker.core.Phase
 import com.dheirav.cycletracker.core.PredictionAccuracy
@@ -61,6 +63,26 @@ import kotlin.math.roundToInt
 
 private val dayMonth = DateTimeFormatter.ofPattern("d MMM")
 private val fullDate = DateTimeFormatter.ofPattern("d MMM yyyy")
+
+/**
+ * How the hero names the cycle length, saying where the number came from.
+ *
+ * "of a 28-day cycle" read the same whether 28 was the median of cycles the user logged, a figure
+ * they typed in, or a population default describing nobody. The window card below already qualified
+ * its own number, so the most prominent figure on the screen was the least earned one.
+ */
+fun cycleLengthPhrase(length: Int, source: LengthSource?): String = when (source) {
+    LengthSource.USER_STATED -> "of a $length-day cycle, from your setting"
+    LengthSource.MEDIAN_WITH_ESTIMATES, LengthSource.APP_DEFAULT -> "of a cycle assumed to be $length days"
+    LengthSource.MEDIAN_OF_OBSERVED, null -> "of a $length-day cycle"
+}
+
+/** The mascot's face from today's logged mood. See [MascotMood] for why nothing else moves it. */
+fun mascotMoodFor(today: MoodFace?): MascotMood = when (today) {
+    MoodFace.SETTLED -> MascotMood.CALM
+    MoodFace.HEAVY -> MascotMood.TENDER
+    MoodFace.STEADY, MoodFace.UNKNOWN, null -> MascotMood.RESTING
+}
 
 /**
  * The home screen: where you are in the cycle, when the next period is likely, and one button.
@@ -113,10 +135,11 @@ fun TodayScreen(
 
         CycleHero(
             cycleDay = state.cycleDay ?: 0,
-            expectedLength = state.expectedCycleLength,
+            lengthPhrase = cycleLengthPhrase(state.expectedCycleLength, ui.basis?.source),
             phase = state.phase,
             isBleeding = state.isBleeding,
             daysLate = state.daysLate,
+            mood = mascotMoodFor(ui.todayMood),
             onClick = onPhaseGuide,
         )
 
@@ -136,7 +159,10 @@ fun TodayScreen(
 
         ui.window?.let { NextPeriodCard(it, today = ui.today) }
 
-        ui.flags.forEach { HealthFlagCard(it) }
+        // The late-period flag is not repeated as a card here. The hero already says how late, and
+        // the card's opening line restated the hero's day and cycle length; its reassurance moved
+        // into the hero instead. The flag itself is unchanged and still reaches the doctor summary.
+        ui.flags.filter { it.kind != HealthFlagKind.PERIOD_LATE }.forEach { HealthFlagCard(it) }
 
                 WhyCard(basis = ui.basis, accuracy = ui.accuracy, state = state)
 
@@ -175,17 +201,18 @@ private fun Header(today: java.time.LocalDate, onSettings: () -> Unit) {
  * §5.2 — an observed bleed beats any computed phase, so bleeding takes the menstruation palette
  * whatever the arithmetic says.
  *
- * **No character or face here, deliberately.** A smiling mascot reacting to your cycle is charming
- * on a good day and grating on a painful one, and this card is the thing you see first on both.
- * The ornament stays abstract — clouds do not have opinions about your body.
+ * The mascot's face comes from mood logged today, never from the phase (see [MascotMood]). It used
+ * to follow the phase, so it smiled on day 41 of a 28-day cycle; a face reacting to a calendar is
+ * the app deciding how someone feels. With nothing logged it rests, without a smile.
  */
 @Composable
 private fun CycleHero(
     cycleDay: Int,
-    expectedLength: Int,
+    lengthPhrase: String,
     phase: Phase?,
     isBleeding: Boolean,
     daysLate: Int,
+    mood: MascotMood,
     onClick: () -> Unit,
 ) {
     val cycle = MaterialTheme.cycleColors
@@ -197,13 +224,6 @@ private fun CycleHero(
     // Ornament derives from the text colour, so it stays legible on all four gradients in both
     // schemes. Hardcoded white worked on pale pastels and turned to grey smudges on dark ones.
     val ornament = ink.copy(alpha = 0.26f)
-
-    // The bleeding phase gets the sleepiest face, not the happiest. See MascotMood.
-    val mood = when (effectivePhase) {
-        Phase.MENSTRUATION -> MascotMood.SLEEPY
-        Phase.OVULATION -> MascotMood.BRIGHT
-        else -> MascotMood.CALM
-    }
 
     Box(
         modifier = Modifier
@@ -283,7 +303,7 @@ private fun CycleHero(
                 color = ink,
             )
             Text(
-                "of a $expectedLength-day cycle",
+                lengthPhrase,
                 style = MaterialTheme.typography.bodyMedium,
                 color = ink.copy(alpha = 0.78f),
             )
@@ -299,6 +319,13 @@ private fun CycleHero(
                     "$daysLate day${if (daysLate == 1) "" else "s"} later than expected",
                     style = MaterialTheme.typography.labelLarge,
                     color = ink,
+                )
+                // What the late-period card used to add, without its repeat of the numbers above.
+                Text(
+                    "Stress, illness, travel and sleep all shift this. One late cycle is common.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = ink.copy(alpha = 0.78f),
+                    modifier = Modifier.padding(end = 96.dp),
                 )
             }
         }

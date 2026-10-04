@@ -38,7 +38,7 @@ Governing rules (full list in the plan artifact):
 | | Verified how |
 |---|---|
 | Phase 0 — spec + golden fixture | 34 cases, `spec/cycle_fixtures.json` |
-| Cycle/period/phase engine (`:core`) | `./gradlew :core:test`: **130 tests, all pass** (plus 22 in `:app`, and 3 instrumented) |
+| Cycle/period/phase engine (`:core`) | `./gradlew :core:test`: **130 tests, all pass** (plus 28 in `:app`, and 3 instrumented) |
 | Encrypted backup codec | 11 tests incl. tamper detection, wrong-passphrase, no-plaintext-leak |
 | Forecast window / prediction scorer | 16 + 13 tests |
 | Health flags, symptom patterns, clinical summary | 14 + 12 + 11 tests |
@@ -962,15 +962,11 @@ first item below.
 6. **Place the mood widget and the resized cycle widget on a home screen.** Neither has been seen.
    Note Android applies `targetCellWidth/Height` only to *newly placed* widgets, so an existing widget
    keeps its old size until removed and re-added.
-7. **Fix the stale comment in `TodayScreen`.** Its KDoc says "No character or face here, deliberately"
-   and the card has had a face since the pastel redesign. Worse, `MascotMood` derives that face from the
-   phase alone — the app inferring a mood from a calendar, which is precisely what the mood widget was
-   built to avoid. Switching the hero to the same log-driven `MoodReadings` source is the highest-value
-   follow-on from that work.
-8. **Consider the `· estimated` label's contrast** in the History month list (`HistoryScreen.kt:188`).
-   `cycle.estimated` doubles as a text colour there; darkening it on 2026-08-12 took it from roughly
-   1.9:1 to 2.6:1 against the cream card, still short of AA for an 11sp label. The proper fix is to let
-   the *word* carry the meaning and give the text a normal on-surface colour — a design call, not a bug.
+7. ~~Fix the stale comment in `TodayScreen`~~ **Done 2026-10-05.** The mascot's face now comes from
+   mood logged today (`mascotMoodFor`), never the phase, and rests without a smile when nothing is
+   logged. The KDoc says so.
+8. ~~Consider the `· estimated` label's contrast~~ **Done 2026-10-05.** The label uses the normal
+   secondary text colour and lets the word carry the meaning.
 
 Phase 4 is **closed as blocked** — see its own section. Phase 5's fertility window stays blocked behind
 it and must not be built on an assumed luteal length.

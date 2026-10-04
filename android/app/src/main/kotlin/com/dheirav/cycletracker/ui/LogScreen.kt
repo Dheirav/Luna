@@ -10,8 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -28,11 +27,9 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.onClick
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import java.time.Instant
 import java.time.ZoneOffset
@@ -401,8 +398,8 @@ private fun SymptomRow(symptom: Symptom, value: Int?, onSelect: (Int) -> Unit) {
  * scale's anchor words, so the fix has to keep the word, not shorten it: padding drops to 2dp and a
  * word too long for its cell shrinks until it fits on one line.
  *
- * Selection is shown by fill **and** weight, so it never rests on colour alone, and each cell is a
- * radio button to a screen reader, which announces the selected one.
+ * Selection is shown by fill **and** weight, so it never rests on colour alone, and a screen reader
+ * hears each cell's state and can clear a selected one, as a tap can.
  */
 @Composable
 private fun LevelRow(symptom: Symptom, value: Int?, onSelect: (Int) -> Unit) {
@@ -414,8 +411,7 @@ private fun LevelRow(symptom: Symptom, value: Int?, onSelect: (Int) -> Unit) {
             .heightIn(min = 48.dp)
             .clip(shape)
             .border(1.dp, outline, shape)
-            .height(IntrinsicSize.Min)
-            .selectableGroup(),
+            .height(IntrinsicSize.Min),
     ) {
         symptom.levels.forEachIndexed { index, level ->
             if (index > 0) VerticalDivider(color = outline)
@@ -431,17 +427,17 @@ private fun LevelRow(symptom: Symptom, value: Int?, onSelect: (Int) -> Unit) {
                     // `selectable`, the cell exposed its description, its visible word and a radio stub
                     // as three children, so TalkBack read "Energy: OK, OK, radio button". The symptom's
                     // name is a separate Text above the row, which is why the description carries it.
+                    //
+                    // No radio role, on purpose. Android reports a *selected* radio button as not
+                    // clickable, since radios cannot be unset, so TalkBack could choose a level but never
+                    // clear one, while a finger tap on the selected level clears it. A plain clickable
+                    // with a stated state and a "clear" action keeps both ways of using the form equal.
                     .clearAndSetSemantics {
                         contentDescription = "${symptom.label}: $level"
-                        role = Role.RadioButton
-                        this.selected = selected
-                        onClick { onSelect(index); true }
+                        stateDescription = if (selected) "Selected" else "Not selected"
+                        onClick(label = if (selected) "clear" else "select") { onSelect(index); true }
                     }
-                    .selectable(
-                        selected = selected,
-                        role = Role.RadioButton,
-                        onClick = { onSelect(index) },
-                    )
+                    .clickable(onClick = { onSelect(index) })
                     .padding(horizontal = 2.dp),
                 contentAlignment = Alignment.Center,
             ) {

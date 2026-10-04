@@ -188,7 +188,11 @@ private fun LogRow(date: LocalDate, summary: DaySummary, onPickDate: (LocalDate)
                             if (summary.isAssumed) append(" · estimated")
                         },
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (summary.isAssumed) cycle.estimated else cycle.bleeding,
+                        // The word carries "estimated", so the colour no longer has to. In
+                        // `cycle.estimated` it measured about 2.6:1 on the cream card, short of AA for
+                        // an 11sp label; the normal secondary text colour is legible and still quieter
+                        // than an observed day's bleeding colour.
+                        color = if (summary.isAssumed) MaterialTheme.colorScheme.onSurfaceVariant else cycle.bleeding,
                     )
                 }
             }

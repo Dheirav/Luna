@@ -7,6 +7,9 @@ import com.dheirav.cycletracker.CycleTrackerApp
 import com.dheirav.cycletracker.core.CycleSnapshot
 import com.dheirav.cycletracker.core.CycleState
 import com.dheirav.cycletracker.core.HealthFlag
+import com.dheirav.cycletracker.core.MoodFace
+import com.dheirav.cycletracker.core.MoodReadings
+import com.dheirav.cycletracker.core.MoodSource
 import com.dheirav.cycletracker.core.PeriodWindow
 import com.dheirav.cycletracker.core.PredictionAccuracy
 import com.dheirav.cycletracker.core.PredictionBasis
@@ -56,6 +59,12 @@ data class TodayUiState(
     val batteryRestricted: Boolean = false,
     /** What was logged for today, or null when nothing was. Drives the log button's two states. */
     val loggedToday: String? = null,
+    /**
+     * Mood read from **today's log only**, for the mascot's face; null when today has no mood logged.
+     * Tendencies are deliberately not used: a face built from "you usually log low mood now" would be
+     * the app predicting how someone feels, which is the thing the mascot used to do from the phase.
+     */
+    val todayMood: MoodFace? = null,
 )
 
 /**
@@ -132,6 +141,11 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
             reminderBroken = settings.reminderLooksBroken(),
             batteryRestricted = !ReminderScheduler.isBatteryUnrestricted(getApplication()),
             loggedToday = today?.let(::loggedSummary),
+            todayMood = MoodReadings.read(
+                todaysSymptoms = today?.symptoms.orEmpty(),
+                observations = emptyList(),
+                phase = snapshot.state.phase,
+            ).takeIf { it.source == MoodSource.TODAY }?.face,
         )
     }
 }
