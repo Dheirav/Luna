@@ -241,15 +241,4 @@ class ForecastTest {
         assertFalse(window.hasPassed(window.latest))
         assertTrue(window.hasPassed(window.latest.plusDays(1)))
     }
-
-    /** Late on screen means past the window, counted from its last day, never from the centre. */
-    @Test
-    fun `days past the window are counted from its last day and are zero inside it`() {
-        val window = Forecast.periodWindow(date("2025-01-01"), 28, emptyList())!!
-
-        assertEquals(0, window.daysPast(window.center.plusDays(2)))
-        assertEquals(0, window.daysPast(window.latest))
-        assertEquals(1, window.daysPast(window.latest.plusDays(1)))
-        assertEquals(11, window.daysPast(window.latest.plusDays(11)))
-    }
 }

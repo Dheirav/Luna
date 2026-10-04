@@ -42,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dheirav.cycletracker.core.HealthFlagKind
+import com.dheirav.cycletracker.core.LateGuidance
 import com.dheirav.cycletracker.core.LengthSource
 import com.dheirav.cycletracker.core.MoodFace
 import com.dheirav.cycletracker.core.PeriodWindow
@@ -132,13 +133,13 @@ private fun GapQuestionCard(question: String, onYes: () -> Unit, onNo: () -> Uni
 }
 
 /**
- * How long after the window closes the hero suggests raising a late period with a doctor.
- *
- * Guidance, not a measurement: the app has no basis for its own threshold here, and six weeks is
- * the point the council review proposed, well short of the 90-day absent flag. It is phrased as
- * "worth raising", never as a finding.
+ * The hero's point at which to see a doctor, from the secondary amenorrhea definition (see
+ * [LateGuidance]): three months since the last period began, or six when cycles have varied widely.
+ * It replaced "window end plus six weeks", which was a number this app made up.
  */
-private const val DOCTOR_AFTER_WEEKS = 6L
+fun doctorLine(point: LateGuidance.DoctorPoint): String =
+    " Worth raising with a doctor if it has not come by ${point.date.format(dayMonth)}, " +
+        if (point.irregular) "six months since your last period began, as your cycles vary." else "three months since your last period began."
 
 /** The mascot's face from today's logged mood. See [MascotMood] for why nothing else moves it. */
 fun mascotMoodFor(today: MoodFace?): MascotMood = when (today) {
@@ -203,8 +204,12 @@ fun TodayScreen(
                 lengthPhrase = cycleLengthPhrase(state.expectedCycleLength, ui.basis?.source),
                 phase = state.phase,
                 isBleeding = state.isBleeding,
-                daysPast = ui.window?.daysPast(ui.today) ?: 0,
-                doctorBy = ui.window?.latest?.plusWeeks(DOCTOR_AFTER_WEEKS),
+                // Said only once the whole window has passed, so it never contradicts the card below;
+                // then counted from the expected date, the way clinicians count (LateGuidance).
+                daysPast = state.cycleStart
+                    ?.takeIf { ui.window?.hasPassed(ui.today) == true }
+                    ?.let { LateGuidance.daysPastExpected(it, state.expectedCycleLength, ui.today) } ?: 0,
+                doctorPoint = state.cycleStart?.let { LateGuidance.doctorPoint(ui.projection, it) },
                 mood = mascotMoodFor(ui.todayMood),
                 onClick = onPhaseGuide,
             )
@@ -297,7 +302,7 @@ private fun CycleHero(
     phase: Phase?,
     isBleeding: Boolean,
     daysPast: Int,
-    doctorBy: java.time.LocalDate?,
+    doctorPoint: LateGuidance.DoctorPoint?,
     mood: MascotMood,
     onClick: () -> Unit,
 ) {
@@ -402,13 +407,10 @@ private fun CycleHero(
                 color = ink.copy(alpha = 0.72f),
                 modifier = Modifier.padding(top = 8.dp),
             )
-            // Late means past the whole window, counted from its last day. It used to count from the
-            // centre date, so the hero said "2 days later than expected" while the card beneath still
-            // showed the window open.
             if (daysPast > 0) {
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    "$daysPast day${if (daysPast == 1) "" else "s"} past the expected window",
+                    "$daysPast day${if (daysPast == 1) "" else "s"} past the expected date",
                     style = MaterialTheme.typography.labelLarge,
                     color = ink,
                 )
@@ -416,7 +418,7 @@ private fun CycleHero(
                 // and a point at which to act, which nothing gave before the 90-day absent flag.
                 Text(
                     "Stress, illness, travel and sleep all shift this. One late cycle is common." +
-                        (doctorBy?.let { " Worth raising with a doctor if it has not come by ${it.format(dayMonth)}." } ?: ""),
+                        (doctorPoint?.let { doctorLine(it) } ?: ""),
                     style = MaterialTheme.typography.bodySmall,
                     color = ink.copy(alpha = 0.78f),
                     modifier = Modifier.padding(end = 96.dp),

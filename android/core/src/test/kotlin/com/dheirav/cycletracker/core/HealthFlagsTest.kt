@@ -130,7 +130,9 @@ class HealthFlagsTest {
         )
 
         val flag = flags.single { it.kind == HealthFlagKind.PERIOD_LATE }
-        assertTrue(flag.headline, flag.headline.contains("10 days"))
+        // Expected 29 Jun (1 Jun + 28); 8 Jul is 9 days past it. The old count, cycle day 38 minus 28,
+        // said 10, counting the expected day itself as late.
+        assertTrue(flag.headline, flag.headline.contains("9 days past the expected date"))
     }
 
     @Test
@@ -219,13 +221,14 @@ class HealthFlagsTest {
         val assumed = HealthFlags.evaluate(
             oneObserved, date("2026-07-08"), 28, lengthSource = LengthSource.APP_DEFAULT,
         ).single { it.kind == HealthFlagKind.PERIOD_LATE }
+        // A stated 31 days puts the expected date at 2 Jul; 9 Jul is the seventh day past it.
         val stated = HealthFlags.evaluate(
-            oneObserved, date("2026-07-08"), 31, lengthSource = LengthSource.USER_STATED,
+            oneObserved, date("2026-07-09"), 31, lengthSource = LengthSource.USER_STATED,
         )
 
         assertTrue(assumed.detail, assumed.detail.contains("the app assumes is 28 days"))
         assertFalse(assumed.detail, assumed.detail.contains("usually"))
-        // 31 days stated, so day 38 is exactly 7 days over: flagged at the default threshold.
+        // Exactly 7 days past the expected date: flagged at the default threshold.
         val statedLate = stated.single { it.kind == HealthFlagKind.PERIOD_LATE }
         assertTrue(statedLate.detail, statedLate.detail.contains("you set at 31 days"))
     }

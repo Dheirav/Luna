@@ -57,15 +57,6 @@ data class PeriodWindow(
      * From then on these dates are a record of what was expected, not a forecast.
      */
     fun hasPassed(on: LocalDate): Boolean = on.isAfter(latest)
-
-    /**
-     * Whole days since the window's last day, or 0 while the window is still open.
-     *
-     * This is what the screens call "late". The engine's own `daysLate` (§4) counts from the single
-     * centre date, which is right for confidence arithmetic and wrong on screen: the hero said "2 days
-     * later than expected" while the card beneath it still showed the window as open.
-     */
-    fun daysPast(on: LocalDate): Int = if (hasPassed(on)) daysBetween(latest, on) else 0
 }
 
 /**

@@ -198,6 +198,14 @@ daysLate = max(0, cycleDay - expectedCycleLength)
 `cycleDay` is allowed to exceed `expectedCycleLength`. Being late is information the app should
 surface, not arithmetic to be hidden.
 
+**Clarified 2026-10-05: `daysLate` is not what is shown as "late".** `daysLate` is the cycle's overrun
+of its expected length, used by the confidence arithmetic (§5.3), and it counts the expected start day
+itself, so it reads one higher than clinicians count. Anything shown to a person counts days after the
+**expected start date** (`cycleStart + expectedCycleLength`), says nothing until the predicted window
+has passed, and suggests seeing a doctor at the secondary amenorrhea threshold: three months since the
+last period began, or six when observed cycles spread more than nine days (FIGO, AAFP, ASRM). See
+`core/LateGuidance.kt`.
+
 If `targetDate` precedes the current cycle's start, resolve it against whichever cycle contains it.
 
 ---

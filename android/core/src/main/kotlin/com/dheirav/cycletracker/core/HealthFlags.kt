@@ -165,15 +165,18 @@ object HealthFlags {
                 val open = projection.currentCycle?.takeIf { it.isOpen }
                 if (open != null) {
                     val dayOfCycle = daysBetween(open.start, today) + 1
-                    val late = dayOfCycle - expectedCycleLength
+                    // Counted from the expected start date, as clinicians count it (see LateGuidance).
+                    // It was cycle day minus cycle length, one higher, and disagreed with Today.
+                    val expected = open.start.plusDays(expectedCycleLength.toLong())
+                    val late = LateGuidance.daysPastExpected(open.start, expectedCycleLength, today)
                     if (late >= config.lateByDays) {
                         flags += HealthFlag(
                             kind = HealthFlagKind.PERIOD_LATE,
-                            headline = "Period is $late days later than expected",
-                            detail = "You are on day $dayOfCycle of a cycle " +
+                            headline = "Period is $late days past the expected date",
+                            detail = "Expected around ${expected.format(FLAG_DATE)}, from a cycle " +
                                 lengthClause(expectedCycleLength, lengthSource) +
-                                ". Stress, illness, travel and sleep all shift this, and one " +
-                                "late cycle on its own is common.",
+                                "; today is day $dayOfCycle. Stress, illness, travel and sleep all " +
+                                "shift this, and one late cycle on its own is common.",
                             on = today,
                         )
                     }

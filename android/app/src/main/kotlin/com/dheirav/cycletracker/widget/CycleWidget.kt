@@ -11,6 +11,7 @@ import android.widget.RemoteViews
 import com.dheirav.cycletracker.CycleTrackerApp
 import com.dheirav.cycletracker.MainActivity
 import com.dheirav.cycletracker.R
+import com.dheirav.cycletracker.core.LateGuidance
 import com.dheirav.cycletracker.core.Phase
 import com.dheirav.cycletracker.core.PeriodWindow
 import com.dheirav.cycletracker.data.Settings
@@ -171,10 +172,11 @@ private suspend fun buildViews(context: Context): RemoteViews {
         R.id.widget_detail,
         buildString {
             when {
-                // Lateness beats the window, but only once the window has passed: counted from its
-                // last day, the same as Today's hero, so the two can never disagree.
-                window != null && window.daysPast(today) > 0 ->
-                    window.daysPast(today).let { append("$it day${if (it == 1) "" else "s"} past window") }
+                // Lateness beats the window, but only once the window has passed, and counted from
+                // the expected date, the same as Today's hero, so the two can never disagree.
+                window != null && window.hasPassed(today) && state.cycleStart != null ->
+                    LateGuidance.daysPastExpected(state.cycleStart!!, state.expectedCycleLength, today)
+                        .let { append("$it day${if (it == 1) "" else "s"} late") }
                 window != null -> append("Next ${windowLabel(window)}")
                 else -> append("Tap to log")
             }

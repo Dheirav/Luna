@@ -38,7 +38,7 @@ Governing rules (full list in the plan artifact):
 | | Verified how |
 |---|---|
 | Phase 0 — spec + golden fixture | 34 cases, `spec/cycle_fixtures.json` |
-| Cycle/period/phase engine (`:core`) | `./gradlew :core:test`: **163 tests, all pass** (plus 54 in `:app`, and 5 instrumented) |
+| Cycle/period/phase engine (`:core`) | `./gradlew :core:test`: **168 tests, all pass** (plus 54 in `:app`, and 5 instrumented) |
 | Encrypted backup codec | 11 tests incl. tamper detection, wrong-passphrase, no-plaintext-leak |
 | Forecast window / prediction scorer | 16 + 13 tests |
 | Health flags, symptom patterns, clinical summary | 14 + 12 + 11 tests |
@@ -527,9 +527,14 @@ batch is in, checked on the Redmi in both themes:
 - **Widgets default to discreet**, keeping "Logged ✓". While the app is locked its content is cleared
   from the accessibility tree, not only covered.
 - `LogDao.replaceDay` writes a day in one transaction and keeps `raw_text`.
-- "Late" on Today and the widget is `PeriodWindow.daysPast`, counted from the window's last day; the
-  engine's `daysLate` (§4) is unchanged. Past the window the hero adds a doctor point at window end
-  plus six weeks, with no pregnancy line, by decision. Late and absent flags need an observed anchor
+- **Lateness follows clinical convention (decided 5 Oct, after checking FIGO, AAFP, ASRM and clinic
+  guidance), in `core/LateGuidance.kt`.** Today, the widget, the flag and the doctor summary all count
+  days after the expected start date, and say nothing until the predicted window has passed. The
+  doctor point is the secondary amenorrhea threshold: three months since the last period began, or
+  six when observed cycles spread more than nine days. No pregnancy line, by decision. The engine's
+  `daysLate` (§4) is unchanged and reads one higher, since it counts the expected day itself; it is
+  for the confidence arithmetic only. An earlier version counted from the window's end and put the
+  doctor point at window end plus six weeks, a threshold the app had invented. Late and absent flags need an observed anchor
   and word an assumed length as assumed.
 - Light theme `primary` is `#A8336A` and `surfaceContainer*` are set explicitly; the old `#E0669B`
   failed contrast everywhere it was used. Switch rows are `SwitchRow`, one toggleable node each. At
