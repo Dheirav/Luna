@@ -81,8 +81,10 @@ also lovely.
      day 40 is day 12.
    - *Estimated vs observed.* Phases are worked out, not measured, so the arcs should be soft tints
      and any estimated segment dashed, the same language as the calendar.
-2. **A rounded typeface** for headings: Nunito, bundled, about 150 KB. Every app above has a
-   distinctive type voice and Luna has the phone's default. Cheap, and it changes every screen at once.
+2. ~~A rounded typeface for headings.~~ **Tried and rejected on 8 Oct.** Nunito was bundled and put
+   on the phone, and the system face was preferred. (The build that was seen rendered Nunito at its
+   ExtraLight default because of a weight bug, which was then fixed, but the decision was to keep
+   the system face.) Do not propose it again; the spark has to come from elsewhere.
 3. **Icons on the log form**, one per row label (a drop for bleeding, a bolt for energy, a moon for
    sleep, a small cloud for mood). Drawn in the same style as the existing sparkles and hearts.
    These label categories, so they do not break the "nothing decorative on the log screen" rule, but
@@ -103,8 +105,8 @@ also lovely.
 - **Streaks.** None of the sources mention them for these apps, and for a health log a broken streak
   is a reason to stop, which works against the logging habit.
 
-My recommendation is to do 1 and 2 together. The ring is the structural change that makes Today look
-like a cycle tracker at a glance, and the font is what makes every other screen feel finished.
+The ring (1) is the structural change that makes Today look like a cycle tracker at a glance. With
+the font ruled out, the icons (3) and the save moment (4) are what carry the feel to other screens.
 
 ## Sources
 

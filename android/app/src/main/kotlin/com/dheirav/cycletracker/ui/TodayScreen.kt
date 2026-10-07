@@ -24,6 +24,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.drawWithContent
+import java.time.temporal.ChronoUnit
 import com.dheirav.cycletracker.ui.theme.SparkleCluster
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.graphics.lerp
@@ -68,7 +71,6 @@ import com.dheirav.cycletracker.core.PredictionAccuracy
 import com.dheirav.cycletracker.core.PredictionBasis
 import com.dheirav.cycletracker.core.WindowBasis
 import com.dheirav.cycletracker.reminder.ReminderScheduler
-import com.dheirav.cycletracker.ui.theme.Cloud
 import com.dheirav.cycletracker.ui.theme.Heart
 import com.dheirav.cycletracker.ui.theme.MascotCloud
 import com.dheirav.cycletracker.ui.theme.MascotMood
@@ -230,6 +232,18 @@ fun TodayScreen(
                     ?.let { LateGuidance.daysPastExpected(it, state.expectedCycleLength, ui.today) } ?: 0,
                 doctorPoint = state.cycleStart?.let { LateGuidance.doctorPoint(ui.projection, it) },
                 mood = mascotMoodFor(ui.todayMood),
+                ring = state.cycleStart?.let { start ->
+                    // The window as cycle days, and only while it is still ahead or open.
+                    val window = ui.window?.takeUnless { it.hasPassed(ui.today) }
+                    ringGeometry(
+                        cycleDay = state.cycleDay ?: 1,
+                        expectedLength = state.expectedCycleLength,
+                        periodLength = state.periodLength,
+                        ovulationDay = state.ovulationDay,
+                        windowStartDay = window?.let { ChronoUnit.DAYS.between(start, it.earliest).toInt() + 1 },
+                        windowEndDay = window?.let { ChronoUnit.DAYS.between(start, it.latest).toInt() + 1 },
+                    )
+                },
                 onClick = onPhaseGuide,
             )
         }
@@ -345,7 +359,7 @@ private fun Header(today: java.time.LocalDate, onSettings: () -> Unit) {
  *
  * All the ornament lives here on purpose. Every reference that read as "neat" concentrated its
  * decoration in a hero and left the content below plain; the one criticised as cluttered spread
- * it everywhere. So: gradient, scalloped edge, clouds and sparkles here — and nothing below.
+ * it everywhere. So: gradient, scalloped edge, the ring and sparkles here, and nothing below.
  *
  * §5.2 — an observed bleed beats any computed phase, so bleeding takes the menstruation palette
  * whatever the arithmetic says.
@@ -363,6 +377,7 @@ private fun CycleHero(
     daysPast: Int,
     doctorPoint: LateGuidance.DoctorPoint?,
     mood: MascotMood,
+    ring: RingGeometry?,
     onClick: () -> Unit,
 ) {
     val cycle = MaterialTheme.cycleColors
@@ -371,9 +386,8 @@ private fun CycleHero(
         ?: (MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.primaryContainer)
     val ink = cycle.onPhase
 
-    // Ornament derives from the text colour, so it stays legible on all four gradients in both
+    // Ornament below derives from the text colour, so it stays legible on all four gradients in both
     // schemes. Hardcoded white worked on pale pastels and turned to grey smudges on dark ones.
-    val ornament = ink.copy(alpha = 0.26f)
 
     Box(
         modifier = Modifier
@@ -387,59 +401,37 @@ private fun CycleHero(
             // gives no hint that tapping does anything at all.
             .clickable(onClickLabel = "Read about this phase", onClick = onClick),
     ) {
-        Cloud(
-            color = ornament.copy(alpha = 0.18f),
-            width = 44.dp,
-            modifier = Modifier.align(Alignment.TopEnd).offset(x = (-96).dp, y = 20.dp),
-        )
+        // Ornament anchors to the edges the text does not occupy: around the ring on the right, never
+        // the bottom-left, where the text column ends up and where it grows at larger font scales.
+        // The hearts once sat at BottomStart and ran straight through "of a 28-day cycle" on the Redmi.
         Sparkle(
             color = ink.copy(alpha = 0.5f),
-            size = 15.dp,
-            modifier = Modifier.align(Alignment.TopStart).offset(x = 150.dp, y = 20.dp),
+            size = 14.dp,
+            modifier = Modifier.align(Alignment.TopEnd).offset(x = (-12).dp, y = 14.dp),
         )
         Sparkle(
             color = ink.copy(alpha = 0.32f),
             size = 9.dp,
-            modifier = Modifier.align(Alignment.TopStart).offset(x = 176.dp, y = 44.dp),
+            modifier = Modifier.align(Alignment.TopEnd).offset(x = (-146).dp, y = 132.dp),
         )
-        // Hearts belong in the right-hand margin, under the mascot — **not** anchored to
-        // BottomStart, which is where they were and which put them straight through
-        // "of a 28-day cycle" and "What this phase is like →" on the Redmi at 440dpi.
-        //
-        // The rule this card follows: ornament anchors to the edge the text does not occupy. The
-        // text column is left-aligned and its longest line is short, so the right side is safe while
-        // the bottom-left is exactly where the text ends up — and it moves further into that corner
-        // at larger font scales, which is what made the collision certain rather than unlucky.
         Heart(
             color = ink.copy(alpha = 0.30f),
-            size = 12.dp,
-            modifier = Modifier.align(Alignment.TopEnd).offset(x = (-52).dp, y = 106.dp),
+            size = 11.dp,
+            modifier = Modifier.align(Alignment.TopEnd).offset(x = (-14).dp, y = 150.dp),
         )
         Heart(
             color = ink.copy(alpha = 0.18f),
-            size = 8.dp,
-            modifier = Modifier.align(Alignment.TopEnd).offset(x = (-30).dp, y = 122.dp),
-        )
-
-        // The mascot. Sits clear of the text column and carries no information of its own.
-        //
-        // Its colours are stated in the theme rather than taken from `ink` and `bottom` here. Those
-        // made it invert with the text, which is right in dark mode and wrong in light — see
-        // CycleColors.mascotBody.
-        MascotCloud(
-            body = cycle.mascotBody,
-            face = cycle.mascotFace,
-            blush = cycle.bleeding.copy(alpha = 0.45f),
-            mood = mood,
-            width = 84.dp,
-            modifier = Modifier.align(Alignment.TopEnd).offset(x = (-18).dp, y = 30.dp),
+            size = 7.dp,
+            modifier = Modifier.align(Alignment.TopEnd).offset(x = (-30).dp, y = 164.dp),
         )
 
         Column(
             // Extra bottom padding clears the scallop, which eats into the lower edge.
-            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 38.dp),
+            modifier = Modifier.padding(start = 24.dp, end = 20.dp, top = 22.dp, bottom = 38.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
+          Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+           Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 "DAY $cycleDay",
                 style = MaterialTheme.typography.labelSmall,
@@ -447,15 +439,13 @@ private fun CycleHero(
                 // text measured 3.75 to 4.5:1 on the lighter gradients (council review A3).
                 color = ink.copy(alpha = 0.85f),
             )
-            Text(
+            // One line that shrinks rather than breaking "Follicular" mid-word beside the ring.
+            ShrinkToFit(
                 if (isBleeding) "Period" else {
                     phase?.let(::phaseName) ?: "Unknown"
                 },
                 style = MaterialTheme.typography.displaySmall,
                 color = ink,
-                // Clears the mascot in the top-right corner. Without it, "Menstruation" at large text
-                // ran underneath the cloud.
-                modifier = Modifier.padding(end = 96.dp),
             )
             Text(
                 lengthPhrase,
@@ -468,6 +458,31 @@ private fun CycleHero(
                 color = ink.copy(alpha = 0.85f),
                 modifier = Modifier.padding(top = 8.dp),
             )
+           }
+            Spacer(Modifier.width(8.dp))
+            // The mascot sits inside the ring. Its colours are stated in the theme rather than taken
+            // from `ink` here, which made it invert with the text: right in dark mode, wrong in light
+            // (see CycleColors.mascotBody). Its face comes from today's logged mood, never the phase.
+            val mascot = @Composable { size: androidx.compose.ui.unit.Dp ->
+                MascotCloud(
+                    body = cycle.mascotBody,
+                    face = cycle.mascotFace,
+                    blush = cycle.bleeding.copy(alpha = 0.45f),
+                    mood = mood,
+                    width = size,
+                )
+            }
+            if (ring != null) {
+                CycleRing(
+                    geometry = ring,
+                    ink = ink,
+                    period = cycle.bleeding,
+                    halo = lerp(top, bottom, 0.3f),
+                ) { mascot(58.dp) }
+            } else {
+                mascot(84.dp)
+            }
+          }
             if (daysPast > 0) {
                 Spacer(Modifier.width(6.dp))
                 Text(
@@ -482,11 +497,32 @@ private fun CycleHero(
                         (doctorPoint?.let { doctorLine(it) } ?: ""),
                     style = MaterialTheme.typography.bodySmall,
                     color = ink.copy(alpha = 0.85f),
-                    modifier = Modifier.padding(end = 96.dp),
                 )
             }
         }
     }
+}
+
+/**
+ * One line that steps its size down until it fits, to 60% of the style at most, and only draws once
+ * it does. Compose on this BOM has no auto-size text.
+ */
+@Composable
+private fun ShrinkToFit(text: String, style: androidx.compose.ui.text.TextStyle, color: Color) {
+    val full = style.fontSize.value
+    var size by remember(text, full) { mutableStateOf(full) }
+    var fits by remember(text, full) { mutableStateOf(false) }
+    Text(
+        text,
+        style = style.copy(fontSize = size.sp),
+        color = color,
+        maxLines = 1,
+        softWrap = false,
+        onTextLayout = { layout ->
+            if (layout.hasVisualOverflow && size > full * 0.6f) size -= 1f else fits = true
+        },
+        modifier = Modifier.drawWithContent { if (fits) drawContent() },
+    )
 }
 
 /**

@@ -96,6 +96,12 @@ data class CycleState(
     val nextPeriodExpected: LocalDate?,
     val cycleLengthVariability: Double?,
     val isBleeding: Boolean,
+    /**
+     * The period length the phase boundaries were built from: the period's own span once it has
+     * closed, at least the expected length while it may still be going (§5.1). Carried so that
+     * anything drawing the phases uses the boundaries [phase] came from, not a second guess at them.
+     */
+    val periodLength: Int? = null,
 ) {
     val hasData: Boolean get() = cycleDay != null
 }

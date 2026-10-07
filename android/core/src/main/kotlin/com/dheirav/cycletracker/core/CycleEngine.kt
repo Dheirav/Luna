@@ -97,6 +97,7 @@ class CycleEngine(
             nextPeriodExpected = cycle.start.plusDays(expectedCycleLength.toLong()),
             cycleLengthVariability = variability,
             isBleeding = isBleeding,
+            periodLength = periodLength,
         )
     }
 
