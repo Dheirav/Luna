@@ -60,6 +60,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -194,7 +196,10 @@ fun LogScreen(viewModel: LogViewModel, onDone: () -> Unit) {
                 )
             }
 
-            TextButton(onClick = viewModel::toggleExtended) {
+            TextButton(
+                onClick = viewModel::toggleExtended,
+                modifier = Modifier.semantics { stateDescription = if (ui.showExtended) "Expanded" else "Collapsed" },
+            ) {
                 // Named for what is actually behind it. "mood" moved to the core rows on 2026-08-12,
                 // so leaving it in this label would send someone hunting for a field already on screen.
                 Text(if (ui.showExtended) "Fewer" else "More — irritability, anxiety, stress")
@@ -363,7 +368,12 @@ private fun DayHeader(date: LocalDate, onPick: (LocalDate) -> Unit) {
             onClick = { picking = true },
             modifier = Modifier.semantics { contentDescription = "${dayLabel(date)}. Choose another day" },
         ) {
-            Text(dayLabel(date), style = MaterialTheme.typography.titleLarge)
+            // Announced when the day changes, since the arrows keep focus on themselves.
+            Text(
+                dayLabel(date),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
         }
         IconButton(onClick = { onPick(date.plusDays(1)) }, enabled = date.isBefore(today)) {
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next day")

@@ -32,6 +32,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -268,7 +270,7 @@ private fun Header(today: java.time.LocalDate, onSettings: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column {
-            Text("Today", style = MaterialTheme.typography.headlineMedium)
+            Text("Today", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
             Text(
                 today.format(fullDate),
                 style = MaterialTheme.typography.bodySmall,
@@ -384,7 +386,9 @@ private fun CycleHero(
             Text(
                 "DAY $cycleDay",
                 style = MaterialTheme.typography.labelSmall,
-                color = ink.copy(alpha = 0.7f),
+                // 0.85 at least, for every secondary line on the hero: at 0.70 to 0.78 the smaller
+                // text measured 3.75 to 4.5:1 on the lighter gradients (council review A3).
+                color = ink.copy(alpha = 0.85f),
             )
             Text(
                 if (isBleeding) "Period" else {
@@ -399,12 +403,12 @@ private fun CycleHero(
             Text(
                 lengthPhrase,
                 style = MaterialTheme.typography.bodyMedium,
-                color = ink.copy(alpha = 0.78f),
+                color = ink.copy(alpha = 0.85f),
             )
             Text(
                 "What this phase is like →",
                 style = MaterialTheme.typography.labelSmall,
-                color = ink.copy(alpha = 0.72f),
+                color = ink.copy(alpha = 0.85f),
                 modifier = Modifier.padding(top = 8.dp),
             )
             if (daysPast > 0) {
@@ -420,7 +424,7 @@ private fun CycleHero(
                     "Stress, illness, travel and sleep all shift this. One late cycle is common." +
                         (doctorPoint?.let { doctorLine(it) } ?: ""),
                     style = MaterialTheme.typography.bodySmall,
-                    color = ink.copy(alpha = 0.78f),
+                    color = ink.copy(alpha = 0.85f),
                     modifier = Modifier.padding(end = 96.dp),
                 )
             }
@@ -617,6 +621,7 @@ private fun WhyCard(basis: PredictionBasis?, accuracy: PredictionAccuracy?, stat
                         } else {
                             "Show the working behind these numbers"
                         }
+                        stateDescription = if (expanded) "Expanded" else "Collapsed"
                     },
                 ) { Text(if (expanded) "Hide" else "Show") }
             }

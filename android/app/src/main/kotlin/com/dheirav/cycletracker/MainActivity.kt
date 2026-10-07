@@ -7,6 +7,7 @@ import android.content.pm.ApplicationInfo
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
+import android.view.accessibility.AccessibilityManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -34,6 +35,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -167,8 +170,10 @@ class MainActivity : ComponentActivity() {
                         actionLabel = "Undo",
                         // Long, not Short. Short is about four seconds, which on the Redmi was gone
                         // before Undo could be reached; an undo that expires while you read it is
-                        // not one you can use.
-                        duration = SnackbarDuration.Long,
+                        // not one you can use. With TalkBack on it waits indefinitely: Undo sits at
+                        // the bottom of the screen, behind every other element in swipe order, and
+                        // ten seconds is not enough to reach it (council review A6, WCAG 2.2.1).
+                        duration = if (touchExploration()) SnackbarDuration.Indefinite else SnackbarDuration.Long,
                     )
                     if (result == SnackbarResult.ActionPerformed) logVm.undo(undoable)
                 }
@@ -230,7 +235,9 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            Box(Modifier.padding(padding)) {
+            // A pane title per screen, so a screen reader announces where it has landed; the content
+            // used to swap with nothing said and focus left wherever it was.
+            Box(Modifier.padding(padding).semantics { paneTitle = screen.title() }) {
                 when (screen) {
                     Screen.TODAY -> TodayScreen(
                         viewModel = todayVm,
@@ -318,6 +325,19 @@ class MainActivity : ComponentActivity() {
             }
         }
         }
+    }
+
+    private fun touchExploration(): Boolean =
+        (getSystemService(ACCESSIBILITY_SERVICE) as? AccessibilityManager)?.isTouchExplorationEnabled == true
+
+    private fun Screen.title(): String = when (this) {
+        Screen.TODAY -> "Today"
+        Screen.LOG -> "Log"
+        Screen.HISTORY -> "History"
+        Screen.SETTINGS -> "Settings"
+        Screen.PHASE_GUIDE -> "About this phase"
+        Screen.ONBOARDING -> "Welcome"
+        Screen.SUMMARY -> "Summary for a doctor"
     }
 
     /** Which tour screen this is, or null for screens the tour does not visit. */

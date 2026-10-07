@@ -49,13 +49,15 @@
         android:ellipsize="end"
         android:text="Day 16 · Luteal" />
 
+    <!-- The main text colour, not the muted one: this line sits on the phase tint, where the muted
+         grey measured 3.7:1 on the pinks and lilacs (council review A3). Size keeps it secondary. -->
     <TextView
         android:id="@+id/widget_detail"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="2dp"
         android:textSize="12sp"
-        android:textColor="@color/widget_muted"
+        android:textColor="@color/widget_text"
         android:maxLines="1"
         android:ellipsize="end"
         android:text="Next 1–9 Jan" />

@@ -237,8 +237,10 @@ private val DarkCycleColors = CycleColors(
      */
     phase = mapOf(
         Phase.MENSTRUATION to (Color(0xFF5B2050) to Color(0xFF7A2C6B)),
-        Phase.FOLLICULAR to (Color(0xFF12564A) to Color(0xFF1B7565)),
-        Phase.OVULATION to (Color(0xFFA83F55) to Color(0xFFC85A63)),
+        // Follicular and ovulation darkened on 5 Oct 2026: the light text on them measured 4.1 and
+        // 3.8:1 even at full strength. These keep every hero line at 4.5:1 or better at 0.85 opacity.
+        Phase.FOLLICULAR to (Color(0xFF10503F) to Color(0xFF186B5A)),
+        Phase.OVULATION to (Color(0xFF86303F) to Color(0xFF9C414C)),
         Phase.LUTEAL to (Color(0xFF3E2B84) to Color(0xFF553BAE)),
     ),
     onPhase = Color(0xFFFDF2F7),

@@ -40,6 +40,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.selection.toggleable
@@ -293,7 +296,11 @@ private fun ReminderCard(settings: Settings) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("At", style = MaterialTheme.typography.bodyMedium)
-            TextButton(onClick = { picking = true }, enabled = enabled) {
+            TextButton(
+                onClick = { picking = true },
+                enabled = enabled,
+                modifier = Modifier.semantics { contentDescription = "Reminder time, ${time.format(clock)}. Change" },
+            ) {
                 Text(time.format(clock), style = MaterialTheme.typography.titleMedium)
             }
         }
@@ -340,7 +347,10 @@ private fun ReminderCard(settings: Settings) {
             // No toggle while a fault holds the details open: a "Hide" that did nothing would be
             // worse than none.
             if (headline?.problem != true) {
-                TextButton(onClick = { showDetails = !showDetails }) {
+                TextButton(
+                    onClick = { showDetails = !showDetails },
+                    modifier = Modifier.semantics { stateDescription = if (showDetails) "Expanded" else "Collapsed" },
+                ) {
                     Text(if (showDetails) "Hide" else "Details")
                 }
             }
@@ -676,7 +686,10 @@ internal fun SettingsCard(title: String, about: String? = null, content: @Compos
                         .semantics { heading() },
                 )
                 if (about != null) {
-                    IconButton(onClick = { showAbout = !showAbout }) {
+                    IconButton(
+                        onClick = { showAbout = !showAbout },
+                        modifier = Modifier.semantics { stateDescription = if (showAbout) "Expanded" else "Collapsed" },
+                    ) {
                         Icon(
                             Icons.Outlined.Info,
                             contentDescription = if (showAbout) "Hide details about $title" else "About $title",
@@ -735,7 +748,9 @@ internal fun Stepper(
                 value?.let { "$it days" } ?: unset,
                 style = MaterialTheme.typography.titleSmall,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.width(76.dp),
+                // Read out when it changes: a stepper press keeps focus on the button, so the new value was
+                // never spoken (council review A6).
+                modifier = Modifier.width(76.dp).semantics { liveRegion = LiveRegionMode.Polite },
             )
             FilledTonalIconButton(
                 onClick = { onChange(((value ?: default - 1) + 1).coerceIn(range)) },

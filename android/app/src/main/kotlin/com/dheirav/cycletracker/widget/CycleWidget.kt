@@ -169,29 +169,27 @@ private suspend fun buildViews(context: Context): RemoteViews {
     views.setTextViewText(R.id.widget_headline, "Day ${state.cycleDay} · $phaseName")
 
     val loggedToday = dao.logFor(today) != null
-    views.setTextViewText(
-        R.id.widget_detail,
-        buildString {
-            when {
-                // Lateness beats the window, but only once the window has passed, and counted from
-                // the expected date, the same as Today's hero, so the two can never disagree.
-                window != null && window.hasPassed(today) && state.cycleStart != null ->
-                    LateGuidance.daysPastExpected(state.cycleStart!!, state.expectedCycleLength, today)
-                        .let { append("$it day${if (it == 1) "" else "s"} late") }
-                // "Est." for a window drawn from a typical spread rather than this person's cycles,
-                // the distinction Today's card spells out and the widget used to drop.
-                window != null -> append(
-                    (if (window.basis == WindowBasis.ASSUMED) "Est. " else "Next ") + windowLabel(window),
-                )
-                else -> append("Tap to log")
-            }
-            // The tick is what the removed action line uniquely carried. "Tap to log today" was
-            // instruction — the whole widget has always been the tap target — but "have I logged
-            // today" is the question this widget exists to answer at a glance, and adherence is the
-            // constraint everything analytical here depends on. So the tick survives the shrink.
-            if (loggedToday) append(" · logged ✓")
-        },
-    )
+    val detail = buildString {
+        when {
+            // Lateness beats the window, but only once the window has passed, and counted from
+            // the expected date, the same as Today's hero, so the two can never disagree.
+            window != null && window.hasPassed(today) && state.cycleStart != null ->
+                LateGuidance.daysPastExpected(state.cycleStart!!, state.expectedCycleLength, today)
+                    .let { append("$it day${if (it == 1) "" else "s"} late") }
+            // "Est." for a window drawn from a typical spread rather than this person's cycles,
+            // the distinction Today's card spells out and the widget used to drop.
+            window != null -> append(
+                (if (window.basis == WindowBasis.ASSUMED) "Est. " else "Next ") + windowLabel(window),
+            )
+            else -> append("Tap to log")
+        }
+        // The tick is what the removed action line uniquely carried. "Tap to log today" was
+        // instruction — the whole widget has always been the tap target — but "have I logged
+        // today" is the question this widget exists to answer at a glance, and adherence is the
+        // constraint everything analytical here depends on. So the tick survives the shrink.
+        if (loggedToday) append(" · logged ✓")
+    }
+    views.setTextViewText(R.id.widget_detail, detail)
 
     // Without this a screen reader reads the lines as disconnected fragments — "Day 16 · Luteal",
     // "Next 1–9 Jan" — with no indication they are one tappable card.
@@ -199,15 +197,14 @@ private suspend fun buildViews(context: Context): RemoteViews {
     // It spells the window out in full rather than reusing [windowLabel]. That function drops the
     // repeated month to save horizontal space, which a screen reader does not have to care about,
     // and "21 to 29 Aug" spoken aloud is worse than the two complete dates.
+    // Spoken from the same strings that are drawn, so what is heard is what is shown: it used to
+    // announce the expected window while the screen said "3 days late", and the raw phase name
+    // while the screen said "Period" (council review A7, WCAG 2.5.3).
     views.setContentDescription(
         R.id.widget_root,
-        "Luna. Day ${state.cycleDay}, ${state.phase?.name?.lowercase() ?: "phase unknown"}. " +
-            (window?.let {
-                "Period expected between ${it.earliest.format(dayMonth)} and " +
-                    "${it.latest.format(dayMonth)}. "
-            } ?: "") +
-            (if (loggedToday) "Today is logged. " else "") +
-            "Tap to log today.",
+        "Luna. Day ${state.cycleDay}, $phaseName. " +
+            detail.replace(" · logged ✓", ". Today is logged").replace("–", " to ") +
+            ". Tap to log today.",
     )
     return views
 }

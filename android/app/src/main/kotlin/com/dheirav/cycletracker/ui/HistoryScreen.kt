@@ -28,6 +28,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -265,6 +267,8 @@ private fun MonthHeader(month: YearMonth, canGoForward: Boolean, onShift: (Long)
             Text(
                 month.format(DateTimeFormatter.ofPattern("MMMM yyyy")),
                 style = MaterialTheme.typography.titleLarge,
+                // Announced when the month changes; the arrows keep focus on themselves.
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
             Sparkle(
                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
