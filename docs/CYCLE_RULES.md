@@ -169,6 +169,13 @@ observed count, and the period still in progress (see §5.1) is left out. The im
 counting estimated periods and the current partial one, so a two-day-old period pulled the median
 down while it was still going.
 
+**Clarified 2026-10-08:** "observed" means every bleeding day in the period was logged. A period's
+source is set by its start day (§3.2), which is right for cycle length because a cycle is measured
+start to start. It is not enough for period length: a logged first day followed by backfilled days
+was counted as an observed period of the full span. Such a period now records how many of its days
+were estimated, is left out of this median and of the prolonged-bleeding flag, and the doctor
+summary tags it and states the split ("5 days, 1 logged, 4 estimated").
+
 ---
 
 ## 4. Cycle day

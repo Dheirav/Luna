@@ -27,10 +27,33 @@ data class Period(
     val spanDays: Int,
     val bleedingDayCount: Int,
     val source: Source = Source.OBSERVED,
+    /**
+     * Bleeding days in this period that came from backfill rather than a log.
+     *
+     * [source] is decided by the start day alone, which is right for what it feeds: a cycle's
+     * length is measured from start to start, so a logged start is a genuine observation however
+     * the rest was filled in. A period's *length* is not. A logged first day followed by four
+     * backfilled ones was counted as a five-day observed period, in the period-length median, the
+     * prolonged-bleeding flag and the doctor summary (device review B1, 8 Oct 2026).
+     */
+    val assumedDayCount: Int = 0,
 ) {
     init {
         require(!end.isBefore(start)) { "period end $end precedes start $start" }
     }
+
+    /**
+     * Bleeding days that were estimated. A period given directly as [Source.ASSUMED] (a backfill
+     * seed, which carries no per-day detail) is estimated throughout.
+     */
+    val estimatedDayCount: Int
+        get() = if (source == Source.ASSUMED && assumedDayCount == 0) bleedingDayCount else assumedDayCount
+
+    /** Every day of it was logged. The test for anything that uses the period's length. */
+    val whollyObserved: Boolean get() = source == Source.OBSERVED && estimatedDayCount == 0
+
+    /** Bleeding days the user logged themselves. */
+    val loggedDayCount: Int get() = bleedingDayCount - estimatedDayCount
 }
 
 /** A bleeding span rejected as a cycle start by §2.2. Recorded, not discarded — it is a health-flag input. */

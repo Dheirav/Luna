@@ -132,10 +132,11 @@ object CycleStats {
         /** A period still in progress, whose span so far is not a length yet. */
         exclude: Period? = null,
     ): Int {
-        // §3.1: finished, observed periods only. It used to count estimated periods and the partial
-        // current one, so a two-day-old period pulled the median down while it was still going.
+        // §3.1: finished, wholly observed periods only. It used to count estimated periods and the
+        // partial current one, so a two-day-old period pulled the median down while it was still
+        // going; and until 8 Oct 2026 a logged first day with a backfilled tail counted as observed.
         val spans = periods
-            .filter { it.source == Source.OBSERVED && it != exclude }
+            .filter { it.whollyObserved && it != exclude }
             .takeLast(config.cycleLengthSampleSize)
             .map { it.spanDays }
         return when {

@@ -91,6 +91,13 @@ class CycleSnapshot private constructor(
 
             val basis = Forecast.basis(projection.cycles, settings.typicalCycleLength, config)
             val gaps = UnloggedGaps.find(bleeding, loggedDays, config)
+            val window = Forecast.periodWindow(
+                cycleStart = state.cycleStart,
+                expectedCycleLength = state.expectedCycleLength,
+                cycles = projection.cycles,
+                config = config,
+                forecastConfig = ForecastConfig(spreadMultiplier = settings.windowSpread),
+            )
 
             return CycleSnapshot(
                 today = today,
@@ -99,13 +106,7 @@ class CycleSnapshot private constructor(
                 noBleedingDays = noBleedingDays,
                 settings = settings,
                 state = state,
-                window = Forecast.periodWindow(
-                    cycleStart = state.cycleStart,
-                    expectedCycleLength = state.expectedCycleLength,
-                    cycles = projection.cycles,
-                    config = config,
-                    forecastConfig = ForecastConfig(spreadMultiplier = settings.windowSpread),
-                ),
+                window = window,
                 basis = basis,
                 flags = HealthFlags.evaluate(
                     projection = projection,
@@ -115,6 +116,7 @@ class CycleSnapshot private constructor(
                     lengthSource = basis.source,
                     heldSpotting = gaps.map { it.resumesOn }.toSet(),
                     painByDate = painByDate,
+                    window = window,
                 ),
                 unloggedGaps = gaps,
                 engine = engine,

@@ -47,6 +47,7 @@ object CycleProjector {
                     spanDays = daysBetween(span.start, span.end) + 1,
                     bleedingDayCount = span.count,
                     source = if (span.start in assumedDays) Source.ASSUMED else Source.OBSERVED,
+                    assumedDayCount = span.days.count { it in assumedDays },
                 )
                 lastAcceptedStart = span.start
             } else {
@@ -70,28 +71,27 @@ object CycleProjector {
 
     // -- internals --------------------------------------------------------
 
-    private data class Span(val start: LocalDate, val end: LocalDate, val count: Int)
+    private data class Span(val days: List<LocalDate>) {
+        val start: LocalDate get() = days.first()
+        val end: LocalDate get() = days.last()
+        val count: Int get() = days.size
+    }
 
     /** §2.1 — consecutive days join; a single missing day is bridged; two or more close the span. */
     private fun groupIntoSpans(days: List<LocalDate>, config: CycleConfig): List<Span> {
         val spans = mutableListOf<Span>()
-        var start = days.first()
-        var end = days.first()
-        var count = 1
+        var current = mutableListOf(days.first())
 
         for (day in days.drop(1)) {
-            val gap = daysBetween(end, day) - 1
+            val gap = daysBetween(current.last(), day) - 1
             if (gap <= config.maxIntraPeriodGapDays) {
-                end = day
-                count++
+                current += day
             } else {
-                spans += Span(start, end, count)
-                start = day
-                end = day
-                count = 1
+                spans += Span(current)
+                current = mutableListOf(day)
             }
         }
-        spans += Span(start, end, count)
+        spans += Span(current)
         return spans
     }
 

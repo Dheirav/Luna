@@ -192,7 +192,9 @@ object ClinicalSummary {
                             tags = if (it.source == Source.ASSUMED) listOf(ESTIMATED) else emptyList(),
                         ),
                     )
-                    add(SummaryItem.Figure("Days since", "${daysBetween(it.start, today)}"))
+                    // As a cycle day, the way the cycle list below and Today count it. "Days since 43"
+                    // beside "44 days so far" were both right and read as a contradiction.
+                    add(SummaryItem.Figure("Cycle day today", "${daysBetween(it.start, today) + 1}"))
                 }
             },
         )
@@ -242,9 +244,12 @@ object ClinicalSummary {
                         add(
                             SummaryItem.Row(
                                 period.start.format(short),
-                                "${period.spanDays} days span, ${period.bleedingDayCount} bleeding, " +
+                                periodLine(period) + ", " +
                                     (heaviest?.let { "heaviest flow ${it.name.lowercase()}" } ?: "flow not logged"),
-                                tags = if (period.source == Source.ASSUMED) listOf(ESTIMATED) else emptyList(),
+                                // Any estimated day earns the tag, and the line says how many. Tagging
+                                // only wholly estimated periods presented a logged first day with four
+                                // backfilled ones as a five-day observed period (device review B1).
+                                tags = if (period.estimatedDayCount > 0) listOf(ESTIMATED) else emptyList(),
                             ),
                         )
                     }
@@ -275,7 +280,7 @@ object ClinicalSummary {
                         val logged = p.days().mapNotNull { painByDate[it] }
                         if (logged.isNotEmpty()) {
                             val worst = Symptom.PAIN.levelLabel(logged.max()) ?: logged.max().toString()
-                            add(SummaryItem.Row(p.start.format(short), "worst: $worst, on ${logged.size} day(s) logged"))
+                            add(SummaryItem.Row(p.start.format(short), "worst: $worst, on ${plural(logged.size, "logged day")}"))
                         }
                     }
                 }
@@ -292,7 +297,7 @@ object ClinicalSummary {
                     add(none("None recorded. The app derives these from bleeding logged outside a period."))
                 } else {
                     val recentSpotting = projection.spotting.takeLast(DETAIL_ROWS)
-                    recentSpotting.forEach { add(SummaryItem.Row(it.start.format(short), "${it.spanDays} day(s)")) }
+                    recentSpotting.forEach { add(SummaryItem.Row(it.start.format(short), plural(it.spanDays, "day"))) }
                     truncationNote(recentSpotting.size, projection.spotting.size)
                 }
             },
@@ -406,6 +411,24 @@ object ClinicalSummary {
         LengthSource.APP_DEFAULT -> "app default, not measured"
         null -> null
     }
+
+    /**
+     * "5 days, all bleeding", or the logged and estimated split when backfill is involved. A
+     * doctor reading the row has to be able to tell which days the patient actually recorded.
+     */
+    private fun periodLine(period: Period): String {
+        val days = plural(period.spanDays, "day")
+        val bleeding = when {
+            period.estimatedDayCount == 0 && period.bleedingDayCount == period.spanDays -> "all bleeding"
+            period.estimatedDayCount == 0 -> "${period.bleedingDayCount} bleeding"
+            period.loggedDayCount == 0 && period.bleedingDayCount == period.spanDays -> "all estimated"
+            period.loggedDayCount == 0 -> "${period.bleedingDayCount} bleeding, all estimated"
+            else -> "${period.loggedDayCount} logged, ${period.estimatedDayCount} estimated"
+        }
+        return "$days, $bleeding"
+    }
+
+    private fun plural(n: Int, word: String): String = if (n == 1) "1 $word" else "$n ${word}s"
 
     private fun Period.days(): List<LocalDate> = (0 until spanDays).map { start.plusDays(it.toLong()) }
 }

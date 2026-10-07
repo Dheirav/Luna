@@ -96,6 +96,7 @@ data class HealthFlag(
 
 /** Dates in flag text, which reaches a doctor: "1 Jul 2026", not "2026-07-01". */
 private val FLAG_DATE = java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy")
+private val DAY_MONTH = java.time.format.DateTimeFormatter.ofPattern("d MMM")
 
 /**
  * How the late flag names the expected length. "Usually runs 28 days" is only true when 28 was
@@ -134,6 +135,11 @@ object HealthFlags {
         heldSpotting: Set<LocalDate> = emptySet(),
         /** Logged pain per day, 0 None to 4 Extreme. */
         painByDate: Map<LocalDate, Int> = emptyMap(),
+        /**
+         * The forecast window, so the late flag quotes the range Today showed rather than one
+         * date. The summary said "Expected around 14 Mar" beside a Today card reading 13 to 15 Mar.
+         */
+        window: PeriodWindow? = null,
     ): List<HealthFlag> {
         val flags = mutableListOf<HealthFlag>()
 
@@ -173,8 +179,18 @@ object HealthFlags {
                         flags += HealthFlag(
                             kind = HealthFlagKind.PERIOD_LATE,
                             headline = "Period is $late days past the expected date",
-                            detail = "Expected around ${expected.format(FLAG_DATE)}, from a cycle " +
-                                lengthClause(expectedCycleLength, lengthSource) +
+                            detail = (
+                                window?.let {
+                                    "Expected between ${it.earliest.format(DAY_MONTH)} and " +
+                                        "${it.latest.format(FLAG_DATE)}, from a cycle " +
+                                        lengthClause(expectedCycleLength, lengthSource) +
+                                        ". Lateness is counted from the middle of that window, " +
+                                        "${expected.format(DAY_MONTH)}"
+                                } ?: (
+                                    "Expected around ${expected.format(FLAG_DATE)}, from a cycle " +
+                                        lengthClause(expectedCycleLength, lengthSource)
+                                    )
+                                ) +
                                 "; today is day $dayOfCycle. Stress, illness, travel and sleep all " +
                                 "shift this, and one late cycle on its own is common.",
                             on = today,
@@ -214,7 +230,8 @@ object HealthFlags {
 
         // -- how long the bleeding lasted -----------------------------------
         projection.periods
-            .filter { it.source == Source.OBSERVED && it.spanDays > config.prolongedBleedDays }
+            // Wholly observed: a long period made long by backfilled days is not something to raise.
+            .filter { it.whollyObserved && it.spanDays > config.prolongedBleedDays }
             .maxByOrNull { it.start }
             ?.let { period ->
                 flags += HealthFlag(
