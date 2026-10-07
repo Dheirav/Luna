@@ -157,10 +157,16 @@ fun MascotCloud(
     mood: MascotMood,
     modifier: Modifier = Modifier,
     width: Dp = 78.dp,
+    shadow: Color = Color.Transparent,
 ) {
     Canvas(modifier = modifier.decorative().size(width, width * 0.72f)) {
         val w = size.width
         val h = size.height
+
+        // A flattened oval just under the base, so the cloud sits on something rather than floating.
+        if (shadow.alpha > 0f) {
+            drawOval(shadow, topLeft = Offset(w * 0.16f, h * 0.84f), size = Size(w * 0.68f, h * 0.14f))
+        }
 
         drawCircle(body, radius = h * 0.34f, center = Offset(w * 0.24f, h * 0.60f))
         drawCircle(body, radius = h * 0.30f, center = Offset(w * 0.78f, h * 0.62f))

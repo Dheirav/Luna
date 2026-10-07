@@ -190,6 +190,18 @@ data class CycleColors(
      */
     val mascotBody: Color,
     val mascotFace: Color,
+    /**
+     * A soft shadow under the mascot, for a pale body on a pale card. Transparent where the body
+     * already stands out from its card.
+     */
+    val mascotShadow: Color,
+    /**
+     * The cycle ring, and the marks that should match it elsewhere (the Why card's sparkles), on
+     * each phase. A deep shade of the phase's own hue in light mode: drawn in [onPhase], which is
+     * near-black there, the ring was the heaviest thing on a pastel card. In dark mode [onPhase]
+     * already reads as part of the card, so all four are that.
+     */
+    val phaseAccent: Map<Phase, Color>,
 )
 
 private val LightCycleColors = CycleColors(
@@ -207,10 +219,20 @@ private val LightCycleColors = CycleColors(
         Phase.LUTEAL to (Color(0xFFE6DDFA) to Color(0xFFD3C5F5)),
     ),
     onPhase = Ink,
-    // A medium violet: unmistakably a character on every one of the four pale cards, where Ink at
-    // 0.92 was the darkest thing on the screen.
-    mascotBody = Color(0xFF7E6BC0),
-    mascotFace = Color(0xFFF7F3FE),
+    // White with a violet face, the dark-mode character in light colours. Was a medium violet body
+    // (#7E6BC0), chosen over Ink at 0.92; on the Luteal card it still read as a dark purple mass
+    // (8 Oct 2026). The shadow is what separates a white cloud from a pale card.
+    mascotBody = Color.White,
+    mascotFace = Color(0xFF5B47A8),
+    mascotShadow = Color(0x2E3B2C63),
+    // Graphics, not text, so the bar is WCAG's 3:1 for non-text contrast. Measured against both ends
+    // of each card's gradient: 3.88:1 at worst (menstruation, darker end), 4.5 to 5.5:1 for the rest.
+    phaseAccent = mapOf(
+        Phase.MENSTRUATION to Color(0xFFA8336A),
+        Phase.FOLLICULAR to Color(0xFF256E57),
+        Phase.OVULATION to Color(0xFF85590E),
+        Phase.LUTEAL to Color(0xFF5B47A8),
+    ),
 )
 
 private val DarkCycleColors = CycleColors(
@@ -250,6 +272,8 @@ private val DarkCycleColors = CycleColors(
     // Was the card's own gradient bottom, which meant the eyes went teal on the follicular card.
     // A stated deep plum works inside a pale body on all four.
     mascotFace = Color(0xFF4A3573),
+    mascotShadow = Color.Transparent,
+    phaseAccent = Phase.entries.associateWith { Color(0xFFFDF2F7) },
 )
 
 private val LocalCycleColors = staticCompositionLocalOf { LightCycleColors }

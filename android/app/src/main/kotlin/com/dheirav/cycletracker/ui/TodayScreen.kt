@@ -324,7 +324,13 @@ fun TodayScreen(
         ui.flags.filter { it.kind != HealthFlagKind.PERIOD_LATE }.forEach { HealthFlagCard(it) }
 
         Box(Modifier.tourTarget(TourTarget.WHY_CARD)) {
-            WhyCard(basis = ui.basis, accuracy = ui.accuracy, state = state)
+            WhyCard(
+                basis = ui.basis,
+                accuracy = ui.accuracy,
+                state = state,
+                // The hero's phase, so the two cards always share a palette.
+                phase = if (state.isBleeding) Phase.MENSTRUATION else state.phase,
+            )
         }
 
         if (!ui.reminderBroken && ui.batteryRestricted) ReminderAtRisk()
@@ -470,12 +476,13 @@ private fun CycleHero(
                     blush = cycle.bleeding.copy(alpha = 0.45f),
                     mood = mood,
                     width = size,
+                    shadow = cycle.mascotShadow,
                 )
             }
             if (ring != null) {
                 CycleRing(
                     geometry = ring,
-                    ink = ink,
+                    ink = effectivePhase?.let { cycle.phaseAccent[it] } ?: ink,
                     period = cycle.bleeding,
                     halo = lerp(top, bottom, 0.3f),
                 ) { mascot(58.dp) }
@@ -691,16 +698,25 @@ private fun LogTodayButton(logged: String?, onClick: () -> Unit, modifier: Modif
  * them was ever observed, and "from 12 cycles" alone would be true and thoroughly misleading.
  */
 @Composable
-private fun WhyCard(basis: PredictionBasis?, accuracy: PredictionAccuracy?, state: com.dheirav.cycletracker.core.CycleState) {
+private fun WhyCard(
+    basis: PredictionBasis?,
+    accuracy: PredictionAccuracy?,
+    state: com.dheirav.cycletracker.core.CycleState,
+    phase: Phase?,
+) {
     var expanded by remember { mutableStateOf(false) }
     val scheme = MaterialTheme.colorScheme
-    // A soft lavender-to-rose wash, the hero's palette at a whisper, so the card reads as part of the
-    // same page rather than a grey form at the bottom of it. Blended towards the card colour rather
-    // than using the containers outright: the secondary text was chosen against cream, and on the
-    // full-strength containers it fell under 4.5:1.
+    val cycle = MaterialTheme.cycleColors
+    // The hero's own gradient at a whisper, so the two cards read as one page and change together
+    // with the phase. It was a fixed lavender-to-rose wash, which matched the hero only on luteal
+    // days and clashed with it on the green and gold ones. Blended towards the card colour rather
+    // than used outright: the secondary text was chosen against cream, and on the full phase tints
+    // it fell under 4.5:1.
+    val (phaseTop, phaseBottom) = phase?.let { cycle.phase[it] } ?: (scheme.secondaryContainer to scheme.primaryContainer)
     val wash = Brush.linearGradient(
-        listOf(lerp(scheme.surfaceVariant, scheme.secondaryContainer, 0.55f), lerp(scheme.surfaceVariant, scheme.primaryContainer, 0.45f)),
+        listOf(lerp(scheme.surfaceVariant, phaseTop, 0.6f), lerp(scheme.surfaceVariant, phaseBottom, 0.6f)),
     )
+    val accent = phase?.let { cycle.phaseAccent[it] } ?: scheme.primary
     val chevron by animateFloatAsState(if (expanded) 180f else 0f, label = "chevron")
 
     Box(
@@ -710,7 +726,7 @@ private fun WhyCard(basis: PredictionBasis?, accuracy: PredictionAccuracy?, stat
             .background(wash),
     ) {
         SparkleCluster(
-            color = scheme.primary.copy(alpha = 0.35f),
+            color = accent.copy(alpha = 0.45f),
             modifier = Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 70.dp),
         )
         Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
