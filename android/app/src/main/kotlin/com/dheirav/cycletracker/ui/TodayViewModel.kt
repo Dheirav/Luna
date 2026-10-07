@@ -72,6 +72,8 @@ data class TodayUiState(
     val backupDueSince: java.time.Instant? = null,
     /** Missed days just before today, oldest first, for "3 days not logged · Fill in". */
     val unlogged: List<java.time.LocalDate> = emptyList(),
+    /** The words for that line, counting the whole run of missed days. */
+    val unloggedLine: String? = null,
 )
 
 /**
@@ -162,6 +164,7 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
             ).takeIf { it.source == MoodSource.TODAY }?.face,
             gap = snapshot.unloggedGaps.lastOrNull(),
             unlogged = unloggedRecentDays(days.keys, snapshot.today),
+            unloggedLine = catchUpLine(days.keys, snapshot.today),
             backupDueSince = settings.lastBackupAt.let { last ->
                 if (backupDue(last, days.keys.minOrNull())) last ?: java.time.Instant.EPOCH else null
             },

@@ -233,14 +233,17 @@ fun TodayScreen(
         // Missed days, said once, with a way to fill them in one after another. Catching up used to be
         // a loop of open, step back, save, land on Today, repeat, with nothing saying days were missed
         // (council review F4).
-        if (ui.unlogged.isNotEmpty()) {
+        ui.unloggedLine?.takeIf { ui.unlogged.isNotEmpty() }?.let { line ->
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "${ui.unlogged.size} days not logged",
+                    line,
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(onClick = { onCatchUp(ui.unlogged) }) { Text("Fill in") }
+                // Says how many it will walk through when that is fewer than were missed.
+                TextButton(onClick = { onCatchUp(ui.unlogged) }) {
+                    Text(if (line.startsWith("Over")) "Fill in the last ${ui.unlogged.size}" else "Fill in")
+                }
             }
         }
 

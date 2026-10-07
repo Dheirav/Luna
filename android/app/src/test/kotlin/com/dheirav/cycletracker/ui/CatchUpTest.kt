@@ -69,4 +69,12 @@ class CatchUpTest {
         assertEquals("Period", phaseName(Phase.MENSTRUATION))
         assertEquals("Luteal", phaseName(Phase.LUTEAL))
     }
+
+    /** Found on the phone: five weeks unlogged read "7 days not logged". The line counts the whole run. */
+    @Test
+    fun `a run longer than a week is not undercounted`() {
+        assertEquals("Over a week not logged", catchUpLine(setOf(d("2026-08-26")), today))
+        assertEquals("3 days not logged", catchUpLine(setOf(d("2026-10-01"), d("2026-10-03")), today))
+        assertEquals(null, catchUpLine(setOf(d("2026-10-06")), today))
+    }
 }
