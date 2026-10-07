@@ -247,6 +247,12 @@ class MainActivity : ComponentActivity() {
                                 screen = Screen.LOG
                             }
                         },
+                        onCatchUp = { days ->
+                            if (logVm.startCatchUp(days)) {
+                                logOrigin = Screen.TODAY
+                                screen = Screen.LOG
+                            }
+                        },
                         onHistory = {
                             // Opening the calendar afresh always lands on this month. Entering
                             // from Today is a new visit; returning from an edit is not.

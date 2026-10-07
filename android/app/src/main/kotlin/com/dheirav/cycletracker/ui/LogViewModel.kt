@@ -21,6 +21,8 @@ import java.time.format.DateTimeFormatter
 
 data class LogUiState(
     val entry: DayEntry = DayEntry(LocalDate.now()),
+    /** Position in a catch-up run, as (this, of total), or null outside one. */
+    val catchUp: Pair<Int, Int>? = null,
     /** The day as it was loaded, so the form can tell an edit from a visit. */
     val original: DayEntry = entry,
     val showExtended: Boolean = false,
@@ -74,12 +76,32 @@ class LogViewModel(app: Application) : AndroidViewModel(app) {
      * navigate to the form then. It used to return silently, and the form appeared showing whatever
      * it held last, including edits the user had chosen to discard.
      */
+    /** Days still to come in a catch-up run, and its length, for "2 of 3". */
+    private var catchUpQueue: List<LocalDate> = emptyList()
+    private var catchUpTotal = 0
+
+    /**
+     * Opens each of [days] in turn: Save on one opens the next, and only the last returns to where the
+     * form was opened from. Leaving any other way ends the run.
+     */
+    fun startCatchUp(days: List<LocalDate>): Boolean {
+        if (days.isEmpty()) return false
+        catchUpQueue = days.drop(1)
+        catchUpTotal = days.size
+        return openDate(days.first(), catchUp = 1 to catchUpTotal)
+    }
+
     fun open(date: LocalDate): Boolean {
+        catchUpQueue = emptyList()
+        return openDate(date, catchUp = null)
+    }
+
+    private fun openDate(date: LocalDate, catchUp: Pair<Int, Int>?): Boolean {
         // No logging the future — there is nothing to observe yet.
         if (date.isAfter(LocalDate.now())) return false
         // Cleared at once rather than when the load lands, so the previous day's entry is never
         // shown under the new date, even for a frame.
-        _ui.value = LogUiState(entry = DayEntry(date), loading = true)
+        _ui.value = LogUiState(entry = DayEntry(date), loading = true, catchUp = catchUp)
         viewModelScope.launch {
             val entry = repo.load(date)
             _ui.value = LogUiState(
@@ -88,6 +110,7 @@ class LogViewModel(app: Application) : AndroidViewModel(app) {
                 // If a day already has extended symptoms, show them rather than hide the data.
                 showExtended = entry.symptoms.keys.any { !it.isCore },
                 loading = false,
+                catchUp = catchUp,
             )
         }
         return true
@@ -137,7 +160,14 @@ class LogViewModel(app: Application) : AndroidViewModel(app) {
             // Saving gave no sign it had happened: the form just closed. The snackbar names the day,
             // which also catches a save to the wrong one, and makes a mistaken save one tap to undo.
             _undoable.tryEmit(Undoable("Saved · ${dayLabel(state.entry.date)}", state.original))
-            onDone()
+            // In a catch-up run, the next missed day opens instead of leaving the form.
+            val next = catchUpQueue.firstOrNull()
+            if (next != null) {
+                catchUpQueue = catchUpQueue.drop(1)
+                openDate(next, catchUp = (catchUpTotal - catchUpQueue.size) to catchUpTotal)
+            } else {
+                onDone()
+            }
         }
     }
 

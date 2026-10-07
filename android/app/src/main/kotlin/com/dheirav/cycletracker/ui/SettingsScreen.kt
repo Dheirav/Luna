@@ -163,6 +163,10 @@ private fun YourCyclesCard(settings: Settings) {
                 cycle = it
                 settings.typicalCycleLength = it
             },
+            onClear = {
+                cycle = null
+                settings.typicalCycleLength = null
+            },
         )
         Stepper(
             label = "Usual period length",
@@ -173,6 +177,10 @@ private fun YourCyclesCard(settings: Settings) {
             onChange = {
                 period = it
                 settings.typicalPeriodLength = it
+            },
+            onClear = {
+                period = null
+                settings.typicalPeriodLength = null
             },
         )
         Text(
@@ -732,13 +740,25 @@ internal fun Stepper(
     range: IntRange,
     default: Int,
     onChange: (Int) -> Unit,
+    /**
+     * Sets the value back to "not set". Without it a guess, once entered, outranked the app's own
+     * estimate until three cycles were observed, with no way to withdraw it (council review F5).
+     */
+    onClear: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.width(150.dp))
+        Column(modifier = Modifier.width(150.dp)) {
+            Text(label, style = MaterialTheme.typography.bodyMedium)
+            if (value != null && onClear != null) {
+                TextButton(onClick = onClear, modifier = Modifier.semantics { contentDescription = "Clear $label" }) {
+                    Text("Clear", style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             FilledTonalIconButton(
                 onClick = { onChange(((value ?: default) - 1).coerceIn(range)) },

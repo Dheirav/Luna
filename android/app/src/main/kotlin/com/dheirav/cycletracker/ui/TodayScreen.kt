@@ -171,6 +171,8 @@ fun mascotMoodFor(today: MoodFace?): MascotMood = when (today) {
 fun TodayScreen(
     viewModel: TodayViewModel,
     onLog: () -> Unit,
+    /** Opens the log form on each of these days in turn, oldest first. */
+    onCatchUp: (List<java.time.LocalDate>) -> Unit = {},
     onHistory: () -> Unit,
     onSettings: () -> Unit,
     onPhaseGuide: () -> Unit,
@@ -226,6 +228,20 @@ fun TodayScreen(
 
         TextButton(onClick = onHistory, modifier = Modifier.fillMaxWidth().tourTarget(TourTarget.HISTORY_BUTTON)) {
             Text("History")
+        }
+
+        // Missed days, said once, with a way to fill them in one after another. Catching up used to be
+        // a loop of open, step back, save, land on Today, repeat, with nothing saying days were missed
+        // (council review F4).
+        if (ui.unlogged.isNotEmpty()) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "${ui.unlogged.size} days not logged",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = { onCatchUp(ui.unlogged) }) { Text("Fill in") }
+            }
         }
 
         // A question only the person can answer, so it sits with the actions rather than below the
@@ -392,7 +408,7 @@ private fun CycleHero(
             )
             Text(
                 if (isBleeding) "Period" else {
-                    phase?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Unknown"
+                    phase?.let(::phaseName) ?: "Unknown"
                 },
                 style = MaterialTheme.typography.displaySmall,
                 color = ink,

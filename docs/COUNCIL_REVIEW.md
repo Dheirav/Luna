@@ -286,6 +286,9 @@ quietly do not count, that is how people stop.
   §5.1 amended), H3 (doctor summary and the pain flag), F2 (backup). 207 unit tests pass; the
   migration tests passed on the CI emulator. Not yet seen on the phone at the time of writing.
 
+- **7 Oct, third batch done:** H4, H5, H6 (honesty), A3, A4, A6, A7 (accessibility), F3, F4, F5
+  (friction). Every council item is now addressed. 234 unit tests pass.
+
 ## Suggested order
 
 1. **Now, no decisions needed:**

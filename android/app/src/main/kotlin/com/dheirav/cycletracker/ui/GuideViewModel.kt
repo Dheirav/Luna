@@ -29,6 +29,8 @@ data class GuideUiState(
     /** Days in this phase carrying any symptom at all — drives the "keep logging" prompt. */
     val loggedDaysInPhase: Int = 0,
     val loading: Boolean = true,
+    /** Today's phase, marked in the picker so reading ahead keeps "you are here". */
+    val todayPhase: Phase? = null,
 )
 
 /**
@@ -92,6 +94,7 @@ class GuideViewModel(app: Application) : AndroidViewModel(app) {
                 it.phase == target && it.symptoms.isNotEmpty()
             },
             loading = false,
+            todayPhase = snapshot.state.phase,
         )
     }
 }

@@ -73,7 +73,7 @@ fun PhaseGuideScreen(viewModel: GuideViewModel, initialPhase: Phase?) {
             modifier = Modifier.padding(horizontal = 18.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            PhasePicker(selected = ui.phase, onSelect = viewModel::load)
+            PhasePicker(selected = ui.phase, current = ui.todayPhase, onSelect = viewModel::load)
 
             YoursCard(
                 summaries = ui.yours,
@@ -138,7 +138,7 @@ private fun GuideHero(phase: Phase, summary: String) {
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
-                phase.name.lowercase().replaceFirstChar { it.uppercase() },
+                phaseName(phase),
                 style = MaterialTheme.typography.headlineMedium,
                 color = ink,
             )
@@ -161,13 +161,14 @@ private fun GuideHero(phase: Phase, summary: String) {
  * which a fixed four-across row does not.
  */
 @Composable
-private fun PhasePicker(selected: Phase, onSelect: (Phase) -> Unit) {
+private fun PhasePicker(selected: Phase, current: Phase?, onSelect: (Phase) -> Unit) {
     Row(
         modifier = Modifier.horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Phase.entries.forEach { phase ->
-            val name = phase.name.lowercase().replaceFirstChar { it.uppercase() }
+            // "now" marks the phase you are in, so reading ahead never loses where you are.
+            val name = phaseName(phase) + if (phase == current) " · now" else ""
             FilterChip(
                 selected = phase == selected,
                 onClick = { onSelect(phase) },

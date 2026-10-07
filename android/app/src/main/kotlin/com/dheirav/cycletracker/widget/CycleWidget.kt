@@ -15,6 +15,7 @@ import com.dheirav.cycletracker.core.LateGuidance
 import com.dheirav.cycletracker.core.Phase
 import com.dheirav.cycletracker.core.PeriodWindow
 import com.dheirav.cycletracker.core.WindowBasis
+import com.dheirav.cycletracker.ui.phaseName
 import com.dheirav.cycletracker.data.Settings
 import com.dheirav.cycletracker.data.snapshot
 import com.dheirav.cycletracker.reminder.EXTRA_OPEN_LOG
@@ -162,7 +163,7 @@ private suspend fun buildViews(context: Context): RemoteViews {
     val phaseName = if (state.isBleeding) {
         "Period"
     } else {
-        state.phase?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "—"
+        state.phase?.let(::phaseName) ?: "—"
     }
     // The eyebrow and the phase name used to be separate views, stacked. One cell tall has room for
     // two lines, and the phase means little without the day beside it.

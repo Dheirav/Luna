@@ -70,6 +70,8 @@ data class TodayUiState(
     val gap: UnloggedGap? = null,
     /** Null unless a backup reminder is due; then the last backup time, or EPOCH if never. */
     val backupDueSince: java.time.Instant? = null,
+    /** Missed days just before today, oldest first, for "3 days not logged · Fill in". */
+    val unlogged: List<java.time.LocalDate> = emptyList(),
 )
 
 /**
@@ -159,6 +161,7 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
                 phase = snapshot.state.phase,
             ).takeIf { it.source == MoodSource.TODAY }?.face,
             gap = snapshot.unloggedGaps.lastOrNull(),
+            unlogged = unloggedRecentDays(days.keys, snapshot.today),
             backupDueSince = settings.lastBackupAt.let { last ->
                 if (backupDue(last, days.keys.minOrNull())) last ?: java.time.Instant.EPOCH else null
             },

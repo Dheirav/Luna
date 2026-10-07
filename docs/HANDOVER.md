@@ -38,7 +38,7 @@ Governing rules (full list in the plan artifact):
 | | Verified how |
 |---|---|
 | Phase 0 — spec + golden fixture | 34 cases, `spec/cycle_fixtures.json` |
-| Cycle/period/phase engine (`:core`) | `./gradlew :core:test`: **168 tests, all pass** (plus 54 in `:app`, and 5 instrumented) |
+| Cycle/period/phase engine (`:core`) | `./gradlew :core:test`: **171 tests, all pass** (plus 63 in `:app`, and 5 instrumented) |
 | Encrypted backup codec | 11 tests incl. tamper detection, wrong-passphrase, no-plaintext-leak |
 | Forecast window / prediction scorer | 16 + 13 tests |
 | Health flags, symptom patterns, clinical summary | 14 + 12 + 11 tests |
@@ -584,6 +584,21 @@ ESTIMATED and IN PROGRESS are tags, drawn as outlined labels in words.
 Sharing goes through a `FileProvider` (`${applicationId}.files`) limited to `cache/summary/`, which is
 emptied before every new PDF so no older copy of the health data lingers. Checked on the Redmi: the
 preview, the share sheet, and the generated PDF (2 pages, A4) rendered off the phone and deleted.
+
+### The last council items (2026-10-07)
+
+Every item in `docs/COUNCIL_REVIEW.md` is now addressed. The third batch, in three commits:
+- **Honesty:** the mood widget follows the direction of the data and makes no comparison it cannot;
+  the window counts the cycles its spread rests on; assumptions (ovulation day, an assumed window on
+  the widget, heads-up and History legend, Settings' coverage) are labelled as such.
+- **Accessibility:** hero and widget text measured at 4.5:1 or better in both themes (dark follicular
+  and ovulation darkened); calendar window days carry a bar as well as a wash; pane titles, live
+  regions and expanded states; the widget speaks what it shows; Undo waits when TalkBack is on.
+- **Friction:** the notification answer posts a silent 15-second confirmation with Undo, which
+  restores the day exactly; Today offers "N days not logged · Fill in", walking the missed days with
+  one Save each; the phase guide marks "now"; "Period" is the one name for the bleeding phase; the
+  cycle and period length steppers can be cleared; the reminder reads "Bleeding today? One tap is
+  enough."
 
 ### Not started
 

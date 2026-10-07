@@ -257,7 +257,10 @@ fun LogScreen(viewModel: LogViewModel, onDone: () -> Unit) {
                     .tourTarget(TourTarget.LOG_SAVE),
             ) {
                 // Names the day, so a save after the date arrows were tapped says where it is going.
-                Text("Save · ${dayLabel(entry.date)}", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Save · ${dayLabel(entry.date)}" + (ui.catchUp?.let { (n, of) -> "  ($n of $of)" } ?: ""),
+                    style = MaterialTheme.typography.titleMedium,
+                )
             }
         }
     }

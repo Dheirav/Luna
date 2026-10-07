@@ -58,7 +58,7 @@ private const val WORK_NAME = "daily-log-reminder"
  * That was checked before doing it — `dumpsys notification` reported `mUserLockedFields=0`, so there
  * was nothing to lose. Check the same thing next time rather than assuming.
  */
-private const val CHANNEL_ID = "reminders-v2"
+internal const val CHANNEL_ID = "reminders-v2"
 private const val CHANNEL_ID_FORECAST = "forecast-v2"
 private val LEGACY_CHANNEL_IDS = listOf("reminders", "forecast")
 
@@ -472,7 +472,9 @@ class ReminderWorker(
                 .setSmallIcon(R.drawable.ic_notification)
                 .setColor(ContextCompat.getColor(context, R.color.notification_accent))
                 .setContentTitle("How was today?")
-                .setContentText("Ten seconds now beats guessing later.")
+                // Plain and kind. "Ten seconds now beats guessing later" read as a lecture on the
+                // nights someone is least able to take one (council review F5).
+                .setContentText("Bleeding today? One tap is enough.")
                 .setContentIntent(pending)
                 .addAction(logAction(context, "Bleeding", ACTION_LOG_BLEEDING, 10, forDate))
                 .addAction(logAction(context, "No bleeding", ACTION_LOG_NO_BLEEDING, 11, forDate))
