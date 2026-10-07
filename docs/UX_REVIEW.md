@@ -164,8 +164,17 @@ once the real screen was seen:
 - The window card kept saying "Next period" over a window that had passed. It now reads "Was
   expected" with the same dates, and does not repeat the lateness count the hero already gives.
 - Mood labels truncated to "Modera…" and "Overwh…". They now wrap onto two lines with hyphenation.
-- A stopped reminder looked identical to a health flag. It is now an outlined card with an error
-  title, and only a stopped reminder (not a restricted one) uses red, on Today and in Settings alike.
+- A stopped reminder looked identical to a health flag. It now has an error-coloured title, and only
+  a stopped reminder (not a restricted one) uses red, on Today and in Settings alike. (7 Oct: it was
+  an outlined card above the window, which put an app fault ahead of the forecast. It is now a
+  two-line row below the window. Fix opens the screen for the cause still open: the app's info page
+  while battery is restricted, and Xiaomi's Autostart list once it is not, because on the Redmi the
+  reminder stopped with battery already unrestricted.)
+- (8 Oct) Log today and History sit side by side, two thirds and one third, and stack again above
+  1.3x text. As a full-width text button under the log, History read as a footnote.
+- (8 Oct) Bleeding on the log form is two questions, not one row of five chips. "No bleeding" and
+  "Bleeding" are one control split in half, and Light, Medium and Heavy appear under it, marked
+  optional, only after a yes.
 
 Step 3 itself: a back arrow on every secondary screen (it presses the system Back, so the unsaved-edit
 prompt still applies), Save pinned below the log form, and a snackbar with Undo after a save, a

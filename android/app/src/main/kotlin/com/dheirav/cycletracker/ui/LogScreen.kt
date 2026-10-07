@@ -46,7 +46,11 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -152,36 +156,54 @@ fun LogScreen(viewModel: LogViewModel, onDone: () -> Unit) {
             HorizontalDivider()
 
             // -- bleeding ----------------------------------------------------
-            Text("Bleeding", style = MaterialTheme.typography.titleSmall)
-            // Wraps rather than squeezing: four chips need about 480dp at 200% text size.
-            FlowRow(
-                modifier = Modifier.tourTarget(TourTarget.LOG_BLEEDING),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+            // Two questions, asked in order. All five answers used to share one wrapping row, so
+            // "No bleeding" sat beside "Heavy" as if they were alternatives to the same question, when
+            // the flow levels only mean anything after a yes. Now the yes/no is one control split in
+            // half, and the amount appears under it only once the answer is yes.
+            Column(
+                modifier = Modifier.fillMaxWidth().tourTarget(TourTarget.LOG_BLEEDING),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                // Two explicit answers, as the reminder has. This was one toggle whose unselected
-                // label read "No" while meaning "not answered", so tapping "No" to answer it turned
-                // it into "Bleeding", and leaving it alone saved nothing. Tapping a selected answer
-                // clears it back to unanswered, so a mistake still costs one tap.
-                FilterChip(
-                    selected = entry.bleeding == false,
-                    onClick = { viewModel.setBleeding(if (entry.bleeding == false) null else false) },
-                    label = { Text("No bleeding") },
-                )
-                FilterChip(
-                    selected = entry.bleeding == true,
-                    onClick = { viewModel.setBleeding(if (entry.bleeding == true) null else true) },
-                    label = { Text("Bleeding") },
-                )
-                FlowLevel.entries.forEach { level ->
-                    val name = level.name.lowercase().replaceFirstChar { it.uppercase() }
-                    FilterChip(
-                        selected = entry.flow == level,
-                        onClick = { viewModel.setFlow(level) },
-                        // Spoken with what it grades; "Light, not checked" alone says nothing.
-                        modifier = Modifier.semantics { contentDescription = "Flow: $name" },
-                        label = { Text(name) },
-                    )
+                Text("Bleeding", style = MaterialTheme.typography.titleSmall)
+                // Two explicit answers, as the reminder has. Tapping the selected one clears it back
+                // to unanswered, so a mistake still costs one tap.
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    listOf(false to "No bleeding", true to "Bleeding").forEachIndexed { index, (answer, label) ->
+                        SegmentedButton(
+                            selected = entry.bleeding == answer,
+                            onClick = { viewModel.setBleeding(if (entry.bleeding == answer) null else answer) },
+                            shape = SegmentedButtonDefaults.itemShape(index, 2),
+                            label = { Text(label, textAlign = TextAlign.Center) },
+                        )
+                    }
+                }
+                AnimatedVisibility(visible = entry.bleeding == true) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Says optional because it is: a yes counts on its own, and asking for an
+                        // amount as if it were required is how a quick log becomes a skipped one.
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("How heavy?", style = MaterialTheme.typography.bodyMedium)
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "Optional",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            FlowLevel.entries.forEachIndexed { index, level ->
+                                val name = level.name.lowercase().replaceFirstChar { it.uppercase() }
+                                SegmentedButton(
+                                    selected = entry.flow == level,
+                                    onClick = { viewModel.setFlow(level) },
+                                    shape = SegmentedButtonDefaults.itemShape(index, FlowLevel.entries.size),
+                                    // Spoken with what it grades; "Light, not selected" alone says nothing.
+                                    modifier = Modifier.semantics { contentDescription = "Flow: $name" },
+                                    label = { Text(name, textAlign = TextAlign.Center) },
+                                )
+                            }
+                        }
+                    }
                 }
             }
 

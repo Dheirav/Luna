@@ -228,6 +228,30 @@ object ReminderScheduler {
         Intent(AndroidSettings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
 
     /**
+     * Opens the screen most likely to fix a stopped reminder, chosen by which cause is still open.
+     *
+     * Battery first, on the app's own info page rather than the system list of every app: MIUI and
+     * HyperOS keep battery saver there under "Power", and stock Android 12+ has "App battery usage".
+     * Once battery is unrestricted and the reminder still stops, the remaining cause on Xiaomi is
+     * Autostart, which is not on the info page in HyperOS. Its screen answers a public intent action,
+     * so this asks for that and lets every other phone fall through to the info page. No vendor
+     * component is named, and a phone without the screen simply never matches the action.
+     */
+    fun openReminderFix(context: Context, batteryRestricted: Boolean) {
+        val details = Intent(
+            AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            android.net.Uri.fromParts("package", context.packageName, null),
+        )
+        val first = if (batteryRestricted) details else Intent(MIUI_AUTOSTART)
+        runCatching { context.startActivity(first) }
+            .recoverCatching { context.startActivity(details) }
+            .recoverCatching { context.startActivity(batterySettingsIntent()) }
+    }
+
+    /** Xiaomi's Autostart list. Declared by its security centre, with the default category. */
+    private const val MIUI_AUTOSTART = "miui.intent.action.OP_AUTO_START"
+
+    /**
      * The system page where a denied notification permission can be granted again.
      *
      * The runtime prompt is one-shot: Android stops showing it after two refusals, and from then on

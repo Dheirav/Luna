@@ -488,10 +488,9 @@ private fun ReminderDetails(
                     "granting by hand too.",
                 // A risk, not a fault: nothing has failed yet. Same weight as Today's footnote.
                 severe = false,
-                action = "Open battery settings",
-                onClick = {
-                    runCatching { context.startActivity(ReminderScheduler.batterySettingsIntent()) }
-                },
+                // The app's own info page, where Xiaomi keeps Autostart beside battery saver.
+                action = "Open app settings",
+                onClick = { ReminderScheduler.openReminderFix(context, batteryRestricted = true) },
             )
         }
     }

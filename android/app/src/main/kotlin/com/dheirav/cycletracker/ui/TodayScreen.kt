@@ -1,7 +1,6 @@
 package com.dheirav.cycletracker.ui
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,10 +21,15 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -222,12 +226,34 @@ fun TodayScreen(
         // The daily action sits directly under the hero, ahead of every card that can appear. Cards
         // used to come first, and on the Redmi Note 15 Pro a reminder warning plus one health flag
         // pushed "Log today" below the fold, so the one thing this screen is for needed a scroll.
-        Box(Modifier.tourTarget(TourTarget.LOG_BUTTON)) {
-            LogTodayButton(logged = ui.loggedToday, onClick = onLog)
-        }
-
-        TextButton(onClick = onHistory, modifier = Modifier.fillMaxWidth().tourTarget(TourTarget.HISTORY_BUTTON)) {
-            Text("History")
+        // Side by side, the day's action taking two thirds and History one: they are the screen's two
+        // ways out, and as a full-width text button History read as a footnote under the log rather
+        // than a destination. Stacked again when large text would squeeze "History" into a third.
+        if (LocalDensity.current.fontScale > 1.3f) {
+            Box(Modifier.tourTarget(TourTarget.LOG_BUTTON)) {
+                LogTodayButton(logged = ui.loggedToday, onClick = onLog)
+            }
+            OutlinedButton(
+                onClick = onHistory,
+                shape = MaterialTheme.shapes.large,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).tourTarget(TourTarget.HISTORY_BUTTON),
+            ) { Text("History") }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Box(Modifier.weight(2f).fillMaxHeight().tourTarget(TourTarget.LOG_BUTTON)) {
+                    LogTodayButton(logged = ui.loggedToday, onClick = onLog, modifier = Modifier.fillMaxHeight())
+                }
+                OutlinedButton(
+                    onClick = onHistory,
+                    shape = MaterialTheme.shapes.large,
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                    modifier = Modifier.weight(1f).fillMaxHeight().heightIn(min = 58.dp)
+                        .tourTarget(TourTarget.HISTORY_BUTTON),
+                ) { Text("History", style = MaterialTheme.typography.titleSmall) }
+            }
         }
 
         // Missed days, said once, with a way to fill them in one after another. Catching up used to be
@@ -257,14 +283,15 @@ fun TodayScreen(
             )
         }
 
-        // A reminder that has stopped is a fault with something to do about it, so it comes before
-        // the forecast. A reminder that merely might be stopped is a risk, and gets one quiet line
-        // at the bottom instead of a card on every launch.
-        if (ui.reminderBroken) ReminderStopped()
-
         ui.window?.let {
             Box(Modifier.tourTarget(TourTarget.WINDOW_CARD)) { NextPeriodCard(it, today = ui.today) }
         }
+
+        // After the forecast, not before it. A stopped reminder is a fault in the app, not news about
+        // the body, and as a full card above the window it pushed the forecast down the screen on the
+        // days it mattered most. It stays above the flags and the Why card, in the error colour, so it
+        // is still seen; a reminder that merely might stop gets a quieter line at the foot.
+        if (ui.reminderBroken) ReminderStopped(batteryRestricted = ui.batteryRestricted)
 
         // The late-period flag is not repeated as a card here. The hero already says how late, and
         // the card's opening line restated the hero's day and cycle length; its reassurance moved
@@ -559,12 +586,12 @@ private fun HealthFlagCard(flag: com.dheirav.cycletracker.core.HealthFlag) {
  * always the thing still undone.
  */
 @Composable
-private fun LogTodayButton(logged: String?, onClick: () -> Unit) {
+private fun LogTodayButton(logged: String?, onClick: () -> Unit, modifier: Modifier = Modifier) {
     if (logged == null) {
         Button(
             onClick = onClick,
             shape = MaterialTheme.shapes.large,
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxWidth()
                 .heightIn(min = 58.dp),
         ) {
@@ -575,7 +602,7 @@ private fun LogTodayButton(logged: String?, onClick: () -> Unit) {
 
     Card(
         onClick = onClick,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 58.dp)
             .semantics { contentDescription = "Today's log: $logged. Edit." },
@@ -755,42 +782,38 @@ private fun EmptyState(onLog: () -> Unit, onHistory: () -> Unit) {
  * The reminder was due and did not run.
  *
  * Vivo, Oppo, Xiaomi and Samsung all terminate background work on their own schedule, and none
- * of it can be fixed programmatically — Autostart and background-power allowances live in vendor
- * settings screens with no public API. The honest response is to detect that the reminder stopped
- * firing and say so, since a silently dead reminder ends the logging habit without warning.
+ * of it can be fixed programmatically: Autostart and background-power allowances live in vendor
+ * settings with no public API. The honest response is to detect that the reminder stopped firing
+ * and say so, since a silently dead reminder ends the logging habit without warning.
  *
- * Deliberately not styled like a health flag. Both used the tertiary card, so a fault the user has to
- * fix looked exactly like an observation to mention to a doctor, and the one needing action did not
- * stand out. This one is outlined, with the title in the error colour, matching how Settings already
- * reports the same condition. Health flags stay out of red on purpose; this is about the app, not the
- * body.
+ * A row, not a card. As an outlined card it sat above the forecast and took more of the screen than
+ * the window it displaced; the explanation it carried belongs to Settings, which has it. The title
+ * keeps the error colour, so a fault still reads differently from a health flag, which stays out of
+ * red on purpose: this is about the app, not the body.
  */
 @Composable
-private fun ReminderStopped() {
+private fun ReminderStopped(batteryRestricted: Boolean) {
     val context = LocalContext.current
-    OutlinedCard(
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.6f)),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
-                "Your daily reminder has stopped firing",
+                "Daily reminder stopped firing",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.error,
             )
+            // Names the cause that is still open. Once battery is unrestricted, repeating "set battery
+            // to no restrictions" sends the person to fix something already fixed; on the Redmi that
+            // was the state when the reminder stopped, and Autostart was what remained.
             Text(
-                "This phone stopped it in the background. Allow unrestricted battery use, and enable " +
-                    "Autostart for this app if the phone has it.",
+                if (batteryRestricted) "Set battery saver to No restrictions." else "Battery is unrestricted. Allow Autostart for Luna.",
                 style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            TextButton(onClick = {
-                runCatching { context.startActivity(ReminderScheduler.batterySettingsIntent()) }
-            }) { Text("Open battery settings") }
         }
+        TextButton(onClick = { ReminderScheduler.openReminderFix(context, batteryRestricted) }) { Text("Fix") }
     }
 }
 
@@ -839,9 +862,7 @@ private fun ReminderAtRisk() {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),
         )
-        TextButton(onClick = {
-            runCatching { context.startActivity(ReminderScheduler.batterySettingsIntent()) }
-        }) { Text("Fix") }
+        TextButton(onClick = { ReminderScheduler.openReminderFix(context, batteryRestricted = true) }) { Text("Fix") }
     }
 }
 
