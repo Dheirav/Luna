@@ -24,6 +24,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import com.dheirav.cycletracker.ui.theme.SparkleCluster
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.draw.rotate
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -44,7 +56,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dheirav.cycletracker.core.HealthFlagKind
@@ -646,19 +657,33 @@ private fun LogTodayButton(logged: String?, onClick: () -> Unit, modifier: Modif
 @Composable
 private fun WhyCard(basis: PredictionBasis?, accuracy: PredictionAccuracy?, state: com.dheirav.cycletracker.core.CycleState) {
     var expanded by remember { mutableStateOf(false) }
+    val scheme = MaterialTheme.colorScheme
+    // A soft lavender-to-rose wash, the hero's palette at a whisper, so the card reads as part of the
+    // same page rather than a grey form at the bottom of it. Blended towards the card colour rather
+    // than using the containers outright: the secondary text was chosen against cream, and on the
+    // full-strength containers it fell under 4.5:1.
+    val wash = Brush.linearGradient(
+        listOf(lerp(scheme.surfaceVariant, scheme.secondaryContainer, 0.55f), lerp(scheme.surfaceVariant, scheme.primaryContainer, 0.45f)),
+    )
+    val chevron by animateFloatAsState(if (expanded) 180f else 0f, label = "chevron")
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.large)
+            .background(wash),
     ) {
-        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SparkleCluster(
+            color = scheme.primary.copy(alpha = 0.35f),
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 70.dp),
+        )
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Why these numbers?", style = MaterialTheme.typography.titleSmall)
+                Text("Why these numbers?", style = MaterialTheme.typography.titleMedium)
                 TextButton(
                     onClick = { expanded = !expanded },
                     modifier = Modifier.semantics {
@@ -669,8 +694,17 @@ private fun WhyCard(basis: PredictionBasis?, accuracy: PredictionAccuracy?, stat
                         }
                         stateDescription = if (expanded) "Expanded" else "Collapsed"
                     },
-                ) { Text(if (expanded) "Hide" else "Show") }
+                ) {
+                    Text(if (expanded) "Hide" else "Show")
+                    Icon(
+                        Icons.Filled.KeyboardArrowDown,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp).rotate(chevron),
+                    )
+                }
             }
+
+            basis?.let { EvidenceStrip(observed = it.observedCycles, estimated = it.assumedCycles, mostlyAssumed = it.mostlyAssumed) }
 
             // The honest headline, visible without expanding: measured accuracy if it exists,
             // and a plain statement of its absence if it does not.
@@ -679,58 +713,73 @@ private fun WhyCard(basis: PredictionBasis?, accuracy: PredictionAccuracy?, stat
                     "Predictions have been ${it.meanAbsoluteError.roundToInt()} day" +
                         "${if (it.meanAbsoluteError.roundToInt() == 1) "" else "s"} out on average " +
                         "across ${it.sampleSize} scored cycles."
-                } ?: "Accuracy is not known yet — it needs three cycles that were predicted in " +
+                } ?: "Accuracy is not known yet. It needs three cycles that were predicted in " +
                     "advance and then observed.",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = scheme.onSurfaceVariant,
             )
 
             AnimatedVisibility(visible = expanded) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    basis?.let {
-                        Detail(
-                            "Cycle length",
-                            "${it.expectedCycleLength} days, " + when (it.source) {
-                                LengthSource.MEDIAN_OF_OBSERVED ->
-                                    "median of ${it.observedCycles} you logged"
-                                LengthSource.USER_STATED -> "as you stated"
-                                // Named for what it is. This branch means the figure is largely
-                                // the app repeating an assumption backfill made earlier.
-                                LengthSource.MEDIAN_WITH_ESTIMATES -> "mostly estimated"
-                                LengthSource.APP_DEFAULT -> "app default"
-                            },
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    val tiles = buildList {
+                        basis?.let {
+                            add(
+                                Tile(
+                                    "Cycle length",
+                                    "${it.expectedCycleLength} days",
+                                    when (it.source) {
+                                        LengthSource.MEDIAN_OF_OBSERVED -> "median of ${it.observedCycles} you logged"
+                                        LengthSource.USER_STATED -> "as you stated"
+                                        // Named for what it is. This branch means the figure is largely
+                                        // the app repeating an assumption backfill made earlier.
+                                        LengthSource.MEDIAN_WITH_ESTIMATES -> "mostly estimated"
+                                        LengthSource.APP_DEFAULT -> "app default"
+                                    },
+                                ),
+                            )
+                            add(
+                                it.variability?.let { v -> Tile("Your variability", "±%.1f days".format(v), "how much cycles differ") }
+                                    ?: Tile("Your variability", "Not yet", "not measurable yet"),
+                            )
+                        }
+                        add(Tile("Cycle started", state.cycleStart?.format(dayMonth) ?: "—", state.cycleStart?.year?.toString()))
+                        // Worked out by counting back a 14-day luteal phase, which the app assumes and has
+                        // not measured (CYCLE_RULES §5.1, §7). Shown as a bare number it read as a finding.
+                        add(
+                            Tile(
+                                "Ovulation",
+                                state.ovulationDay?.let { "Around day $it" } ?: "—",
+                                state.ovulationDay?.let { "assuming a 14-day luteal phase" },
+                            ),
                         )
-                        Detail("Cycles observed", it.observedCycles.toString())
-                        Detail(
-                            "Cycles estimated",
-                            it.assumedCycles.toString() +
-                                if (it.mostlyAssumed) "  ← most of them" else "",
-                        )
-                        Detail(
-                            "Your variability",
-                            it.variability?.let { v -> "±%.1f days".format(v) }
-                                ?: "not measurable yet",
-                        )
+                        accuracy?.let {
+                            add(
+                                Tile(
+                                    "Typical miss",
+                                    if (it.bias.roundToInt() == 0) {
+                                        "No pattern"
+                                    } else if (it.bias > 0) {
+                                        "${abs(it.bias).roundToInt()} days late"
+                                    } else {
+                                        "${abs(it.bias).roundToInt()} days early"
+                                    },
+                                    if (it.bias.roundToInt() == 0) "no consistent direction" else "on average",
+                                ),
+                            )
+                            add(Tile("Within 2 days", "${(it.hitRate * 100).roundToInt()}%", "of the time"))
+                        }
                     }
-                    Detail("Cycle started", state.cycleStart?.format(fullDate) ?: "—")
-                    // Worked out by counting back a 14-day luteal phase, which the app assumes and has
-                    // not measured (CYCLE_RULES §5.1, §7). Shown as a bare number it read as a finding.
-                    Detail(
-                        "Ovulation day",
-                        state.ovulationDay?.let { "around day $it, assuming a 14-day luteal phase" } ?: "—",
-                    )
-                    accuracy?.let {
-                        Detail(
-                            "Typical miss",
-                            if (it.bias.roundToInt() == 0) {
-                                "no consistent direction"
-                            } else if (it.bias > 0) {
-                                "${abs(it.bias).roundToInt()} days late"
-                            } else {
-                                "${abs(it.bias).roundToInt()} days early"
-                            },
-                        )
-                        Detail("Within 2 days", "${(it.hitRate * 100).roundToInt()}% of the time")
+                    // Two to a row while they fit; one per row at large text, where a half-width tile
+                    // would break "Around day 14" mid-phrase.
+                    val perRow = if (LocalDensity.current.fontScale > 1.3f) 1 else 2
+                    tiles.chunked(perRow).forEach { row ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            row.forEach { WhyTile(it, Modifier.weight(1f).fillMaxHeight()) }
+                            if (row.size < perRow) Spacer(Modifier.weight(1f))
+                        }
                     }
                     // The one place the vocabulary is defined.
                     //
@@ -744,10 +793,84 @@ private fun WhyCard(basis: PredictionBasis?, accuracy: PredictionAccuracy?, stat
                         "Estimated cycles were worked out by counting backwards, not from anything " +
                             "you logged. Correct them in History.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = scheme.onSurfaceVariant,
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * One mark per cycle the estimate rests on: solid for each one logged, a dashed ring for each one
+ * estimated, the same pair the calendar uses for observed and estimated days.
+ *
+ * The split was two lines of a table, "Cycles observed 1" over "Cycles estimated 11", which is the
+ * most important fact on the card set in the smallest type on it. Drawn, it is visible at a glance
+ * that a 28-day figure stands on one real cycle and eleven guesses, and as logging continues the
+ * row fills in solid. Capped at twelve marks, with the count in words beside it either way, so a
+ * long history does not wrap and the number never depends on counting dots.
+ */
+@Composable
+private fun EvidenceStrip(observed: Int, estimated: Int, mostlyAssumed: Boolean) {
+    if (observed + estimated == 0) return
+    val cycle = MaterialTheme.cycleColors
+    val shownObserved = observed.coerceAtMost(12)
+    val shownEstimated = estimated.coerceAtMost(12 - shownObserved)
+    Column(
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.semantics(mergeDescendants = true) {},
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+            repeat(shownObserved) { CyclePip(estimated = false, color = cycle.bleeding) }
+            repeat(shownEstimated) { CyclePip(estimated = true, color = cycle.estimated) }
+        }
+        Text(
+            "$observed logged · $estimated estimated" + if (mostlyAssumed) ". Mostly estimated so far." else "",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+@Composable
+private fun CyclePip(estimated: Boolean, color: Color) {
+    Canvas(Modifier.size(14.dp).clearAndSetSemantics { }) {
+        if (estimated) {
+            val stroke = 1.5.dp.toPx()
+            val dash = 2.dp.toPx()
+            drawCircle(
+                color = color,
+                radius = (size.minDimension - stroke) / 2f,
+                style = Stroke(width = stroke, pathEffect = PathEffect.dashPathEffect(floatArrayOf(dash, dash), 0f)),
+            )
+        } else {
+            drawCircle(color = color)
+        }
+    }
+}
+
+private data class Tile(val label: String, val value: String, val note: String?)
+
+/** A figure from the working, large enough to read as a figure. Was a two-column table row. */
+@Composable
+private fun WhyTile(tile: Tile, modifier: Modifier) {
+    Column(
+        modifier = modifier
+            .clip(MaterialTheme.shapes.medium)
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
+            .padding(horizontal = 14.dp, vertical = 12.dp)
+            .semantics(mergeDescendants = true) {},
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(
+            tile.label.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(tile.value, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+        tile.note?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -866,16 +989,3 @@ private fun ReminderAtRisk() {
     }
 }
 
-@Composable
-private fun Detail(label: String, value: String) {
-    Row(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(140.dp),
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-    }
-}
