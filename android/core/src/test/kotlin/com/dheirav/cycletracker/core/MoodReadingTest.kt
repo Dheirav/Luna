@@ -236,4 +236,33 @@ class MoodReadingTest {
 
         assertNull(reading.level)
     }
+
+    // -- council review, 5 Oct 2026 (H6) ------------------------------------------
+
+    /**
+     * "Nothing unusual for you around now" claims a comparison. With too little logged in other
+     * phases there is nothing to compare against, so the reading must not be STEADY.
+     */
+    @Test
+    fun `with nothing logged elsewhere there is no comparison, so no steady verdict`() {
+        val reading = MoodReadings.read(
+            todaysSymptoms = emptyMap(),
+            observations = history(Phase.LUTEAL, Symptom.LOW_MOOD, level = 1, days = 8, elsewhere = null),
+            phase = Phase.LUTEAL,
+        )
+        assertEquals(MoodFace.UNKNOWN, reading.face)
+        assertEquals(MoodSource.NOTHING, reading.source)
+    }
+
+    /** Lower than usual stands out too, and the reading carries which way: SETTLED, not HEAVY. */
+    @Test
+    fun `a symptom logged less than usual reads as settled`() {
+        val reading = MoodReadings.read(
+            todaysSymptoms = emptyMap(),
+            observations = history(Phase.LUTEAL, Symptom.LOW_MOOD, level = 0, days = 8, elsewhere = 2),
+            phase = Phase.LUTEAL,
+        )
+        assertEquals(MoodFace.SETTLED, reading.face)
+        assertEquals(Symptom.LOW_MOOD, reading.symptom)
+    }
 }

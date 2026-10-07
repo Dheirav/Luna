@@ -137,7 +137,10 @@ object Forecast {
 
         val center = cycleStart.plusDays(expectedCycleLength.toLong())
         val variability = CycleStats.cycleLengthVariability(cycles, config)
-        val observed = cycles.count { it.source == Source.OBSERVED && it.length != null }
+        // The cycles the variability was measured from, and no others: observed, plausible, the last
+        // six. Counting every observed cycle made the card say "across 10 observed" beside a Why card
+        // saying 6, and fed a larger n into the small-sample correction than the spread rested on.
+        val observed = CycleStats.expectedLength(cycles, null, config).observedSample.size
 
         val halfWidth = if (variability != null && observed > 0) {
             ceil(variability * forecastConfig.spreadMultiplier * smallSampleFactor(observed)).toInt()

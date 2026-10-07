@@ -14,6 +14,7 @@ import com.dheirav.cycletracker.R
 import com.dheirav.cycletracker.core.LateGuidance
 import com.dheirav.cycletracker.core.Phase
 import com.dheirav.cycletracker.core.PeriodWindow
+import com.dheirav.cycletracker.core.WindowBasis
 import com.dheirav.cycletracker.data.Settings
 import com.dheirav.cycletracker.data.snapshot
 import com.dheirav.cycletracker.reminder.EXTRA_OPEN_LOG
@@ -177,7 +178,11 @@ private suspend fun buildViews(context: Context): RemoteViews {
                 window != null && window.hasPassed(today) && state.cycleStart != null ->
                     LateGuidance.daysPastExpected(state.cycleStart!!, state.expectedCycleLength, today)
                         .let { append("$it day${if (it == 1) "" else "s"} late") }
-                window != null -> append("Next ${windowLabel(window)}")
+                // "Est." for a window drawn from a typical spread rather than this person's cycles,
+                // the distinction Today's card spells out and the widget used to drop.
+                window != null -> append(
+                    (if (window.basis == WindowBasis.ASSUMED) "Est. " else "Next ") + windowLabel(window),
+                )
                 else -> append("Tap to log")
             }
             // The tick is what the removed action line uniquely carried. "Tap to log today" was

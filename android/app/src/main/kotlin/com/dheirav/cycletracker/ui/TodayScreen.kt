@@ -662,7 +662,12 @@ private fun WhyCard(basis: PredictionBasis?, accuracy: PredictionAccuracy?, stat
                         )
                     }
                     Detail("Cycle started", state.cycleStart?.format(fullDate) ?: "—")
-                    Detail("Ovulation day", state.ovulationDay?.toString() ?: "—")
+                    // Worked out by counting back a 14-day luteal phase, which the app assumes and has
+                    // not measured (CYCLE_RULES §5.1, §7). Shown as a bare number it read as a finding.
+                    Detail(
+                        "Ovulation day",
+                        state.ovulationDay?.let { "around day $it, assuming a 14-day luteal phase" } ?: "—",
+                    )
                     accuracy?.let {
                         Detail(
                             "Typical miss",

@@ -114,6 +114,9 @@ object MoodReadings {
         val moodSummaries = SymptomPatterns.summarise(observations, phase)
             .filter { it.symptom.isMood }
         if (moodSummaries.isEmpty()) return unknown()
+        // Without enough logged in other phases there is nothing to compare this one with, so
+        // neither "stands out" nor "nothing unusual" can be said. The second used to be said anyway.
+        if (moodSummaries.none { it.elsewhereMean != null }) return unknown()
 
         // `summarise` already orders most distinctive first and already refuses to speak below
         // SymptomPatterns.MIN_DAYS_IN_PHASE, so reaching here means there is enough logged to

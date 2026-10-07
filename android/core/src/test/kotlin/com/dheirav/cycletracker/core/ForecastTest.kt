@@ -241,4 +241,14 @@ class ForecastTest {
         assertFalse(window.hasPassed(window.latest))
         assertTrue(window.hasPassed(window.latest.plusDays(1)))
     }
+
+    /** Council review H4: the window says how many cycles its spread rests on, the same six the Why card counts. */
+    @Test
+    fun `the window counts the cycles its spread was measured from`() {
+        // Ten observed cycles, one of them implausible: the spread uses the last six plausible ones.
+        val history = cycles(28, 29, 27, 75, 28, 29, 28, 27, 29, 28)
+        val window = Forecast.periodWindow(date("2025-12-01"), 28, history)!!
+        assertEquals(6, window.observedCycles)
+        assertEquals(CycleStats.expectedLength(history).observedSample.size, window.observedCycles)
+    }
 }

@@ -351,7 +351,14 @@ class ReminderWorker(
             notifyForecast(
                 context,
                 "Period expected soon",
-                "Likely between ${window.earliest.format(fmt)} and ${window.latest.format(fmt)}.",
+                "Likely between ${window.earliest.format(fmt)} and ${window.latest.format(fmt)}" +
+                    // An assumed window is a typical spread, not this person's; it says so here
+                    // as it does on Today.
+                    if (window.basis == com.dheirav.cycletracker.core.WindowBasis.ASSUMED) {
+                        ", a typical range until three of your cycles have been logged."
+                    } else {
+                        "."
+                    },
             )
             settings.lastPeriodWarningFor = cycleStart
         }

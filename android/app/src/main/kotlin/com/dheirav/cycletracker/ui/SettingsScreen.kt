@@ -209,11 +209,14 @@ private fun PredictionCard(settings: Settings) {
         }
         Text(
             when (width) {
-                WindowWidth.NARROW -> "A tight range that will be wrong more often — about half " +
-                    "the time. Useful if a broad window is too vague to plan around."
-                WindowWidth.BALANCED -> "Right roughly two times in three. The default."
-                WindowWidth.WIDE -> "Right about nine times in ten, at the cost of a noticeably " +
-                    "broader range."
+                // Relative, not rates. "Right two times in three" was a figure nobody had measured:
+                // it holds for a bell curve, real cycles are skewed, and an assumed window has no
+                // measured spread at all. Measured accuracy appears in "Why these numbers?" once
+                // there is a track record.
+                WindowWidth.NARROW -> "A tighter range that will be wrong more often. Useful if a " +
+                    "broad window is too vague to plan around."
+                WindowWidth.BALANCED -> "The default: wide enough to be right most months."
+                WindowWidth.WIDE -> "Right more often, at the cost of a noticeably broader range."
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -151,7 +151,7 @@ private suspend fun buildMoodViews(context: Context): RemoteViews {
  * whatever caption sits beside it — so population content is allowed to inform the words and never
  * the picture.
  */
-private fun wording(reading: MoodReading, phase: Phase?): Pair<String, String> = when (reading.source) {
+internal fun wording(reading: MoodReading, phase: Phase?): Pair<String, String> = when (reading.source) {
     MoodSource.TODAY -> {
         val symptom = reading.symptom
         val level = reading.level
@@ -176,8 +176,15 @@ private fun wording(reading: MoodReading, phase: Phase?): Pair<String, String> =
             // widget, and the headline's grammar already carries it: "you often log" is a statement
             // about the logs, not a forecast. The hedge is in the verb, which is cheaper than a
             // clause and harder to truncate away.
-            "You often log ${symptom.label.lowercase()} around now" to
-                "From $days day${plural(days)} you logged in this phase"
+            // The direction matters: a symptom can stand out because it is logged *less* here, and
+            // "you often log low mood around now" said the opposite of the data in that case.
+            if (reading.face == MoodFace.HEAVY) {
+                "You often log ${symptom.label.lowercase()} around now" to
+                    "From $days day${plural(days)} you logged in this phase"
+            } else {
+                "Less ${symptom.label.lowercase()} than usual around now" to
+                    "From $days day${plural(days)} you logged in this phase"
+            }
         }
     }
 

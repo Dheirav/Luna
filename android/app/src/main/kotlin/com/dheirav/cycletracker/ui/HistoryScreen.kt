@@ -97,7 +97,7 @@ fun HistoryScreen(viewModel: HistoryViewModel, onPickDate: (LocalDate) -> Unit) 
             )
         }
 
-        Legend()
+        Legend(window = ui.window, today = ui.today)
 
         Text(
             "Tap any day to log or correct it. Days you never logged stay blank — blank means " +
@@ -425,6 +425,17 @@ private fun DayCell(
                 color = content,
                 fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
             )
+            // A short bar under days in the expected window, so the window does not rest on its
+            // wash alone: the wash measured about 1.2:1 against the background, which low vision
+            // and many colour-vision differences cannot see (council review A4, WCAG 1.4.1).
+            if (inPredictedWindow) {
+                Box(
+                    modifier = Modifier
+                        .padding(top = 1.dp)
+                        .size(width = 10.dp, height = 2.dp)
+                        .background(content.copy(alpha = 0.8f)),
+                )
+            }
             // A dot for a day that holds symptoms or notes but no bleeding — otherwise a
             // fully-logged non-bleeding day looks identical to one never opened.
             if (summary != null && !bleeding) {
@@ -478,7 +489,7 @@ private enum class Marker { FILL, DASHED, WASH, DOT, RING }
 // alternative is hand-rolling wrapping layout, and a hand-rolled one would be the thing that breaks.
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Legend() {
+private fun Legend(window: PeriodWindow?, today: LocalDate) {
     // FlowRow, not Row: five items no longer fit one line at 440dpi, and at a large font scale even
     // four did not. A legend that runs off the edge documents nothing.
     FlowRow(
@@ -488,7 +499,16 @@ private fun Legend() {
     ) {
         LegendItem("Bleeding", Marker.FILL)
         LegendItem("Estimated", Marker.DASHED)
-        LegendItem("Expected", Marker.WASH)
+        // Named for what the shading is: a typical spread until this person's cycles have been
+        // measured, and a record rather than a forecast once its days are past.
+        LegendItem(
+            when {
+                window?.hasPassed(today) == true -> "Was expected"
+                window?.basis == com.dheirav.cycletracker.core.WindowBasis.ASSUMED -> "Expected (typical range)"
+                else -> "Expected"
+            },
+            Marker.WASH,
+        )
         LegendItem("Logged", Marker.DOT)
         // Today was drawn on the calendar and missing from the legend, so the legend's only ring
         // entry was "Estimated" — teaching the wrong reading of the ring around today's date.
@@ -531,7 +551,18 @@ private fun LegendItem(label: String, marker: Marker) {
                         else -> Modifier
                     },
                 ),
-        )
+        ) {
+            // The window's bar, as the calendar draws it, so the swatch matches the cell.
+            if (marker == Marker.WASH) {
+                Box(
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 2.dp)
+                        .size(width = 6.dp, height = 1.5.dp)
+                        .background(scheme.onSurface.copy(alpha = 0.8f)),
+                )
+            }
+        }
         Text(label, fontSize = 11.sp, color = scheme.onSurfaceVariant)
     }
 }
