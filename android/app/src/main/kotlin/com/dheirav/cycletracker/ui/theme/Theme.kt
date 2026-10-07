@@ -198,8 +198,8 @@ data class CycleColors(
     /**
      * The cycle ring, and the marks that should match it elsewhere (the Why card's sparkles), on
      * each phase. A deep shade of the phase's own hue in light mode: drawn in [onPhase], which is
-     * near-black there, the ring was the heaviest thing on a pastel card. In dark mode [onPhase]
-     * already reads as part of the card, so all four are that.
+     * near-black there, the ring was the heaviest thing on a pastel card. A pale tint of the hue in
+     * dark mode.
      */
     val phaseAccent: Map<Phase, Color>,
 )
@@ -244,25 +244,25 @@ private val DarkCycleColors = CycleColors(
     /**
      * **No gold here, and that is not an oversight.**
      *
-     * Ovulation is honey in light mode and coral in dark. Two attempts at a dark gold both came
+     * Ovulation is honey in light mode and blue in dark. Two attempts at a dark gold both came
      * out mud — first olive, then ochre — because yellow-ish hues read as brown at any lightness
      * a dark theme can afford. Saturation does not rescue it; it only moves brown toward orange.
      * The only gold that survives a dark ground is a card bright enough to glare at 21:00, which
      * is exactly when this screen gets used.
      *
-     * So dark mode changes the *hue* rather than dimming it. Ovulation becomes a warm rose-coral,
-     * which keeps the palette in one family and cannot turn to mud.
-     *
-     * That puts two pinks in play, so menstruation is pushed cooler and plummier here than its
-     * light-mode counterpart: the pair separate on **warmth**, not just lightness. Check them side
-     * by side after any change — this is the one collision in the set.
+     * So dark mode changes the *hue* rather than dimming it. It was a warm rose-coral until
+     * 8 Oct 2026, which kept the palette in one family but put two pinks side by side, and on the
+     * Redmi the coral read as brick red next to the period's plum. It is now a deep blue: the
+     * hue Clue and Flo use for ovulation, unable to turn to mud, and clear of every other phase.
+     * The card text measures 5.0:1 or better on it at the hero's 0.85 opacity.
      */
     phase = mapOf(
         Phase.MENSTRUATION to (Color(0xFF5B2050) to Color(0xFF7A2C6B)),
         // Follicular and ovulation darkened on 5 Oct 2026: the light text on them measured 4.1 and
         // 3.8:1 even at full strength. These keep every hero line at 4.5:1 or better at 0.85 opacity.
         Phase.FOLLICULAR to (Color(0xFF10503F) to Color(0xFF186B5A)),
-        Phase.OVULATION to (Color(0xFF86303F) to Color(0xFF9C414C)),
+        // Blue since 8 Oct 2026 (device review m1); see above.
+        Phase.OVULATION to (Color(0xFF1E4580) to Color(0xFF2B5A9E)),
         Phase.LUTEAL to (Color(0xFF3E2B84) to Color(0xFF553BAE)),
     ),
     onPhase = Color(0xFFFDF2F7),
@@ -273,10 +273,37 @@ private val DarkCycleColors = CycleColors(
     // A stated deep plum works inside a pale body on all four.
     mascotFace = Color(0xFF4A3573),
     mascotShadow = Color.Transparent,
-    phaseAccent = Phase.entries.associateWith { Color(0xFFFDF2F7) },
+    // A pale tint of each phase's own hue. All four were onPhase's near-white until the accent
+    // started colouring other screens too, where a near-white heading lost the phase entirely.
+    // On their own cards: 4.2:1 at worst (above 3:1 for graphics); 8:1 or better on the page.
+    phaseAccent = mapOf(
+        Phase.MENSTRUATION to RosePale,
+        Phase.FOLLICULAR to Color(0xFFA8E6CF),
+        Phase.OVULATION to Color(0xFFB3CCF5),
+        Phase.LUTEAL to LavenderPale,
+    ),
 )
 
 private val LocalCycleColors = staticCompositionLocalOf { LightCycleColors }
+
+/**
+ * The phase Today is showing (a logged bleed counts as the period), for screens other than Today to
+ * take their accent from. Null with no data, and every user of it falls back to the fixed palette.
+ *
+ * Provided once, where the screens are switched, rather than passed down: the device review found
+ * that the colour and the "spark" stopped at Today (p1), and the cure is that every screen can
+ * draw from the same palette the hero does without each one being told separately.
+ */
+val LocalCurrentPhase = staticCompositionLocalOf<Phase?> { null }
+
+/** The current phase's gradient pair, or null when there is none. */
+val MaterialTheme.currentPhaseColors: Pair<Color, Color>?
+    @Composable @ReadOnlyComposable get() = LocalCurrentPhase.current?.let { LocalCycleColors.current.phase[it] }
+
+/** The current phase's accent, or the theme's primary when there is none. */
+val MaterialTheme.currentPhaseAccent: Color
+    @Composable @ReadOnlyComposable get() =
+        LocalCurrentPhase.current?.let { LocalCycleColors.current.phaseAccent[it] } ?: colorScheme.primary
 
 /** `MaterialTheme.cycleColors` — reads like the rest of the theme at the call site. */
 val MaterialTheme.cycleColors: CycleColors

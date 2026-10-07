@@ -116,7 +116,7 @@ object Guidance {
                 "release, which is common and usually brief.",
             moodBrief = "outward, social, confident",
             movement = listOf(
-                "Strength and power tend to peak here — a good time to test yourself",
+                "Some people find strength peaks around here; if so, a good time to test yourself",
                 "High intensity work, sprints, competitive sport",
                 "Warm up properly; ligaments are laxer around ovulation and injury risk rises",
             ),
@@ -149,7 +149,7 @@ object Guidance {
             ),
             nourishment = listOf(
                 "Genuinely higher calorie needs — eat accordingly",
-                "Complex carbohydrates support serotonin",
+                "Some people find complex carbohydrates help their mood",
                 "Fibre from whole grains and legumes",
                 "Healthy fats — avocado, nuts, oily fish",
                 "Calcium and magnesium are associated with steadier mood",

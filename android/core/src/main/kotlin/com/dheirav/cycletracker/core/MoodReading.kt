@@ -148,7 +148,7 @@ object MoodReadings {
     /**
      * A burden level to a face.
      *
-     * "None" and "Slight" are settled; "Moderate" sits in the middle; "Strong" and "Overwhelming"
+     * "None" and "Slight" are settled; "Moderate" sits in the middle; "Strong" and "Intense"
      * are heavy. Deliberately coarse — the face is a glance, and a five-way facial gradient would
      * imply a precision that a self-reported 0–4 does not have.
      */

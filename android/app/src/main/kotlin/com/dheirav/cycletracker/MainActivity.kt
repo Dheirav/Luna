@@ -237,7 +237,11 @@ class MainActivity : ComponentActivity() {
 
             // A pane title per screen, so a screen reader announces where it has landed; the content
             // used to swap with nothing said and focus left wherever it was.
+            val currentPhase = todayUi.state?.let { if (it.isBleeding) com.dheirav.cycletracker.core.Phase.MENSTRUATION else it.phase }
             Box(Modifier.padding(padding).semantics { paneTitle = screen.title() }) {
+              androidx.compose.runtime.CompositionLocalProvider(
+                  com.dheirav.cycletracker.ui.theme.LocalCurrentPhase provides currentPhase,
+              ) {
                 when (screen) {
                     Screen.TODAY -> TodayScreen(
                         viewModel = todayVm,
@@ -274,6 +278,7 @@ class MainActivity : ComponentActivity() {
 
                     // No refresh hook: a settings change reaches every screen through the snapshot.
                     Screen.SETTINGS -> SettingsScreen(
+                        observedCycles = todayUi.basis?.observedCycles ?: 0,
                         // Replaying the walkthrough is the tour itself, from Today.
                         onHowItWorks = {
                             screen = Screen.TODAY
@@ -298,6 +303,7 @@ class MainActivity : ComponentActivity() {
                     // engine, so it cannot disagree with the hero the user just tapped.
                     Screen.PHASE_GUIDE -> PhaseGuideScreen(guideVm, initialPhase = null)
                 }
+              }
             }
 
             // Drawn over everything, in the same coordinates the targets report theirs in.
@@ -323,7 +329,12 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     action = { step ->
-                        if (step.target == TourTarget.REMINDER_CARD) {
+                        // Only when there is something to allow; it showed on a phone that had already
+                        // granted it (device review m4).
+                        val allowed = remember(step) {
+                            androidx.core.app.NotificationManagerCompat.from(this@MainActivity).areNotificationsEnabled()
+                        }
+                        if (step.target == TourTarget.REMINDER_CARD && !allowed) {
                             OutlinedButton(onClick = requestNotifications) { Text("Allow the reminder") }
                         }
                     },

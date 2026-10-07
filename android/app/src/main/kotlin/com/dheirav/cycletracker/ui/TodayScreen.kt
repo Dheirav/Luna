@@ -24,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.drawWithContent
 import java.time.temporal.ChronoUnit
@@ -239,6 +240,10 @@ fun TodayScreen(
                         cycleDay = state.cycleDay ?: 1,
                         expectedLength = state.expectedCycleLength,
                         periodLength = state.periodLength,
+                        // Days of this period the user actually logged; the rest of periodLength is
+                        // the expected length standing in until the period is answered as over.
+                        loggedPeriodDays = ui.projection.periods.lastOrNull { it.start == start }
+                            ?.let { if (it.whollyObserved) it.spanDays else it.loggedDayCount } ?: 0,
                         ovulationDay = state.ovulationDay,
                         windowStartDay = window?.let { ChronoUnit.DAYS.between(start, it.earliest).toInt() + 1 },
                         windowEndDay = window?.let { ChronoUnit.DAYS.between(start, it.latest).toInt() + 1 },
@@ -293,7 +298,7 @@ fun TodayScreen(
                 )
                 // Says how many it will walk through when that is fewer than were missed.
                 TextButton(onClick = { onCatchUp(ui.unlogged) }) {
-                    Text(if (line.startsWith("Over")) "Fill in the last ${ui.unlogged.size}" else "Fill in")
+                    Text(if (ui.unloggedRun > ui.unlogged.size) "Fill in the last ${ui.unlogged.size}" else "Fill in")
                 }
             }
         }
@@ -310,6 +315,11 @@ fun TodayScreen(
 
         ui.window?.let {
             Box(Modifier.tourTarget(TourTarget.WINDOW_CARD)) { NextPeriodCard(it, today = ui.today) }
+        }
+        // So the tour's caption for this card says what it shows: a forecast, or one that has passed.
+        LocalTour.current?.let { tour ->
+            val passed = ui.window?.hasPassed(ui.today) == true
+            LaunchedEffect(passed) { tour.windowPassed = passed }
         }
 
         // After the forecast, not before it. A stopped reminder is a fault in the app, not news about
@@ -439,7 +449,10 @@ private fun CycleHero(
           Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
-                "DAY $cycleDay",
+                // Past the usual length the phase is the open-ended luteal by rule (§5), with its
+                // confidence at the floor, and the biggest type on the screen stated it flat (device
+                // review p4). A logged bleed is never hedged: it is observed.
+                if (ring?.onSecondLap == true && !isBleeding) "DAY $cycleDay · MOST LIKELY" else "DAY $cycleDay",
                 style = MaterialTheme.typography.labelSmall,
                 // 0.85 at least, for every secondary line on the hero: at 0.70 to 0.78 the smaller
                 // text measured 3.75 to 4.5:1 on the lighter gradients (council review A3).
@@ -485,7 +498,7 @@ private fun CycleHero(
                     ink = effectivePhase?.let { cycle.phaseAccent[it] } ?: ink,
                     period = cycle.bleeding,
                     halo = lerp(top, bottom, 0.3f),
-                ) { mascot(58.dp) }
+                ) { mascot(52.dp) }
             } else {
                 mascot(84.dp)
             }
@@ -727,7 +740,8 @@ private fun WhyCard(
     ) {
         SparkleCluster(
             color = accent.copy(alpha = 0.45f),
-            modifier = Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 70.dp),
+            // Clear of the Show/Hide button's text, which its lowest dot touched (device review p2).
+            modifier = Modifier.align(Alignment.TopEnd).padding(top = 2.dp, end = 104.dp),
         )
         Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
@@ -877,8 +891,12 @@ private fun EvidenceStrip(observed: Int, estimated: Int, mostlyAssumed: Boolean)
             repeat(shownObserved) { CyclePip(estimated = false, color = cycle.bleeding) }
             repeat(shownEstimated) { CyclePip(estimated = true, color = cycle.estimated) }
         }
+        // Says which cycles it counts. Unqualified, "3 logged · 3 estimated" sat against the doctor
+        // summary's "13 recorded, 3 observed, 10 estimated", and one of them looked wrong (device
+        // review M4). Both are right: this is the sample the prediction actually uses.
         Text(
-            "$observed logged · $estimated estimated" + if (mostlyAssumed) ". Mostly estimated so far." else "",
+            "From your last ${observed + estimated} cycles: $observed logged, $estimated estimated" +
+                if (mostlyAssumed) ". Mostly estimated so far." else "",
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurface,
         )
@@ -983,7 +1001,13 @@ private fun ReminderStopped(batteryRestricted: Boolean) {
             // to no restrictions" sends the person to fix something already fixed; on the Redmi that
             // was the state when the reminder stopped, and Autostart was what remained.
             Text(
-                if (batteryRestricted) "Set battery saver to No restrictions." else "Battery is unrestricted. Allow Autostart for Luna.",
+                // The action first. "Battery is unrestricted" led, and read as good news before the problem
+                // (device review m9).
+                if (batteryRestricted) {
+                    "Set battery saver to No restrictions so it can fire."
+                } else {
+                    "Turn on Autostart for Luna so it can fire. Battery is already unrestricted."
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

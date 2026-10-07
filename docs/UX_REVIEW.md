@@ -254,3 +254,34 @@ never made, which the council review of 5 Oct caught (`docs/COUNCIL_REVIEW.md`, 
 Steps 1 and 2 change no visible design, so they can go in without a screenshot review. Steps 3 to 6
 should each be checked on the Redmi Note 15 Pro before moving on, because that is the first phone
 at 520dpi and the first on Android 16.
+
+## Device review, 8 Oct 2026
+
+An agent drove the app on the Redmi over adb and reported 1 blocker, 7 major, 13 minor and 8 polish
+findings. The full report holds real cycle dates, so it lives outside the repo. What changed:
+
+- **The doctor summary called a mostly estimated period observed.** A period took its source from its
+  start day, so a logged first day with four backfilled days was a five-day observed period, in the
+  summary, the period-length median and the prolonged-bleeding flag. Periods now count their
+  estimated days; the summary says "5 days, 1 logged, 4 estimated" and tags it (spec §3.1 clarified).
+- **The ring** draws logged period days solid and the expected-length stand-in dashed, and its second
+  lap sits far enough inside that today's dot can no longer be read as day 16 on the main loop.
+- **The log form** draws every answer, bleeding and flow included, with one row component: one
+  selected style, a tap clears an answer, and the selected flag is set for accessibility services.
+  "Overwhelming" became "Intense" (same level, same stored 4). Save stays disabled until the day
+  changes, and "blank stays unknown" moved above the questions.
+- **History** lists estimated days under "Estimated by Luna" with a dashed outline instead of under
+  "Logged this month", draws the expected window as a dotted ring rather than a wash that read as a
+  solid disc, lifts future dates to readable contrast, and uses icon buttons for the months.
+- **The tour** describes the Save step instead of instructing it, names the top-left arrow on back
+  steps and drops the bubble's own Back there, explains the ring's inner lap, says "was expected"
+  over a passed window, stays below the status bar, and only offers "Allow the reminder" when needed.
+- **Colour beyond Today.** The current phase is available to every screen: History's calendar sits
+  on its wash, chosen answers on the log form take its colour, Settings headings take its accent, and
+  the phase guide's cards and chips follow the page's phase. Dark-mode ovulation is blue, not the
+  coral that read as brick red beside the period.
+- Smaller: the late flag quotes the window, the summary says "cycle day" and aligns its numbers,
+  "12 days not logged" instead of "over a week", "DAY 40 · MOST LIKELY" on a second lap, one red
+  line for a stopped reminder in Settings with the fix first and diagnostics folded, superseded
+  cycle settings dimmed with "Not in use", softened claims in the phase guide, and the cloud drawn
+  without seams.

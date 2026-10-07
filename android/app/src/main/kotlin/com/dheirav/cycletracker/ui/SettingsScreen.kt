@@ -31,6 +31,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import com.dheirav.cycletracker.ui.theme.currentPhaseAccent
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.alpha
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -84,7 +87,12 @@ private val stamp = DateTimeFormatter.ofPattern("d MMM, HH:mm")
  * reasoning was always on screen, and after the first read it was only scrolling between switches.
  */
 @Composable
-fun SettingsScreen(onHowItWorks: () -> Unit, onSummary: () -> Unit) {
+fun SettingsScreen(
+    onHowItWorks: () -> Unit,
+    onSummary: () -> Unit,
+    /** Observed cycles behind the prediction, so "Your cycles" can say when it stops applying. */
+    observedCycles: Int = 0,
+) {
     val context = LocalContext.current
     val settings = remember { Settings(context) }
 
@@ -100,7 +108,7 @@ fun SettingsScreen(onHowItWorks: () -> Unit, onSummary: () -> Unit) {
         // Grouped by what a setting changes, so the two that alter the numbers on Today are not
         // buried among the twice-a-year ones. It was one flat run of seven cards.
         SettingsGroup("Predictions")
-        YourCyclesCard(settings = settings)
+        YourCyclesCard(settings = settings, observedCycles = observedCycles)
         PredictionCard(settings = settings)
 
         // The widget sits with the reminder because it is the reminder's fallback: it keeps working
@@ -143,16 +151,27 @@ fun SettingsScreen(onHowItWorks: () -> Unit, onSummary: () -> Unit) {
  * are worth more than their recollection.
  */
 @Composable
-private fun YourCyclesCard(settings: Settings) {
+private fun YourCyclesCard(settings: Settings, observedCycles: Int) {
     var cycle by remember { mutableStateOf(settings.typicalCycleLength) }
     var period by remember { mutableStateOf(settings.typicalPeriodLength) }
+    // Three observed cycles is where §3 stops using these. Past it the steppers looked exactly as
+    // live as everything else while changing nothing (device review m12), so they say so and dim.
+    val superseded = observedCycles >= 3
 
     SettingsCard(
         "Your cycles",
-        about = "Used until three of your own cycles have been observed — after that the app goes " +
-            "by what it measured, and these stop applying. They still outrank the app's own " +
-            "estimates, which used 28 and 5.",
+        about = "Used until three of your own cycles have been observed. After that the app goes " +
+            "by what it measured, and these stop applying. Until then they take priority over the " +
+            "app's defaults of 28 and 5.",
     ) {
+        if (superseded) {
+            Text(
+                "Not in use: Luna is going by your $observedCycles observed cycles.",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+        Column(modifier = Modifier.alpha(if (superseded) 0.5f else 1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Stepper(
             label = "Usual cycle length",
             value = cycle,
@@ -183,11 +202,14 @@ private fun YourCyclesCard(settings: Settings) {
                 settings.typicalPeriodLength = null
             },
         )
-        Text(
-            "Only used until three of your cycles have been observed.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        }
+        if (!superseded) {
+            Text(
+                "Only used until three of your cycles have been observed.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -439,8 +461,25 @@ private fun ReminderDetails(
     onSend: () -> Unit,
 ) {
     val context = LocalContext.current
+    var technical by remember { mutableStateOf(false) }
 
-    ReminderStatusBlock(status)
+    // The fix comes first and the diagnostics last, folded. On a stopped reminder this used to open
+    // on queue states ("In the queue: waiting") and a second red line restating the headline, with
+    // the thing to do at the bottom (device review m9).
+    if (status?.looksBroken == true && status.notificationsAllowed) {
+        FixRow(
+            message = "This phone stopped it in the background; it is not a setting you have wrong. " +
+                if (status.batteryUnrestricted) {
+                    "Battery is already unrestricted, so turn on Autostart for Luna."
+                } else {
+                    "Set battery saver to No restrictions for Luna, and turn on Autostart if the phone has it."
+                },
+            // Not red: the headline above already is, and one red line per fault is the rule.
+            severe = false,
+            action = if (status.batteryUnrestricted) "Open Autostart" else "Open app settings",
+            onClick = { ReminderScheduler.openReminderFix(context, batteryRestricted = !status.batteryUnrestricted) },
+        )
+    }
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -482,7 +521,8 @@ private fun ReminderDetails(
                 },
             )
         }
-        if (!s.batteryUnrestricted) {
+        // Covered by the stopped-reminder fix above when that is showing.
+        if (!s.batteryUnrestricted && !s.looksBroken) {
             FixRow(
                 message = "Battery use is restricted. Autostart, if this ROM has it, needs " +
                     "granting by hand too.",
@@ -493,6 +533,14 @@ private fun ReminderDetails(
                 onClick = { ReminderScheduler.openReminderFix(context, batteryRestricted = true) },
             )
         }
+    }
+
+    TextButton(
+        onClick = { technical = !technical },
+        modifier = Modifier.semantics { stateDescription = if (technical) "Expanded" else "Collapsed" },
+    ) { Text(if (technical) "Hide technical details" else "Technical details") }
+    AnimatedVisibility(visible = technical) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) { ReminderStatusBlock(status) }
     }
 }
 
@@ -538,14 +586,6 @@ private fun ReminderStatusBlock(status: ReminderStatus?) {
         },
     )
 
-    if (status.looksBroken) {
-        Text(
-            "A reminder was due and did not fire. That is this phone killing background work, not " +
-                "a setting you have wrong.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error,
-        )
-    }
 }
 
 @Composable
@@ -661,7 +701,8 @@ private fun SettingsGroup(title: String) {
     Text(
         title,
         style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.primary,
+        // The current phase's accent, so section headings carry the same colour as Today's ring.
+        color = MaterialTheme.currentPhaseAccent,
         modifier = Modifier
             .padding(top = 8.dp, start = 4.dp)
             .semantics { heading() },

@@ -19,7 +19,9 @@ package com.dheirav.cycletracker.core
  *
  * Values are stored 0–4. A missing row means "not logged", which is never the same as a logged 0.
  */
-private val BURDEN = listOf("None", "Slight", "Moderate", "Strong", "Overwhelming")
+// "Intense" was "Overwhelming" until 8 Oct 2026. Same level, stored as the same 4; the longer word
+// could only fit a fifth of a phone's width by shrinking below its neighbours (device review m3).
+private val BURDEN = listOf("None", "Slight", "Moderate", "Strong", "Intense")
 
 enum class Symptom(
     val key: String,

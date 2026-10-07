@@ -38,14 +38,18 @@ fun unloggedRecentDays(loggedDays: Set<LocalDate>, today: LocalDate): List<Local
 /**
  * What Today says about missed days. The count is the whole run, not the capped list: on the Redmi,
  * five weeks unlogged read "7 days not logged" because the list stops at a week, which undercounted
- * exactly the way this app promises never to.
+ * exactly the way this app promises never to. "Over a week" fixed the undercount and still hid the
+ * size of it, over two weeks on the Redmi (device review p3), so the line now gives the number.
  */
 fun catchUpLine(loggedDays: Set<LocalDate>, today: LocalDate): String? {
-    val days = unloggedRecentDays(loggedDays, today)
-    if (days.isEmpty()) return null
-    val first = loggedDays.min()
-    val run = generateSequence(today.minusDays(1)) { it.minusDays(1) }
+    if (unloggedRecentDays(loggedDays, today).isEmpty()) return null
+    return "${unloggedRun(loggedDays, today)} days not logged"
+}
+
+/** Every consecutive unlogged day before today, back to the last log. Not capped. */
+fun unloggedRun(loggedDays: Set<LocalDate>, today: LocalDate): Int {
+    val first = loggedDays.minOrNull() ?: return 0
+    return generateSequence(today.minusDays(1)) { it.minusDays(1) }
         .takeWhile { it.isAfter(first) && it !in loggedDays }
         .count()
-    return if (run > days.size) "Over a week not logged" else "${days.size} days not logged"
 }

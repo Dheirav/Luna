@@ -27,7 +27,8 @@ class TourScriptTest {
     /** Show, not tell: a caption is a line next to the thing, not a paragraph. */
     @Test
     fun `every caption is short`() {
-        steps.forEach { assertTrue("too long: ${it.caption}", it.caption.length <= 90) }
+        steps.flatMap { listOfNotNull(it.caption, it.captionWhenWindowPassed) }
+            .forEach { assertTrue("too long: $it", it.length <= 90) }
     }
 
     @Test

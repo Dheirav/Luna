@@ -45,6 +45,13 @@ data class RingGeometry(
     val overflowSweep: Float,
     /** Bleeding days at the start of the cycle, as used for the phase boundaries. */
     val periodSweep: Float,
+    /**
+     * The part of [periodSweep] the user logged. The remainder is the expected period length
+     * standing in for days nobody has answered yet (§5.1), and is drawn dashed, the calendar's mark
+     * for estimated. It was one solid arc: two logged days and three assumed ones, all in the
+     * observed colour, on the most prominent graphic in the app (device review M1).
+     */
+    val loggedPeriodSweep: Float,
     /** Centre of the assumed ovulation day, or null when there is none to show. */
     val ovulationAngle: Float?,
     /** The expected window as start angle and sweep, or null once it has passed. */
@@ -64,6 +71,7 @@ fun ringGeometry(
     cycleDay: Int,
     expectedLength: Int,
     periodLength: Int?,
+    loggedPeriodDays: Int,
     ovulationDay: Int?,
     windowStartDay: Int?,
     windowEndDay: Int?,
@@ -77,6 +85,7 @@ fun ringGeometry(
         // look like a new cycle has begun. Past that point the words carry it.
         overflowSweep = (late * perDay).coerceAtMost(330f),
         periodSweep = ((periodLength ?: 0) * perDay).coerceAtMost(360f),
+        loggedPeriodSweep = (loggedPeriodDays.coerceAtMost(periodLength ?: 0) * perDay).coerceAtMost(360f),
         ovulationAngle = ovulationDay?.let { (it - 0.5f) * perDay },
         window = if (windowStartDay != null && windowEndDay != null && windowEndDay >= windowStartDay) {
             (windowStartDay - 1) * perDay to (windowEndDay - windowStartDay + 1) * perDay
@@ -127,19 +136,37 @@ fun CycleRing(
     )
 
     Box(modifier = modifier.size(size).clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
+        // Under the marks, so a dot on the inner lap is never hidden behind the mascot.
+        content()
         Canvas(Modifier.size(size)) {
             val track = 9.dp.toPx()
             val outer = this.size.minDimension / 2f
             // The window orbit sits outside the track, the second lap inside it.
             val ringRadius = outer - 9.dp.toPx() - track / 2f
             val windowRadius = outer - 3.dp.toPx()
-            val lapRadius = ringRadius - track / 2f - 6.dp.toPx()
+            // Far enough in that today's dot, halo and glow on the second lap never touch the track.
+            // At 6dp in they overlapped it, and day 40 read as a dot on the main ring at day 12
+            // (device review M2), the misreading the second lap exists to prevent.
+            val lapRadius = ringRadius - track / 2f - 12.dp.toPx()
             val t = reveal.value
 
             // Track: the whole expected cycle, faint.
             drawCircle(ink.copy(alpha = 0.18f), radius = ringRadius, style = Stroke(track))
             // Period days, at the start of the lap.
-            if (geometry.periodSweep > 0f) arc(period.copy(alpha = 0.9f), 0f, geometry.periodSweep * t, ringRadius, track)
+            if (geometry.loggedPeriodSweep > 0f) arc(period.copy(alpha = 0.9f), 0f, geometry.loggedPeriodSweep * t, ringRadius, track)
+            val guessed = geometry.periodSweep - geometry.loggedPeriodSweep
+            if (guessed > 0f) {
+                val dash = 2.5.dp.toPx()
+                drawArc(
+                    color = period.copy(alpha = 0.85f),
+                    startAngle = geometry.loggedPeriodSweep - 90f,
+                    sweepAngle = guessed * t,
+                    useCenter = false,
+                    topLeft = Offset(center.x - ringRadius, center.y - ringRadius),
+                    size = Size(ringRadius * 2, ringRadius * 2),
+                    style = Stroke(width = track * 0.35f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(dash, dash))),
+                )
+            }
             // Elapsed, drawn over the track. Thinner than the track, so the period colour still
             // shows at the edges of the days it has passed through.
             // Dimmed once the lap is complete: a solid full loop was the loudest thing on the card in
@@ -191,11 +218,11 @@ fun CycleRing(
             // own colour lifts it off the track; the soft pulse round it is what the eye lands on.
             val todayRadius = if (geometry.onSecondLap) lapRadius else ringRadius
             val c = point(geometry.todayAngle * t, todayRadius)
-            drawCircle(ink.copy(alpha = 0.22f * glow * t), radius = track * (1.1f + 0.5f * glow), center = c)
+            val glowReach = if (geometry.onSecondLap) 0.2f else 0.5f
+            drawCircle(ink.copy(alpha = 0.22f * glow * t), radius = track * (1.0f + glowReach * glow), center = c)
             drawCircle(halo, radius = track * 0.85f, center = c)
             drawCircle(ink, radius = track * 0.6f, center = c)
         }
-        content()
     }
 }
 

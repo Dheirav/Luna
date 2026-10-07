@@ -20,6 +20,8 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -81,7 +83,7 @@ fun PhaseGuideScreen(viewModel: GuideViewModel, initialPhase: Phase?) {
                 phase = ui.phase,
             )
 
-            Section(title = "Mood and energy, typically", body = ui.guidance.mood)
+            Section(title = "Mood and energy, typically", body = ui.guidance.mood, phase = ui.phase)
 
             TipsCard("Movement", ui.guidance.movement)
             TipsCard("Food", ui.guidance.nourishment)
@@ -169,10 +171,16 @@ private fun PhasePicker(selected: Phase, current: Phase?, onSelect: (Phase) -> U
         Phase.entries.forEach { phase ->
             // "now" marks the phase you are in, so reading ahead never loses where you are.
             val name = phaseName(phase) + if (phase == current) " · now" else ""
+            // The selected chip takes its phase's colour, as the header above it does.
+            val (_, tint) = MaterialTheme.cycleColors.phase.getValue(phase)
             FilterChip(
                 selected = phase == selected,
                 onClick = { onSelect(phase) },
                 label = { Text(name, style = MaterialTheme.typography.labelSmall) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = tint,
+                    selectedLabelColor = MaterialTheme.cycleColors.onPhase,
+                ),
             )
         }
     }
@@ -208,7 +216,7 @@ private fun YoursCard(summaries: List<PhaseSymptomSummary>, loggedDays: Int, pha
                 Text(
                     "Nothing measured yet. Once you have logged symptoms on " +
                         "${SymptomPatterns.MIN_DAYS_IN_PHASE} days in this phase, what you " +
-                        "actually recorded appears here instead of the general notes below." +
+                        "actually recorded appears here, above the general notes." +
                         if (loggedDays > 0) " You are at $loggedDays." else "",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -267,12 +275,15 @@ private fun YoursCard(summaries: List<PhaseSymptomSummary>, loggedDays: Int, pha
 }
 
 @Composable
-private fun Section(title: String, body: String) {
+private fun Section(title: String, body: String, phase: Phase) {
+    // The page's own phase, softened towards the card colour, not the theme's fixed lavender: that
+    // matched the luteal header only and clashed with the green and red ones (device review m1).
+    val (_, bottom) = MaterialTheme.cycleColors.phase.getValue(phase)
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            containerColor = lerp(MaterialTheme.colorScheme.surfaceVariant, bottom, 0.55f),
         ),
     ) {
         Column(
@@ -282,13 +293,13 @@ private fun Section(title: String, body: String) {
             Text(
                 title,
                 style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.semantics { heading() },
             )
             Text(
                 body,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                color = MaterialTheme.colorScheme.onSurface,
             )
         }
     }

@@ -6,7 +6,7 @@
         are duplicated by hand and must be kept in step.
 
         These are the light-mode values; values-night carries the dark set. Note ovulation is
-        honey here and coral there: a warm hue at the lightness a dark theme can afford reads as
+        honey here and blue there: a warm hue at the lightness a dark theme can afford reads as
         brown, which is why the dark palette changes the hue rather than dimming it.
     -->
     <color name="phase_menstruation">#FFC6D8</color>

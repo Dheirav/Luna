@@ -227,14 +227,17 @@ private fun SectionCard(section: com.dheirav.cycletracker.core.SummarySection) {
 private fun SummaryItemView(item: SummaryItem) {
     when (item) {
         is SummaryItem.Figure -> Row(
-            modifier = Modifier.fillMaxWidth().padding(start = ((item.indent - 2) * 6).dp),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // Only the label is indented. Indenting the whole row moved the value column too, so the
+            // "of which" counts sat 20px right of the total above them (device review m6); the PDF
+            // already kept one value column.
             Text(
                 item.label,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).padding(start = ((item.indent - 2).coerceAtLeast(0) * 6).dp),
             )
             Column(modifier = Modifier.weight(1.1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(item.value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
@@ -249,7 +252,10 @@ private fun SummaryItemView(item: SummaryItem) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 // The date takes the wider share: "23 Sept 2025 to 20 Oct 2025" wrapped mid-range at
                 // an even split, while the detail beside it is short.
-                Text(item.primary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1.5f))
+                // A single date ("9 Mar 2026") does not need that share, and giving it one squeezed the
+                // period detail beside it onto three lines (device review p8).
+                val dateWeight = if (item.primary.length > 14) 1.5f else 0.8f
+                Text(item.primary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(dateWeight))
                 item.secondary?.let {
                     Text(
                         it,

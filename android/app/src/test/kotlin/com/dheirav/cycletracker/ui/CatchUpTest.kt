@@ -73,7 +73,8 @@ class CatchUpTest {
     /** Found on the phone: five weeks unlogged read "7 days not logged". The line counts the whole run. */
     @Test
     fun `a run longer than a week is not undercounted`() {
-        assertEquals("Over a week not logged", catchUpLine(setOf(d("2026-08-26")), today))
+        // 27 Aug to 6 Oct: 41 days, said as a number rather than "over a week" (device review p3).
+        assertEquals("41 days not logged", catchUpLine(setOf(d("2026-08-26")), today))
         assertEquals("3 days not logged", catchUpLine(setOf(d("2026-10-01"), d("2026-10-03")), today))
         assertEquals(null, catchUpLine(setOf(d("2026-10-06")), today))
     }

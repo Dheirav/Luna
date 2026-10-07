@@ -25,6 +25,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import com.dheirav.cycletracker.ui.theme.currentPhaseAccent
+import com.dheirav.cycletracker.ui.theme.currentPhaseColors
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.Icons
+import androidx.compose.material3.Icon
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,6 +46,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -81,25 +92,44 @@ fun HistoryScreen(viewModel: HistoryViewModel, onPickDate: (LocalDate) -> Unit) 
     ) {
         BackBar(title = "History")
 
-        MonthHeader(
-            month = ui.month,
-            canGoForward = ui.canGoForward,
-            onShift = viewModel::shiftMonth,
-        )
-
-        WeekdayLabels()
-
-        Box(Modifier.tourTarget(TourTarget.CALENDAR)) {
-            MonthGrid(
+        // The calendar sits on the hero's phase colours at a whisper, as the Why card does, so the
+        // screen reads as part of the same app rather than a grey form (device review p1). Blended
+        // towards the card colour so the day numbers keep their contrast.
+        val scheme = MaterialTheme.colorScheme
+        val (phaseTop, phaseBottom) = MaterialTheme.currentPhaseColors
+            ?: (scheme.secondaryContainer to scheme.primaryContainer)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(MaterialTheme.shapes.large)
+                .background(
+                    Brush.linearGradient(
+                        listOf(lerp(scheme.surfaceVariant, phaseTop, 0.45f), lerp(scheme.surfaceVariant, phaseBottom, 0.45f)),
+                    ),
+                )
+                .padding(horizontal = 8.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            MonthHeader(
                 month = ui.month,
-                days = ui.days,
-                window = ui.window,
-                today = ui.today,
-                onPickDate = onPickDate,
+                canGoForward = ui.canGoForward,
+                onShift = viewModel::shiftMonth,
             )
-        }
 
-        Legend(window = ui.window, today = ui.today)
+            WeekdayLabels()
+
+            Box(Modifier.tourTarget(TourTarget.CALENDAR)) {
+                MonthGrid(
+                    month = ui.month,
+                    days = ui.days,
+                    window = ui.window,
+                    today = ui.today,
+                    onPickDate = onPickDate,
+                )
+            }
+
+            Legend(window = ui.window, today = ui.today)
+        }
 
         Text(
             "Tap any day to log or correct it. Days you never logged stay blank — blank means " +
@@ -133,6 +163,11 @@ private fun MonthLog(
         .toList()
         .sortedByDescending { it.first }
 
+    // Estimated days are listed apart from logged ones. Under one "Logged this month" heading, a
+    // month with nothing logged showed a column of backfilled bleeding days, the app's guesses
+    // filed under the word it reserves for what the person recorded (device review M5).
+    val (estimated, logged) = entries.partition { it.second.isAssumed }
+
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             "Logged this month",
@@ -142,16 +177,30 @@ private fun MonthLog(
                 .semantics { heading() },
         )
 
-        if (entries.isEmpty()) {
+        if (logged.isEmpty()) {
             Text(
                 "Nothing logged in ${month.format(DateTimeFormatter.ofPattern("MMMM"))}.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            return@Column
         }
+        logged.forEach { (date, summary) -> LogRow(date, summary, onPickDate) }
 
-        entries.forEach { (date, summary) -> LogRow(date, summary, onPickDate) }
+        if (estimated.isNotEmpty()) {
+            Text(
+                "Estimated by Luna",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .semantics { heading() },
+            )
+            Text(
+                "Worked out by counting back, not logged by you. Open a day to confirm or remove it.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            estimated.forEach { (date, summary) -> LogRow(date, summary, onPickDate) }
+        }
 
         Spacer(Modifier.height(12.dp))
     }
@@ -160,14 +209,19 @@ private fun MonthLog(
 @Composable
 private fun LogRow(date: LocalDate, summary: DaySummary, onPickDate: (LocalDate) -> Unit) {
     val cycle = MaterialTheme.cycleColors
+    val estimatedRow = summary.isAssumed
+    val shape = MaterialTheme.shapes.medium
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            // Dashed, as an estimated day is on the calendar, rather than the solid card a logged
+            // day gets: the list and the grid draw the same distinction the same way.
+            .then(if (estimatedRow) Modifier.dashedOutline(cycle.estimated, shape) else Modifier)
             .semantics(mergeDescendants = true) { }
-            .clickable(onClickLabel = "Edit this day") { onPickDate(date) },
-        shape = MaterialTheme.shapes.medium,
+            .clickable(onClickLabel = if (estimatedRow) "Confirm or remove this estimate" else "Edit this day") { onPickDate(date) },
+        shape = shape,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            containerColor = if (estimatedRow) Color.Transparent else MaterialTheme.colorScheme.surfaceVariant,
         ),
     ) {
         Column(
@@ -259,10 +313,11 @@ private fun MonthHeader(month: YearMonth, canGoForward: Boolean, onShift: (Long)
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        TextButton(
-            onClick = { onShift(-1) },
-            modifier = Modifier.semantics { contentDescription = "Previous month" },
-        ) { Text("‹") }
+        // Icon buttons, as the log form's day arrows are. The "‹" glyph was 15px wide and faint, easy
+        // to miss though its target was fine (device review p5).
+        FilledTonalIconButton(onClick = { onShift(-1) }) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous month")
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 month.format(DateTimeFormatter.ofPattern("MMMM yyyy")),
@@ -271,16 +326,14 @@ private fun MonthHeader(month: YearMonth, canGoForward: Boolean, onShift: (Long)
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )
             Sparkle(
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                color = MaterialTheme.currentPhaseAccent.copy(alpha = 0.6f),
                 size = 11.dp,
                 modifier = Modifier.padding(start = 6.dp),
             )
         }
-        TextButton(
-            onClick = { onShift(1) },
-            enabled = canGoForward,
-            modifier = Modifier.semantics { contentDescription = "Next month" },
-        ) { Text("›") }
+        FilledTonalIconButton(onClick = { onShift(1) }, enabled = canGoForward) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next month")
+        }
     }
 }
 
@@ -370,7 +423,10 @@ private fun DayCell(
     // a forecast must never be as loud as an observation, and the two must never be mistakable.
     val fill = when {
         observedBleed -> cycle.bleeding
-        inPredictedWindow -> cycle.predicted.copy(alpha = 0.30f)
+        // A faint wash plus a dotted ring, not a 0.3 wash: in dark mode that read as a solid disc,
+        // while the tour teaches "filled was logged". A forecast, even a past one, is never filled
+        // (device review M6).
+        inPredictedWindow -> cycle.predicted.copy(alpha = 0.12f)
         else -> Color.Transparent
     }
     val content = when {
@@ -383,7 +439,9 @@ private fun DayCell(
         inPredictedWindow -> scheme.onSurface.copy(alpha = 0.8f)
         // Still lighter than a past day, because a future day cannot be logged — but 0.3 was below
         // anything readable on a pale ground, and it applied to a third of the month.
-        !enabled -> scheme.onSurfaceVariant.copy(alpha = 0.55f)
+        // 0.8, not 0.55: at 0.55 the future dates measured about 3.6:1 (device review m11). Still
+        // quieter than a past day's full onSurface, which is the distinction that matters.
+        !enabled -> scheme.onSurfaceVariant.copy(alpha = 0.8f)
         else -> scheme.onSurface
     }
 
@@ -416,6 +474,8 @@ private fun DayCell(
                     Modifier
                 },
             )
+            // Inside the estimated ring's inset, so a day that is both shows both.
+            .then(if (inPredictedWindow) Modifier.expectedRing(cycle.predicted, inset = 6.dp) else Modifier)
             .then(
                 if (isToday) Modifier.border(2.dp, scheme.primary, CircleShape) else Modifier,
             )
@@ -485,6 +545,37 @@ private fun Modifier.estimatedRing(
     )
 }
 
+/**
+ * The dotted ring that marks a day in the expected window, past or future.
+ *
+ * Round dots where an estimated bleeding day has dashes, and lavender where that is dusty pink, so
+ * the two kinds of "not logged" never read as one: an estimate of something that happened, and a
+ * forecast of something that might.
+ */
+private fun Modifier.expectedRing(color: Color, inset: Dp = 3.dp): Modifier = drawBehind {
+    val stroke = 1.8.dp.toPx()
+    drawCircle(
+        color = color,
+        radius = (size.minDimension - stroke) / 2f - inset.toPx(),
+        style = Stroke(
+            width = stroke,
+            cap = StrokeCap.Round,
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(0.1f, stroke * 2.2f), 0f),
+        ),
+    )
+}
+
+/** A dashed rounded outline, for list cards that hold an estimate rather than a log. */
+private fun Modifier.dashedOutline(color: Color, shape: androidx.compose.ui.graphics.Shape): Modifier = drawBehind {
+    val stroke = 1.5.dp.toPx()
+    val dash = 4.dp.toPx()
+    drawOutline(
+        shape.createOutline(size, layoutDirection, this),
+        color,
+        style = Stroke(width = stroke, pathEffect = PathEffect.dashPathEffect(floatArrayOf(dash, dash), 0f)),
+    )
+}
+
 /** What a cell can be marked with. Five now, which is why this is not four booleans. */
 private enum class Marker { FILL, DASHED, WASH, DOT, RING }
 
@@ -537,7 +628,7 @@ private fun LegendItem(label: String, marker: Marker) {
                     when (marker) {
                         Marker.FILL -> cycle.bleeding
                         Marker.DOT -> cycle.logged
-                        Marker.WASH -> cycle.predicted.copy(alpha = 0.30f)
+                        Marker.WASH -> cycle.predicted.copy(alpha = 0.12f)
                         Marker.DASHED, Marker.RING -> Color.Transparent
                     },
                 )
@@ -552,6 +643,7 @@ private fun LegendItem(label: String, marker: Marker) {
                             dash = 1.5.dp,
                         )
                         Marker.RING -> Modifier.border(1.5.dp, scheme.primary, CircleShape)
+                        Marker.WASH -> Modifier.expectedRing(cycle.predicted, inset = 0.dp)
                         else -> Modifier
                     },
                 ),

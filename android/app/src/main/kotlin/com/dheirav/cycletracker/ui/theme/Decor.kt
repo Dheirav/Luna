@@ -17,6 +17,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
@@ -109,7 +111,17 @@ fun Heart(color: Color, modifier: Modifier = Modifier, size: Dp = 12.dp) {
  */
 @Composable
 fun Cloud(color: Color, modifier: Modifier = Modifier, width: Dp = 34.dp) {
-    Canvas(modifier = modifier.decorative().size(width, width * 0.62f)) {
+    // Drawn opaque into its own layer, and the layer faded. Faded shape by shape, every overlap was
+    // painted twice and showed as a darker lens, so the cloud had seams (device review m2).
+    val alpha = color.alpha
+    val solid = color.copy(alpha = 1f)
+    Canvas(
+        modifier = modifier
+            .decorative()
+            .size(width, width * 0.62f)
+            .graphicsLayer(alpha = alpha, compositingStrategy = CompositingStrategy.Offscreen),
+    ) {
+        val color = solid
         val w = this.size.width
         val h = this.size.height
         drawCircle(color, radius = h * 0.42f, center = Offset(w * 0.30f, h * 0.55f))

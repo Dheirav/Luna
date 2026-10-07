@@ -57,6 +57,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.ui.layout.Layout
 import kotlin.math.roundToInt
 
 /** The screens the tour walks through. */
@@ -80,8 +84,13 @@ data class TourStep(
     val target: TourTarget,
     val caption: String,
     val leadsTo: TourScreen? = null,
+    /** Said instead of [caption] once the forecast window has passed and the card reads WAS EXPECTED. */
+    val captionWhenWindowPassed: String? = null,
 ) {
     val tapToContinue: Boolean get() = leadsTo != null
+
+    fun captionFor(windowPassed: Boolean): String =
+        if (windowPassed) captionWhenWindowPassed ?: caption else caption
 }
 
 /**
@@ -91,16 +100,27 @@ data class TourStep(
  * finds Log today by tapping it, not by reading that it exists.
  */
 fun tourSteps(): List<TourStep> = listOf(
-    TourStep(TourScreen.TODAY, TourTarget.HERO, "Your cycle day and phase. Tap it any time to read about the phase."),
-    TourStep(TourScreen.TODAY, TourTarget.WINDOW_CARD, "Your next period, as a range of days. It narrows as you log."),
+    // The ring is explained here because nothing else on screen does, and its dotted inner lap is the
+    // part that can be misread (device review M2).
+    TourStep(
+        TourScreen.TODAY, TourTarget.HERO,
+        "Tap for the phase. The dotted inner lap counts days past your usual length.",
+    ),
+    TourStep(
+        TourScreen.TODAY, TourTarget.WINDOW_CARD, "Your next period, as a range of days. It narrows as you log.",
+        // It pointed at a card headed WAS EXPECTED and called it the next period (device review m5).
+        captionWhenWindowPassed = "When your period was expected. A new range appears once you log the next one.",
+    ),
     TourStep(TourScreen.TODAY, TourTarget.WHY_CARD, "Open this to see what every number here is based on."),
     TourStep(TourScreen.TODAY, TourTarget.LOG_BUTTON, "Tap Log today.", leadsTo = TourScreen.LOG),
     TourStep(TourScreen.LOG, TourTarget.LOG_BLEEDING, "Answer what you know. Anything you skip stays unknown, never zero."),
-    TourStep(TourScreen.LOG, TourTarget.LOG_SAVE, "Save. An Undo appears straight after, in case."),
-    TourStep(TourScreen.LOG, TourTarget.BACK, "Tap back. Nothing has been saved.", leadsTo = TourScreen.TODAY),
+    // Described, not instructed. "Save." read as an order on a step where the button cannot be
+    // pressed, and the next step then said nothing had been saved (device review M7).
+    TourStep(TourScreen.LOG, TourTarget.LOG_SAVE, "This saves the day. An Undo appears straight after, in case."),
+    TourStep(TourScreen.LOG, TourTarget.BACK, "Tap the arrow at the top left. Nothing was saved on the tour.", leadsTo = TourScreen.TODAY),
     TourStep(TourScreen.TODAY, TourTarget.HISTORY_BUTTON, "Tap History.", leadsTo = TourScreen.HISTORY),
     TourStep(TourScreen.HISTORY, TourTarget.CALENDAR, "Tap any day to add or fix it. Filled was logged, dashed was estimated."),
-    TourStep(TourScreen.HISTORY, TourTarget.BACK, "Tap back.", leadsTo = TourScreen.TODAY),
+    TourStep(TourScreen.HISTORY, TourTarget.BACK, "Tap the arrow at the top left.", leadsTo = TourScreen.TODAY),
     TourStep(TourScreen.TODAY, TourTarget.SETTINGS_BUTTON, "Tap Settings.", leadsTo = TourScreen.SETTINGS),
     TourStep(TourScreen.SETTINGS, TourTarget.REMINDER_CARD, "A nudge at 21:00, skipped on days you've logged."),
 )
@@ -121,6 +141,8 @@ class TourController {
     var index by mutableIntStateOf(-1)
         private set
     val steps = tourSteps()
+    /** Set by Today as it draws, so the window step can say what the card actually shows. */
+    var windowPassed by mutableStateOf(false)
     val active: Boolean get() = index in steps.indices
     val step: TourStep? get() = steps.getOrNull(index)
     val activeTarget: TourTarget? get() = step?.target
@@ -230,42 +252,40 @@ fun TourOverlay(
             Blocker(Rect(0f, 0f, width, height))
         }
 
-        // The caption, below the target if it is in the top half, above it otherwise.
+        // The caption, below the target if it is in the top half, above it otherwise, and always
+        // kept between the status bar and the navigation bar. Placed by measuring the card first:
+        // anchored blind from the bottom, a tall caption above a high target ran under the status
+        // bar (device review m4).
         val margin = with(density) { 16.dp.toPx() }
         val below = hole == null || hole.center.y < height / 2
-        val captionTop = when {
-            hole == null -> height / 3
-            below -> hole.bottom + margin
-            else -> null
-        }
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp),
-        ) {
-            val card = @Composable {
+        val topInset = WindowInsets.statusBars.getTop(density).toFloat() + margin / 2
+        val bottomInset = WindowInsets.navigationBars.getBottom(density).toFloat() + margin / 2
+        Layout(
+            content = {
                 TourCaption(
                     step = step,
+                    caption = step.captionFor(tour.windowPassed),
                     position = "${tour.index + 1} of ${tour.steps.size}",
-                    canGoBack = tour.index > 0 && !tour.steps[tour.index - 1].tapToContinue,
+                    // Not on a tap-through step, whose caption asks for the screen's own back arrow:
+                    // a second "Back" in the bubble meant something else (device review M7).
+                    canGoBack = tour.index > 0 && !tour.steps[tour.index - 1].tapToContinue && !step.tapToContinue,
                     onNext = tour::next,
                     onBack = tour::back,
                     onSkip = tour::stop,
                     action = action,
                 )
-            }
-            if (captionTop != null) {
-                Box(Modifier.offset { IntOffset(0, captionTop.roundToInt()) }) { card() }
-            } else {
-                // Above the target: anchored to its top edge from below.
-                val fromBottom = height - (hole!!.top - margin)
-                Box(Modifier.fillMaxSize()) {
-                    Box(
-                        Modifier
-                            .align(androidx.compose.ui.Alignment.BottomStart)
-                            .offset { IntOffset(0, -fromBottom.roundToInt()) },
-                    ) { card() }
+            },
+            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        ) { measurables, constraints ->
+            val card = measurables.first().measure(constraints.copy(minWidth = constraints.maxWidth, minHeight = 0))
+            layout(constraints.maxWidth, constraints.maxHeight) {
+                val wanted = when {
+                    hole == null -> height / 3
+                    below -> hole.bottom + margin
+                    else -> hole.top - margin - card.height
                 }
+                val lowest = (height - bottomInset - card.height).coerceAtLeast(topInset)
+                card.place(0, wanted.coerceIn(topInset, lowest).roundToInt())
             }
         }
     }
@@ -290,6 +310,7 @@ private fun Blocker(area: Rect) {
 @Composable
 private fun TourCaption(
     step: TourStep,
+    caption: String,
     position: String,
     canGoBack: Boolean,
     onNext: () -> Unit,
@@ -306,7 +327,7 @@ private fun TourCaption(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             // Announced as it changes, so a screen reader follows the tour too.
             Text(
-                step.caption,
+                caption,
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
             )

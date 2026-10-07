@@ -207,6 +207,9 @@ fun AppLockSection() {
     val available = remember { AppLock.available(context) }
     var enabled by remember { mutableStateOf(settings.appLockEnabled) }
     var screenshots by remember { mutableStateOf(settings.allowScreenshots) }
+    val debugBuild = remember {
+        context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
+    }
 
     SettingsCard(
         "Lock and screenshots",
@@ -270,7 +273,10 @@ fun AppLockSection() {
                 } else {
                     "Off. Screenshots and screen recording are blocked, and the app switcher shows " +
                         "a blank card instead of your cycle. Turn this on if you want to save or " +
-                        "send a screenshot."
+                        "send a screenshot." +
+                        // The debug build never sets FLAG_SECURE, so the line above was untrue on
+                        // it (device review p7). Said only there; release builds never see it.
+                        if (debugBuild) " (Not enforced on this debug build.)" else ""
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

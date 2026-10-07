@@ -48,9 +48,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -58,6 +55,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import com.dheirav.cycletracker.ui.theme.cycleColors
+import com.dheirav.cycletracker.ui.theme.currentPhaseColors
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -71,6 +70,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -153,6 +153,14 @@ fun LogScreen(viewModel: LogViewModel, onDone: () -> Unit) {
                 )
             }
 
+            // The form's most reassuring line, said before the questions rather than after them,
+            // where it was only seen by someone who had already answered everything (device review p6).
+            Text(
+                "Answer only what you know. Blank stays unknown, never zero.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
             HorizontalDivider()
 
             // -- bleeding ----------------------------------------------------
@@ -165,18 +173,20 @@ fun LogScreen(viewModel: LogViewModel, onDone: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text("Bleeding", style = MaterialTheme.typography.titleSmall)
-                // Two explicit answers, as the reminder has. Tapping the selected one clears it back
-                // to unanswered, so a mistake still costs one tap.
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    listOf(false to "No bleeding", true to "Bleeding").forEachIndexed { index, (answer, label) ->
-                        SegmentedButton(
-                            selected = entry.bleeding == answer,
-                            onClick = { viewModel.setBleeding(if (entry.bleeding == answer) null else answer) },
-                            shape = SegmentedButtonDefaults.itemShape(index, 2),
-                            label = { Text(label, textAlign = TextAlign.Center) },
-                        )
-                    }
-                }
+                // Two explicit answers, as the reminder has. The same row as every other answer on
+                // the form: one selected style, and tapping the selected answer clears it, for a
+                // finger and a screen reader alike. Material's segmented buttons showed a tick the
+                // other rows did not, and as radio buttons a selected one could not be cleared by
+                // TalkBack (device review m8).
+                ChoiceRow(
+                    label = "Bleeding",
+                    options = listOf("No bleeding", "Bleeding"),
+                    selected = when (entry.bleeding) { false -> 0; true -> 1; null -> null },
+                    onSelect = { i ->
+                        val answer = i == 1
+                        viewModel.setBleeding(if (entry.bleeding == answer) null else answer)
+                    },
+                )
                 AnimatedVisibility(visible = entry.bleeding == true) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         // Says optional because it is: a yes counts on its own, and asking for an
@@ -190,19 +200,13 @@ fun LogScreen(viewModel: LogViewModel, onDone: () -> Unit) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                            FlowLevel.entries.forEachIndexed { index, level ->
-                                val name = level.name.lowercase().replaceFirstChar { it.uppercase() }
-                                SegmentedButton(
-                                    selected = entry.flow == level,
-                                    onClick = { viewModel.setFlow(level) },
-                                    shape = SegmentedButtonDefaults.itemShape(index, FlowLevel.entries.size),
-                                    // Spoken with what it grades; "Light, not selected" alone says nothing.
-                                    modifier = Modifier.semantics { contentDescription = "Flow: $name" },
-                                    label = { Text(name, textAlign = TextAlign.Center) },
-                                )
-                            }
-                        }
+                        ChoiceRow(
+                            label = "Flow",
+                            options = FlowLevel.entries.map { it.name.lowercase().replaceFirstChar(Char::uppercase) },
+                            selected = entry.flow?.ordinal,
+                            // setFlow clears a level tapped a second time.
+                            onSelect = { viewModel.setFlow(FlowLevel.entries[it]) },
+                        )
                     }
                 }
             }
@@ -258,12 +262,6 @@ fun LogScreen(viewModel: LogViewModel, onDone: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 2,
             )
-
-            Text(
-                "Leave anything blank that you don't know. Blank is recorded as unknown, never as zero.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
 
         // Pinned below the scrolling form rather than at the end of it. At the end it sat at or below
@@ -272,6 +270,11 @@ fun LogScreen(viewModel: LogViewModel, onDone: () -> Unit) {
         Surface(tonalElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
             Button(
                 onClick = { viewModel.save(onDone) },
+                // Live only once something on the day has changed. Opening a past day from History
+                // went straight to a form with a live Save, so looking back felt like editing
+                // (device review m13). In a catch-up run Save also moves on to the next missed day,
+                // so it stays live there.
+                enabled = ui.dirty || ui.catchUp != null,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 10.dp)
@@ -458,11 +461,20 @@ private fun SymptomRow(symptom: Symptom, value: Int?, onSelect: (Int) -> Unit) {
  * hears each cell's state and can clear a selected one, as a tap can.
  */
 @Composable
-private fun LevelRow(symptom: Symptom, value: Int?, onSelect: (Int) -> Unit) {
+private fun LevelRow(symptom: Symptom, value: Int?, onSelect: (Int) -> Unit) =
+    ChoiceRow(label = symptom.label, options = symptom.levels, selected = value, onSelect = onSelect)
+
+/**
+ * Every answer on the form is one of these, so selection looks and behaves the same everywhere.
+ * [label] is spoken with each option, since the row's heading is a separate Text above it.
+ */
+@Composable
+private fun ChoiceRow(label: String, options: List<String>, selected: Int?, onSelect: (Int) -> Unit) {
+    val value = selected
     // Above about 130% text size five words no longer fit across a phone, and shrinking them to fit
     // undoes the size the person chose. So the scale turns into a list, top to bottom, at full size.
     if (LocalDensity.current.fontScale > LARGE_TEXT_SCALE) {
-        LevelList(symptom = symptom, value = value, onSelect = onSelect)
+        ChoiceList(label = label, options = options, value = value, onSelect = onSelect)
         return
     }
     val shape = RoundedCornerShape(50)
@@ -475,7 +487,7 @@ private fun LevelRow(symptom: Symptom, value: Int?, onSelect: (Int) -> Unit) {
             .border(1.dp, outline, shape)
             .height(IntrinsicSize.Min),
     ) {
-        symptom.levels.forEachIndexed { index, level ->
+        options.forEachIndexed { index, level ->
             if (index > 0) VerticalDivider(color = outline)
             val selected = value == index
             Box(
@@ -483,7 +495,7 @@ private fun LevelRow(symptom: Symptom, value: Int?, onSelect: (Int) -> Unit) {
                     .weight(1f)
                     .fillMaxHeight()
                     .background(
-                        if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+                        if (selected) selectedFill() else Color.Transparent,
                     )
                     // One accessibility node per cell, built here rather than inherited. Left to
                     // `selectable`, the cell exposed its description, its visible word and a radio stub
@@ -495,8 +507,11 @@ private fun LevelRow(symptom: Symptom, value: Int?, onSelect: (Int) -> Unit) {
                     // clear one, while a finger tap on the selected level clears it. A plain clickable
                     // with a stated state and a "clear" action keeps both ways of using the form equal.
                     .clearAndSetSemantics {
-                        contentDescription = "${symptom.label}: $level"
+                        contentDescription = "$label: $level"
                         stateDescription = if (selected) "Selected" else "Not selected"
+                        // The standard flag as well as the spoken state, for Switch Access, Voice
+                        // Access and test tools that read it. Not a radio role (see above).
+                        this.selected = selected
                         onClick(label = if (selected) "clear" else "select") { onSelect(index); true }
                     }
                     .clickable(onClick = { onSelect(index) })
@@ -505,8 +520,10 @@ private fun LevelRow(symptom: Symptom, value: Int?, onSelect: (Int) -> Unit) {
             ) {
                 FitText(
                     level,
+                    // Two or three words have room for the form's body size; five start smaller.
+                    startSize = if (options.size <= 3) 14f else 12f,
                     color = if (selected) {
-                        MaterialTheme.colorScheme.onSecondaryContainer
+                        selectedInk()
                     } else {
                         MaterialTheme.colorScheme.onSurface
                     },
@@ -520,13 +537,27 @@ private fun LevelRow(symptom: Symptom, value: Int?, onSelect: (Int) -> Unit) {
 private const val LARGE_TEXT_SCALE = 1.3f
 
 /**
+ * A chosen answer takes the current phase's colour, the hero's palette, rather than the theme's
+ * fixed lavender. Selection is state, not ornament, so this keeps the form's no-decoration rule
+ * while it stops looking like a different app from Today (device review p1). Falls back to the
+ * theme when there is no phase yet.
+ */
+@Composable
+private fun selectedFill(): Color =
+    MaterialTheme.currentPhaseColors?.second ?: MaterialTheme.colorScheme.secondaryContainer
+
+@Composable
+private fun selectedInk(): Color =
+    if (MaterialTheme.currentPhaseColors != null) MaterialTheme.cycleColors.onPhase else MaterialTheme.colorScheme.onSecondaryContainer
+
+/**
  * The level scale as a vertical list, for large text. Same semantics as the row: one node per
  * level, a state description, and a "clear" action on the selected one.
  */
 @Composable
-private fun LevelList(symptom: Symptom, value: Int?, onSelect: (Int) -> Unit) {
+private fun ChoiceList(label: String, options: List<String>, value: Int?, onSelect: (Int) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        symptom.levels.forEachIndexed { index, level ->
+        options.forEachIndexed { index, level ->
             val selected = value == index
             Row(
                 modifier = Modifier
@@ -534,12 +565,15 @@ private fun LevelList(symptom: Symptom, value: Int?, onSelect: (Int) -> Unit) {
                     .heightIn(min = 48.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(
-                        if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+                        if (selected) selectedFill() else Color.Transparent,
                     )
                     .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
                     .clearAndSetSemantics {
-                        contentDescription = "${symptom.label}: $level"
+                        contentDescription = "$label: $level"
                         stateDescription = if (selected) "Selected" else "Not selected"
+                        // The standard flag as well as the spoken state, for Switch Access, Voice
+                        // Access and test tools that read it. Not a radio role (see above).
+                        this.selected = selected
                         onClick(label = if (selected) "clear" else "select") { onSelect(index); true }
                     }
                     .clickable(onClick = { onSelect(index) })
@@ -550,7 +584,7 @@ private fun LevelList(symptom: Symptom, value: Int?, onSelect: (Int) -> Unit) {
                     level,
                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                     color = if (selected) {
-                        MaterialTheme.colorScheme.onSecondaryContainer
+                        selectedInk()
                     } else {
                         MaterialTheme.colorScheme.onSurface
                     },
@@ -567,9 +601,9 @@ private fun LevelList(symptom: Symptom, value: Int?, onSelect: (Int) -> Unit) {
  * once the text fits. The step is invisible because the first frames are not drawn.
  */
 @Composable
-private fun FitText(text: String, color: Color, bold: Boolean) {
-    var size by remember(text) { mutableStateOf(12f) }
-    var fits by remember(text) { mutableStateOf(false) }
+private fun FitText(text: String, color: Color, bold: Boolean, startSize: Float = 12f) {
+    var size by remember(text, startSize) { mutableStateOf(startSize) }
+    var fits by remember(text, startSize) { mutableStateOf(false) }
     Text(
         text,
         color = color,
@@ -590,7 +624,8 @@ private fun TagChip(tag: DayTag, selected: Set<DayTag>, viewModel: LogViewModel)
     FilterChip(
         selected = tag in selected,
         onClick = { viewModel.toggleTag(tag) },
-        // The user's text size, not a forced 12sp.
-        label = { Text(tag.label) },
+        // The user's text size, not a forced 12sp. Bold when chosen, as every other answer is, so
+        // selection never rests on the fill colour alone.
+        label = { Text(tag.label, fontWeight = if (tag in selected) FontWeight.SemiBold else FontWeight.Normal) },
     )
 }
