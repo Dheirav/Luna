@@ -168,6 +168,27 @@ fun BackupSection() {
         }
     }
 
+    // The spreadsheet: every logged day in plain words. No passphrase, and the card says so.
+    val createCsv = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument(com.dheirav.cycletracker.data.CsvExport.MIME_TYPE),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            status = runCatching {
+                val dao = (context.applicationContext as com.dheirav.cycletracker.CycleTrackerApp).database.logDao()
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    val logs = dao.allLogsOnce()
+                    val csv = com.dheirav.cycletracker.data.CsvExport.build(logs, dao.allSymptomsOnce(), dao.allTagsOnce())
+                    context.contentResolver.openOutputStream(uri, "wt")!!.use { it.write(csv.toByteArray(Charsets.UTF_8)) }
+                    logs.size
+                }
+            }.fold(
+                { Status("Saved $it days as a spreadsheet.", error = false) },
+                { Status("Spreadsheet export failed: ${it.message}", error = true) },
+            )
+        }
+    }
+
     val openFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) step = Step.RestorePassphrase(uri)
     }
@@ -193,6 +214,18 @@ fun BackupSection() {
                 TextButton(onClick = { status = null; step = Step.ExportPassphrase }) { Text("Export") }
                 TextButton(onClick = { status = null; openFile.launch(arrayOf("*/*")) }) { Text("Restore") }
             }
+            // Beside the backup because it is the same data, but plainly not a backup: it cannot be
+            // restored, and anything that opens it can read it.
+            Text(
+                "A spreadsheet of every logged day, in plain words. Not encrypted and not restorable; " +
+                    "keep it somewhere private.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            TextButton(onClick = {
+                status = null
+                createCsv.launch("luna-${java.time.LocalDate.now()}.csv")
+            }) { Text("Save as spreadsheet (CSV)") }
             status?.let {
                 Text(
                     it.text,
