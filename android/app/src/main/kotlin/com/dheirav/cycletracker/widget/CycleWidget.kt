@@ -148,6 +148,18 @@ private suspend fun buildViews(context: Context): RemoteViews {
 
     val window = snapshot.window
 
+    // Nothing logged since before the window opened: as on Today, the cycle day and any lateness
+    // are unknown, so the widget says when it was last logged instead of "Day 40 · 11 days late".
+    snapshot.silentSince?.let { last ->
+        views.setTextViewText(R.id.widget_headline, "Welcome back")
+        views.setTextViewText(R.id.widget_detail, "Last logged ${last.format(dayMonth)}")
+        views.setContentDescription(
+            R.id.widget_root,
+            "Luna. Nothing logged since ${last.format(dayMonth)}. Tap to log today.",
+        )
+        return views
+    }
+
     // Tint the background to the phase, matching the app's hero card.
     //
     // A background *tint* rather than a background colour: setting the colour outright would

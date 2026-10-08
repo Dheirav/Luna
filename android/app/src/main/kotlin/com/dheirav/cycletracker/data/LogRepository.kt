@@ -202,18 +202,23 @@ class LogRepository(private val dao: LogDao) {
      * person is stating it, and each goes through [save] so an existing day's symptoms and notes
      * survive.
      */
-    suspend fun logPeriod(start: LocalDate, end: LocalDate) {
-        var day = start
-        while (!day.isAfter(end)) {
-            save(load(day).answeringBleeding(true))
-            day = day.plusDays(1)
-        }
-    }
+    suspend fun logPeriod(start: LocalDate, end: LocalDate): List<DayEntry> =
+        answerBleeding(generateSequence(start) { it.plusDays(1) }.takeWhile { !it.isAfter(end) }.toList(), true)
 
-    /** Answers the bleeding question for several days at once, keeping whatever else each holds. */
-    suspend fun answerBleeding(days: List<LocalDate>, bleeding: Boolean) {
-        days.forEach { day -> save(load(day).answeringBleeding(bleeding)) }
-    }
+    /**
+     * Answers the bleeding question for several days at once, keeping whatever else each holds, and
+     * returns each day as it was before, for Undo.
+     *
+     * Saved as confirmed: the person is stating it. Without that, marking a backfilled bleeding day
+     * as bleeding left it estimated, because [sourceFor] sees no change to the flag, so "I had my
+     * period these days" quietly stayed a guess.
+     */
+    suspend fun answerBleeding(days: List<LocalDate>, bleeding: Boolean): List<DayEntry> =
+        days.map { day ->
+            val before = load(day)
+            save(before.answeringBleeding(bleeding), confirmed = true)
+            before
+        }
 
     /** Throws a backfilled guess away entirely, rather than leaving it to pollute the statistics. */
     suspend fun discard(date: LocalDate) = dao.deleteDay(date)

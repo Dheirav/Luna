@@ -118,5 +118,6 @@ internal suspend fun buildSummaryDocument(context: android.content.Context): Sum
         }.toMap(),
         painByDate = pain,
         lengthSource = snapshot.basis.source,
+        silentSince = snapshot.silentSince,
     )
 }

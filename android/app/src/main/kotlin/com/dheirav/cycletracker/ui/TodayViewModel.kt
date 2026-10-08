@@ -76,6 +76,9 @@ data class TodayUiState(
     val unloggedLine: String? = null,
     /** The whole unlogged run, which [unlogged] caps at a week. */
     val unloggedRun: Int = 0,
+    /** See [CycleSnapshot.silentSince]. While set, Today asks instead of counting days late. */
+    val silentSince: java.time.LocalDate? = null,
+    val periodPrompt: com.dheirav.cycletracker.core.PeriodPrompt = com.dheirav.cycletracker.core.PeriodPrompt.NONE,
 )
 
 /**
@@ -168,6 +171,8 @@ class TodayViewModel(app: Application) : AndroidViewModel(app) {
             unlogged = unloggedRecentDays(days.keys, snapshot.today),
             unloggedLine = catchUpLine(days.keys, snapshot.today),
             unloggedRun = unloggedRun(days.keys, snapshot.today),
+            silentSince = snapshot.silentSince,
+            periodPrompt = snapshot.periodPrompt,
             backupDueSince = settings.lastBackupAt.let { last ->
                 if (backupDue(last, days.keys.minOrNull())) last ?: java.time.Instant.EPOCH else null
             },

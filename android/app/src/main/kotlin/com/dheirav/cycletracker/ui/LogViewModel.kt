@@ -48,8 +48,10 @@ fun dayLabel(date: LocalDate, today: LocalDate = LocalDate.now()): String = when
     else -> date.format(DateTimeFormatter.ofPattern("EEE d MMM"))
 }
 
-/** A write that can be taken back: what to say about it, and the day as it was before. */
-data class Undoable(val message: String, val previous: DayEntry)
+/** A write that can be taken back: what to say about it, and each day as it was before. */
+data class Undoable(val message: String, val previous: List<DayEntry>) {
+    constructor(message: String, previous: DayEntry) : this(message, listOf(previous))
+}
 
 class LogViewModel(app: Application) : AndroidViewModel(app) {
 
@@ -121,6 +123,34 @@ class LogViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { repo.logPeriod(start, end) }
     }
 
+    /**
+     * Marks [start] to [end] as a period from Today or History, in one step and with Undo. A period
+     * has two dates, and before this the only way to give them was a form per day.
+     */
+    fun markPeriod(start: LocalDate, end: LocalDate) {
+        viewModelScope.launch {
+            val before = repo.logPeriod(start, end)
+            val what = if (start == end) dayLabel(start) else "${dayLabel(start)} to ${dayLabel(end)}"
+            _undoable.tryEmit(Undoable("Period marked · $what", before))
+            reloadIfShowing(before)
+        }
+    }
+
+    /** One answer to the bleeding question for one day, from Today's period prompt. */
+    fun answerBleeding(date: LocalDate, bleeding: Boolean) {
+        viewModelScope.launch {
+            val before = repo.answerBleeding(listOf(date), bleeding)
+            _undoable.tryEmit(Undoable(if (bleeding) "Logged: bleeding, ${dayLabel(date)}" else "Logged: no bleeding, ${dayLabel(date)}", before))
+            reloadIfShowing(before)
+        }
+    }
+
+    /** If the form is open on a day just written, with nothing typed since, reload it. */
+    private fun reloadIfShowing(days: List<DayEntry>) {
+        val open = _ui.value
+        if (!open.dirty && days.any { it.date == open.entry.date }) open(open.entry.date)
+    }
+
     /** Throws away unsaved edits, so nothing chosen to be discarded can resurface later. */
     fun discardEdits() {
         _ui.value = _ui.value.copy(entry = _ui.value.original)
@@ -174,11 +204,10 @@ class LogViewModel(app: Application) : AndroidViewModel(app) {
     /** Puts the day back as it was before the write being undone. See [LogRepository.restore]. */
     fun undo(undoable: Undoable) {
         viewModelScope.launch {
-            repo.restore(undoable.previous)
+            undoable.previous.forEach { repo.restore(it) }
             // If the form is open on that day with nothing typed since, reload it. Otherwise it keeps
             // showing the undone state as unchanged, and the next Save writes it straight back.
-            val open = _ui.value
-            if (open.entry.date == undoable.previous.date && !open.dirty) open(undoable.previous.date)
+            reloadIfShowing(undoable.previous)
         }
     }
 

@@ -25,6 +25,19 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.runtime.mutableStateMapOf
 import com.dheirav.cycletracker.ui.theme.currentPhaseAccent
 import com.dheirav.cycletracker.ui.theme.currentPhaseColors
 import androidx.compose.ui.graphics.lerp
@@ -80,8 +93,15 @@ import java.util.Locale
  * history" is not something the user can actually act on.
  */
 @Composable
-fun HistoryScreen(viewModel: HistoryViewModel, onPickDate: (LocalDate) -> Unit) {
+fun HistoryScreen(
+    viewModel: HistoryViewModel,
+    /** Marks a run of days as a period, with Undo. */
+    onMarkPeriod: (LocalDate, LocalDate) -> Unit = { _, _ -> },
+    onPickDate: (LocalDate) -> Unit,
+) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
+    // A range waiting for confirmation: from a drag across the calendar, or empty from the button.
+    var marking by remember { mutableStateOf<Pair<LocalDate?, LocalDate?>?>(null) }
 
     Column(
         modifier = Modifier
@@ -125,6 +145,7 @@ fun HistoryScreen(viewModel: HistoryViewModel, onPickDate: (LocalDate) -> Unit) 
                     window = ui.window,
                     today = ui.today,
                     onPickDate = onPickDate,
+                    onDragRange = { start, end -> marking = start to end },
                 )
             }
 
@@ -132,11 +153,28 @@ fun HistoryScreen(viewModel: HistoryViewModel, onPickDate: (LocalDate) -> Unit) 
         }
 
         Text(
-            "Tap any day to log or correct it. Days you never logged stay blank — blank means " +
-                "unknown, not zero.",
+            "Tap a day to log or correct it, or press and drag across days to mark a period. Days " +
+                "you never logged stay blank: blank means unknown, not zero.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        // The same thing without a drag, for a screen reader, a switch, or a period across months.
+        OutlinedButton(onClick = { marking = null to null }, modifier = Modifier.fillMaxWidth()) {
+            Text("Mark a period")
+        }
+
+        marking?.let { (start, end) ->
+            MarkPeriodDialog(
+                today = ui.today,
+                initialStart = start,
+                initialEnd = end,
+                onDismiss = { marking = null },
+                onMark = { s, e ->
+                    marking = null
+                    onMarkPeriod(s, e)
+                },
+            )
+        }
 
         MonthLog(month = ui.month, days = ui.days, onPickDate = onPickDate)
     }
@@ -366,14 +404,55 @@ private fun MonthGrid(
     window: PeriodWindow?,
     today: LocalDate,
     onPickDate: (LocalDate) -> Unit,
+    onDragRange: (LocalDate, LocalDate) -> Unit = { _, _ -> },
 ) {
     val first = month.atDay(1)
+    // Press and hold a day, then drag across the rest of the period. Cells report where they are
+    // drawn, in root coordinates, and the drag is mapped back onto them. Future days are left out,
+    // as they are everywhere else.
+    val cellRects = remember(month) { mutableStateMapOf<LocalDate, Rect>() }
+    var origin by remember { mutableStateOf(Offset.Zero) }
+    var dragFrom by remember(month) { mutableStateOf<LocalDate?>(null) }
+    var dragTo by remember(month) { mutableStateOf<LocalDate?>(null) }
+    val haptics = LocalHapticFeedback.current
+    fun cellAt(local: Offset): LocalDate? {
+        val p = local + origin
+        return cellRects.entries.firstOrNull { it.value.contains(p) }?.key?.takeUnless { it.isAfter(today) }
+    }
+    val range = dragFrom?.let { a -> dragTo?.let { b -> if (a <= b) a..b else b..a } }
     // How many blanks before the 1st, given weeks start Monday.
     val leading = (first.dayOfWeek.value - DayOfWeek.MONDAY.value + 7) % 7
     val cells = leading + month.lengthOfMonth()
     val rows = (cells + 6) / 7
 
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier
+            .onGloballyPositioned { origin = it.boundsInRoot().topLeft }
+            .pointerInput(month, today) {
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { at ->
+                        cellAt(at)?.let {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            dragFrom = it
+                            dragTo = it
+                        }
+                    },
+                    onDrag = { change, _ -> cellAt(change.position)?.let { dragTo = it } },
+                    onDragEnd = {
+                        val a = dragFrom
+                        val b = dragTo
+                        dragFrom = null
+                        dragTo = null
+                        if (a != null && b != null) onDragRange(minOf(a, b), maxOf(a, b))
+                    },
+                    onDragCancel = {
+                        dragFrom = null
+                        dragTo = null
+                    },
+                )
+            },
+    ) {
         repeat(rows) { row ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -384,6 +463,18 @@ private fun MonthGrid(
                     Box(modifier = Modifier.weight(1f)) {
                         if (dayOfMonth in 1..month.lengthOfMonth()) {
                             val date = month.atDay(dayOfMonth)
+                            Box(
+                                Modifier
+                                    .onGloballyPositioned { cellRects[date] = it.boundsInRoot() }
+                                    .then(
+                                        // The days being dragged over, so the range is visible as it grows.
+                                        if (range != null && date in range) {
+                                            Modifier.border(2.dp, MaterialTheme.cycleColors.bleeding, CircleShape)
+                                        } else {
+                                            Modifier
+                                        },
+                                    ),
+                            ) {
                             DayCell(
                                 date = date,
                                 summary = days[date],
@@ -394,6 +485,7 @@ private fun MonthGrid(
                                 enabled = !date.isAfter(today),
                                 onClick = { onPickDate(date) },
                             )
+                            }
                         }
                     }
                 }

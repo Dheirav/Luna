@@ -237,7 +237,10 @@ class MainActivity : ComponentActivity() {
 
             // A pane title per screen, so a screen reader announces where it has landed; the content
             // used to swap with nothing said and focus left wherever it was.
-            val currentPhase = todayUi.state?.let { if (it.isBleeding) com.dheirav.cycletracker.core.Phase.MENSTRUATION else it.phase }
+            // Unknown while nothing has been logged since before the window opened: the phase is as
+            // unearned as the lateness then, and the other screens should not keep wearing it.
+            val currentPhase = todayUi.state?.takeIf { todayUi.silentSince == null }
+                ?.let { if (it.isBleeding) com.dheirav.cycletracker.core.Phase.MENSTRUATION else it.phase }
             Box(Modifier.padding(padding).semantics { paneTitle = screen.title() }) {
               androidx.compose.runtime.CompositionLocalProvider(
                   com.dheirav.cycletracker.ui.theme.LocalCurrentPhase provides currentPhase,
@@ -264,12 +267,17 @@ class MainActivity : ComponentActivity() {
                             screen = Screen.HISTORY
                         },
                         onSettings = { screen = Screen.SETTINGS },
+                        onAnswerBleeding = { date, bleeding -> logVm.answerBleeding(date, bleeding) },
+                        onMarkPeriod = { start, end -> logVm.markPeriod(start, end) },
                         onPhaseGuide = { screen = Screen.PHASE_GUIDE },
                     )
 
                     Screen.LOG -> LogScreen(logVm, onDone = { screen = logOrigin })
 
-                    Screen.HISTORY -> HistoryScreen(historyVm) { date ->
+                    Screen.HISTORY -> HistoryScreen(
+                        historyVm,
+                        onMarkPeriod = { start, end -> logVm.markPeriod(start, end) },
+                    ) { date ->
                         if (logVm.open(date)) {
                             logOrigin = Screen.HISTORY
                             screen = Screen.LOG

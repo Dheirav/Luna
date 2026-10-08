@@ -194,6 +194,10 @@ fun TodayScreen(
     onHistory: () -> Unit,
     onSettings: () -> Unit,
     onPhaseGuide: () -> Unit,
+    /** Answers the bleeding question for a day, with Undo. */
+    onAnswerBleeding: (java.time.LocalDate, Boolean) -> Unit = { _, _ -> },
+    /** Marks a run of days as a period, with Undo. */
+    onMarkPeriod: (java.time.LocalDate, java.time.LocalDate) -> Unit = { _, _ -> },
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
 
@@ -220,7 +224,12 @@ fun TodayScreen(
         }
 
         // Each tour target is tagged where it is drawn; the tag does nothing unless a tour is running.
-        Box(Modifier.tourTarget(TourTarget.HERO)) {
+        val silentSince = ui.silentSince
+        if (silentSince != null) {
+            Box(Modifier.tourTarget(TourTarget.HERO)) {
+                SilentHero(lastLogged = silentSince, window = ui.window, mood = mascotMoodFor(ui.todayMood))
+            }
+        } else Box(Modifier.tourTarget(TourTarget.HERO)) {
             CycleHero(
                 cycleDay = state.cycleDay ?: 0,
                 lengthPhrase = cycleLengthPhrase(state.expectedCycleLength, ui.basis?.source),
@@ -286,10 +295,20 @@ fun TodayScreen(
             }
         }
 
+        // The period question, when there is one. Directly under the day's action, because it is the
+        // same kind of thing: something to answer, in one tap.
+        PeriodPromptCard(
+            prompt = ui.periodPrompt,
+            today = ui.today,
+            onAnswerToday = { bleeding -> onAnswerBleeding(ui.today, bleeding) },
+            onMarkPeriod = onMarkPeriod,
+        )
+
         // Missed days, said once, with a way to fill them in one after another. Catching up used to be
         // a loop of open, step back, save, land on Today, repeat, with nothing saying days were missed
         // (council review F4).
-        ui.unloggedLine?.takeIf { ui.unlogged.isNotEmpty() }?.let { line ->
+        // Not while silent: the hero and the question above already say nothing has been logged.
+        ui.unloggedLine?.takeIf { ui.unlogged.isNotEmpty() && silentSince == null }?.let { line ->
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     line,
@@ -339,7 +358,7 @@ fun TodayScreen(
                 accuracy = ui.accuracy,
                 state = state,
                 // The hero's phase, so the two cards always share a palette.
-                phase = if (state.isBleeding) Phase.MENSTRUATION else state.phase,
+                phase = if (silentSince != null) null else if (state.isBleeding) Phase.MENSTRUATION else state.phase,
             )
         }
 
@@ -367,6 +386,61 @@ private fun Header(today: java.time.LocalDate, onSettings: () -> Unit) {
         // The header sparkles moved to the hero, where the mascot now anchors them. Two decorated
         // areas stacked was the start of the clutter the brief warned about.
         TextButton(onClick = onSettings, modifier = Modifier.tourTarget(TourTarget.SETTINGS_BUTTON)) { Text("Settings") }
+    }
+}
+
+/**
+ * The hero when nothing has been logged since before the expected window opened.
+ *
+ * The cycle hero would say "Day 40, Luteal, 11 days past the expected date" here, and every part
+ * of that assumes no period came in weeks nobody logged. So this says what is actually known: when
+ * it was expected, and when anything was last logged. The question card below asks the rest. The
+ * mascot stays, resting, because its face comes from today's log and there is none.
+ */
+@Composable
+private fun SilentHero(lastLogged: java.time.LocalDate, window: PeriodWindow?, mood: MascotMood) {
+    val cycle = MaterialTheme.cycleColors
+    val scheme = MaterialTheme.colorScheme
+    val ink = cycle.onPhase
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(ScallopedBottomShape(bumps = 9, topRadius = 30.dp))
+            .background(Brush.verticalGradient(listOf(scheme.primaryContainer, lerp(scheme.primaryContainer, scheme.secondaryContainer, 0.6f)))),
+    ) {
+        Sparkle(
+            color = ink.copy(alpha = 0.4f),
+            size = 13.dp,
+            modifier = Modifier.align(Alignment.TopEnd).offset(x = (-14).dp, y = 16.dp),
+        )
+        Row(
+            modifier = Modifier.padding(start = 24.dp, end = 20.dp, top = 22.dp, bottom = 38.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    "NOTHING LOGGED SINCE ${lastLogged.format(dayMonth).uppercase()}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = ink.copy(alpha = 0.85f),
+                )
+                ShrinkToFit("Welcome back", style = MaterialTheme.typography.displaySmall, color = ink)
+                Text(
+                    (window?.let { "Your period was expected ${it.earliest.format(dayMonth)} to ${it.latest.format(dayMonth)}. " } ?: "") +
+                        "With nothing logged since, Luna can't tell whether it came, so it isn't counting days late.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = ink.copy(alpha = 0.85f),
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            MascotCloud(
+                body = cycle.mascotBody,
+                face = cycle.mascotFace,
+                blush = cycle.bleeding.copy(alpha = 0.45f),
+                mood = mood,
+                width = 76.dp,
+                shadow = cycle.mascotShadow,
+            )
+        }
     }
 }
 
