@@ -76,8 +76,12 @@ fun PeriodPromptCard(
             .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(question, style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
-        if (prompt == PeriodPrompt.SILENT) {
+        val explain = rememberExplanation("prompt-silent")
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text(question, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f).semantics { heading() })
+            if (prompt == PeriodPrompt.SILENT) ExplainButton(explain, about = "these answers")
+        }
+        if (prompt == PeriodPrompt.SILENT && explain.showText) {
             Text(
                 "If it did, mark the days it ran. \"Not yet\" logs today as no bleeding.",
                 style = MaterialTheme.typography.bodySmall,

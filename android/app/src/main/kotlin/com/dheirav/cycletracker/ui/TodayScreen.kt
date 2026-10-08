@@ -424,12 +424,25 @@ private fun SilentHero(lastLogged: java.time.LocalDate, window: PeriodWindow?, m
                     color = ink.copy(alpha = 0.85f),
                 )
                 ShrinkToFit("Welcome back", style = MaterialTheme.typography.displaySmall, color = ink)
-                Text(
-                    (window?.let { "Your period was expected ${it.earliest.format(dayMonth)} to ${it.latest.format(dayMonth)}. " } ?: "") +
-                        "With nothing logged since, Luna can't tell whether it came, so it isn't counting days late.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = ink.copy(alpha = 0.85f),
-                )
+                // The fact in four words every day; why, for the first few days and behind ⓘ after.
+                val explain = rememberExplanation("silent")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Not counting days late",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = ink,
+                        modifier = Modifier.weight(1f),
+                    )
+                    ExplainButton(explain, about = "why", tint = ink.copy(alpha = 0.85f))
+                }
+                if (explain.showText) {
+                    Text(
+                        (window?.let { "Your period was expected ${it.earliest.format(dayMonth)} to ${it.latest.format(dayMonth)}. " } ?: "") +
+                            "With nothing logged since, Luna can't tell whether it came.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = ink.copy(alpha = 0.85f),
+                    )
+                }
             }
             Spacer(Modifier.width(8.dp))
             MascotCloud(
@@ -578,20 +591,34 @@ private fun CycleHero(
             }
           }
             if (daysPast > 0) {
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    "$daysPast day${if (daysPast == 1) "" else "s"} past the expected date",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = ink,
-                )
-                // What the late-period card used to add, without its repeat of the numbers above,
-                // and a point at which to act, which nothing gave before the 90-day absent flag.
-                Text(
-                    "Stress, illness, travel and sleep all shift this. One late cycle is common." +
-                        (doctorPoint?.let { doctorLine(it) } ?: ""),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = ink.copy(alpha = 0.85f),
-                )
+                // The count every day, the reassurance and the doctor point for the first few days
+                // and behind ⓘ after. Except the doctor point once it is two weeks away or past:
+                // that is the one line here whose cost of being missed is real.
+                val explain = rememberExplanation("late")
+                val doctorSoon = doctorPoint != null &&
+                    !java.time.LocalDate.now().isBefore(doctorPoint.date.minusDays(14))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "$daysPast day${if (daysPast == 1) "" else "s"} past the expected date",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = ink,
+                        modifier = Modifier.weight(1f),
+                    )
+                    ExplainButton(explain, about = "the late period", tint = ink.copy(alpha = 0.85f))
+                }
+                when {
+                    explain.showText -> Text(
+                        "Stress, illness, travel and sleep all shift this. One late cycle is common." +
+                            (doctorPoint?.let { doctorLine(it) } ?: ""),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = ink.copy(alpha = 0.85f),
+                    )
+                    doctorSoon && doctorPoint != null -> Text(
+                        doctorLine(doctorPoint).trim(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = ink.copy(alpha = 0.85f),
+                    )
+                }
             }
         }
     }
@@ -646,11 +673,19 @@ private fun NextPeriodCard(window: PeriodWindow, today: java.time.LocalDate) {
             modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text(
-                if (passed) "WAS EXPECTED" else "NEXT PERIOD",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            // The qualifier that changes what the dates mean stays on the label every day; the
+            // explanation of the window goes behind ⓘ after the first few.
+            val explain = rememberExplanation("window")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    (if (passed) "WAS EXPECTED" else "NEXT PERIOD") +
+                        if (!passed && window.basis == WindowBasis.ASSUMED) " · TYPICAL SPREAD" else "",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                ExplainButton(explain, about = "this window")
+            }
             Text(
                 range,
                 style = MaterialTheme.typography.headlineSmall,
@@ -661,7 +696,7 @@ private fun NextPeriodCard(window: PeriodWindow, today: java.time.LocalDate) {
                         "${window.earliest.format(dayMonth)} and ${window.latest.format(dayMonth)}"
                 },
             )
-            Text(
+            if (explain.showText) Text(
                 when {
                     passed ->
                         "That window has passed. The next prediction starts from the period you log next."
@@ -850,11 +885,10 @@ private fun WhyCard(
             // and a plain statement of its absence if it does not.
             Text(
                 accuracy?.let {
-                    "Predictions have been ${it.meanAbsoluteError.roundToInt()} day" +
-                        "${if (it.meanAbsoluteError.roundToInt() == 1) "" else "s"} out on average " +
-                        "across ${it.sampleSize} scored cycles."
-                } ?: "Accuracy is not known yet. It needs three cycles that were predicted in " +
-                    "advance and then observed.",
+                    "Predictions ${it.meanAbsoluteError.roundToInt()} day" +
+                        "${if (it.meanAbsoluteError.roundToInt() == 1) "" else "s"} out on average, " +
+                        "over ${it.sampleSize} cycles"
+                } ?: "Accuracy not known yet: needs 3 cycles predicted, then logged",
                 style = MaterialTheme.typography.bodySmall,
                 color = scheme.onSurfaceVariant,
             )
@@ -1061,22 +1095,24 @@ private fun EmptyState(onLog: () -> Unit, onHistory: () -> Unit) {
 @Composable
 private fun ReminderStopped(batteryRestricted: Boolean) {
     val context = LocalContext.current
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
+    // One line and the fix every day; what to change, for the first few days and behind ⓘ after.
+    // Fix opens the right screen either way, so the how-to is a help, not the instruction.
+    val explain = rememberExplanation("reminder-stopped")
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "Daily reminder stopped firing",
+                "Daily reminder stopped",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.weight(1f),
             )
-            // Names the cause that is still open. Once battery is unrestricted, repeating "set battery
-            // to no restrictions" sends the person to fix something already fixed; on the Redmi that
-            // was the state when the reminder stopped, and Autostart was what remained.
+            ExplainButton(explain, about = "the stopped reminder")
+            TextButton(onClick = { ReminderScheduler.openReminderFix(context, batteryRestricted) }) { Text("Fix") }
+        }
+        if (explain.showText) {
+            // The action first. "Battery is unrestricted" led, and read as good news before the
+            // problem (device review m9).
             Text(
-                // The action first. "Battery is unrestricted" led, and read as good news before the problem
-                // (device review m9).
                 if (batteryRestricted) {
                     "Set battery saver to No restrictions so it can fire."
                 } else {
@@ -1086,7 +1122,6 @@ private fun ReminderStopped(batteryRestricted: Boolean) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        TextButton(onClick = { ReminderScheduler.openReminderFix(context, batteryRestricted) }) { Text("Fix") }
     }
 }
 

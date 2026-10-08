@@ -155,11 +155,15 @@ fun LogScreen(viewModel: LogViewModel, onDone: () -> Unit) {
 
             // The form's most reassuring line, said before the questions rather than after them,
             // where it was only seen by someone who had already answered everything (device review p6).
-            Text(
-                "Answer only what you know. Blank stays unknown, never zero.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            // Said for the first few days, then trusted to have been learned; History's hint and
+            // the tour say it too.
+            if (rememberExplanation("log-blank").fresh) {
+                Text(
+                    "Answer only what you know. Blank stays unknown, never zero.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
             HorizontalDivider()
 
