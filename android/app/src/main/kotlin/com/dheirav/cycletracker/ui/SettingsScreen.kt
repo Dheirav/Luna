@@ -105,6 +105,13 @@ fun SettingsScreen(
     ) {
         BackBar(title = "Settings")
 
+        // The fault Today's red dot points to, first thing on the page while it lasts, so the dot
+        // leads straight to the fix rather than to a hunt through the reminder card.
+        val reminderBroken = remember { settings.reminderLooksBroken() }
+        if (reminderBroken) {
+            ReminderStopped(batteryRestricted = !ReminderScheduler.isBatteryUnrestricted(context))
+        }
+
         // Grouped by what a setting changes, so the two that alter the numbers on Today are not
         // buried among the twice-a-year ones. It was one flat run of seven cards.
         SettingsGroup("Predictions")

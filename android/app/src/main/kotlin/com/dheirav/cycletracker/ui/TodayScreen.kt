@@ -24,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.drawWithContent
@@ -72,7 +73,6 @@ import com.dheirav.cycletracker.core.PredictionAccuracy
 import com.dheirav.cycletracker.core.PredictionBasis
 import com.dheirav.cycletracker.core.WindowBasis
 import com.dheirav.cycletracker.reminder.ReminderScheduler
-import com.dheirav.cycletracker.ui.theme.Heart
 import com.dheirav.cycletracker.ui.theme.MascotCloud
 import com.dheirav.cycletracker.ui.theme.MascotMood
 import com.dheirav.cycletracker.ui.theme.ScallopedBottomShape
@@ -214,9 +214,11 @@ fun TodayScreen(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 18.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        // 10, not 14: on the Redmi the four gaps were the last 16dp between an ordinary day and
+        // Today fitting on one screen without a scroll.
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Header(today = ui.today, onSettings = onSettings)
+        Header(today = ui.today, onSettings = onSettings, attention = ui.reminderBroken)
 
         if (state == null || !state.hasData) {
             EmptyState(onLog = onLog, onHistory = onHistory)
@@ -341,11 +343,9 @@ fun TodayScreen(
             LaunchedEffect(passed) { tour.windowPassed = passed }
         }
 
-        // After the forecast, not before it. A stopped reminder is a fault in the app, not news about
-        // the body, and as a full card above the window it pushed the forecast down the screen on the
-        // days it mattered most. It stays above the flags and the Why card, in the error colour, so it
-        // is still seen; a reminder that merely might stop gets a quieter line at the foot.
-        if (ui.reminderBroken) ReminderStopped(batteryRestricted = ui.batteryRestricted)
+        // A stopped reminder is not shown here at all. It is a fault in the app, not news about the
+        // body, and even as one line it was what pushed Today past one screen. It is a red dot on
+        // Settings instead, and the line itself, with Fix, heads the Settings page while it lasts.
 
         // The late-period flag is not repeated as a card here. The hero already says how late, and
         // the card's opening line restated the hero's day and cycle length; its reassurance moved
@@ -369,7 +369,7 @@ fun TodayScreen(
 }
 
 @Composable
-private fun Header(today: java.time.LocalDate, onSettings: () -> Unit) {
+private fun Header(today: java.time.LocalDate, onSettings: () -> Unit, attention: Boolean = false) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -385,7 +385,28 @@ private fun Header(today: java.time.LocalDate, onSettings: () -> Unit) {
         }
         // The header sparkles moved to the hero, where the mascot now anchors them. Two decorated
         // areas stacked was the start of the clutter the brief warned about.
-        TextButton(onClick = onSettings, modifier = Modifier.tourTarget(TourTarget.SETTINGS_BUTTON)) { Text("Settings") }
+        // A dot while the reminder is broken: findable without costing Today a row. Said in words
+        // to a screen reader, and never the only sign, since Settings opens on the fault itself.
+        TextButton(
+            onClick = onSettings,
+            modifier = Modifier
+                .tourTarget(TourTarget.SETTINGS_BUTTON)
+                .semantics { if (attention) contentDescription = "Settings, daily reminder needs attention" },
+        ) {
+            Text("Settings")
+            // On the label itself, at its top corner; as a badge on the button it floated off at the
+            // screen's edge, away from the word it belongs to.
+            if (attention) {
+                Box(
+                    Modifier
+                        .padding(start = 3.dp)
+                        .align(Alignment.Top)
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.error),
+                )
+            }
+        }
     }
 }
 
@@ -405,7 +426,7 @@ private fun SilentHero(lastLogged: java.time.LocalDate, window: PeriodWindow?, m
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(ScallopedBottomShape(bumps = 9, topRadius = 30.dp))
+            .clip(ScallopedBottomShape(bumps = 13, topRadius = 30.dp))
             .background(Brush.verticalGradient(listOf(scheme.primaryContainer, lerp(scheme.primaryContainer, scheme.secondaryContainer, 0.6f)))),
     ) {
         Sparkle(
@@ -414,7 +435,7 @@ private fun SilentHero(lastLogged: java.time.LocalDate, window: PeriodWindow?, m
             modifier = Modifier.align(Alignment.TopEnd).offset(x = (-14).dp, y = 16.dp),
         )
         Row(
-            modifier = Modifier.padding(start = 24.dp, end = 20.dp, top = 22.dp, bottom = 38.dp),
+            modifier = Modifier.padding(start = 24.dp, end = 20.dp, top = 18.dp, bottom = 28.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -495,7 +516,7 @@ private fun CycleHero(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(ScallopedBottomShape(bumps = 9, topRadius = 30.dp))
+            .clip(ScallopedBottomShape(bumps = 13, topRadius = 30.dp))
             .background(Brush.verticalGradient(listOf(top, bottom)))
             // The card already names the phase, which makes it the obvious place to ask what the
             // phase means — better than another button competing with "Log today".
@@ -506,7 +527,6 @@ private fun CycleHero(
     ) {
         // Ornament anchors to the edges the text does not occupy: around the ring on the right, never
         // the bottom-left, where the text column ends up and where it grows at larger font scales.
-        // The hearts once sat at BottomStart and ran straight through "of a 28-day cycle" on the Redmi.
         Sparkle(
             color = ink.copy(alpha = 0.5f),
             size = 14.dp,
@@ -517,20 +537,12 @@ private fun CycleHero(
             size = 9.dp,
             modifier = Modifier.align(Alignment.TopEnd).offset(x = (-146).dp, y = 132.dp),
         )
-        Heart(
-            color = ink.copy(alpha = 0.30f),
-            size = 11.dp,
-            modifier = Modifier.align(Alignment.TopEnd).offset(x = (-14).dp, y = 150.dp),
-        )
-        Heart(
-            color = ink.copy(alpha = 0.18f),
-            size = 7.dp,
-            modifier = Modifier.align(Alignment.TopEnd).offset(x = (-30).dp, y = 164.dp),
-        )
+        // No hearts since the card was shortened (8 Oct 2026): their spot below the ring became the
+        // late line's ⓘ, and a heart beside a button reads as part of it.
 
         Column(
             // Extra bottom padding clears the scallop, which eats into the lower edge.
-            modifier = Modifier.padding(start = 24.dp, end = 20.dp, top = 22.dp, bottom = 38.dp),
+            modifier = Modifier.padding(start = 24.dp, end = 20.dp, top = 18.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
           Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -585,7 +597,10 @@ private fun CycleHero(
                     ink = effectivePhase?.let { cycle.phaseAccent[it] } ?: ink,
                     period = cycle.bleeding,
                     halo = lerp(top, bottom, 0.3f),
-                ) { mascot(52.dp) }
+                    // 112, not 128, and 13 scallops, not 9: together about 35dp off the card's height,
+                    // which on the Redmi was what stood between Today and a single screen.
+                    size = 112.dp,
+                ) { mascot(46.dp) }
             } else {
                 mascot(84.dp)
             }
@@ -1093,7 +1108,7 @@ private fun EmptyState(onLog: () -> Unit, onHistory: () -> Unit) {
  * red on purpose: this is about the app, not the body.
  */
 @Composable
-private fun ReminderStopped(batteryRestricted: Boolean) {
+internal fun ReminderStopped(batteryRestricted: Boolean) {
     val context = LocalContext.current
     // One line and the fix every day; what to change, for the first few days and behind ⓘ after.
     // Fix opens the right screen either way, so the how-to is a help, not the instruction.
