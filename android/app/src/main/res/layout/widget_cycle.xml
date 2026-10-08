@@ -73,9 +73,36 @@
             android:text="Next 1–9 Jan" />
     </LinearLayout>
 
+    <!-- One-tap answers, shown only while today's bleeding question is unanswered: a filled dot for
+         bleeding and an empty one for none, the calendar's own marks, and no words, so the home
+         screen does not say what the app tracks. The spoken labels do say it, for whoever is using
+         the phone. 40dp each, so the touch target is generous though the dot is small. -->
+    <LinearLayout
+        android:id="@+id/widget_answers"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/widget_answer_bleeding"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/widget_dot_filled"
+            android:contentDescription="Log bleeding today" />
+
+        <ImageView
+            android:id="@+id/widget_answer_none"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="2dp"
+            android:src="@drawable/widget_dot_empty"
+            android:contentDescription="Log no bleeding today" />
+    </LinearLayout>
+
     <!-- The app's cloud, so the widget looks like Luna rather than a system tile (8 Oct 2026). It
-         carries nothing about the person: always the resting face, even in detail mode. ImageView
-         is on the RemoteViews allow-list. -->
+         carries nothing about the person: always the resting face, even in detail mode. Shown once
+         today is answered, in place of the dots. -->
     <ImageView
         android:id="@+id/widget_mascot"
         android:layout_width="40dp"

@@ -105,10 +105,16 @@ private suspend fun buildMoodViews(context: Context): RemoteViews {
         ),
     )
 
+    // Faces to tap until a mood is logged today, then the day's face. Burden symptoms only, the
+    // ones the face is read from.
+    val todays = dao.allSymptomsOnce().filter { it.date == today }
+    val moodLogged = todays.any { row -> Symptom.byKey(row.key)?.let { it in BURDEN_SYMPTOMS } == true }
+    views.moodButtons(context, logged = moodLogged)
+
     // Discreet mode covers this widget too. A face captioned "you often log irritability around now"
     // discloses more about a cycle than the cycle widget's own detail line does.
     if (!settings.widgetShowsDetails) {
-        return views.showing(MoodFace.UNKNOWN, "How are you?", "Tap to log")
+        return views.showing(MoodFace.UNKNOWN, "How are you?", if (moodLogged) "Logged today" else "Tap a face")
     }
 
     val logs = dao.allLogsOnce()
@@ -212,8 +218,31 @@ private fun RemoteViews.showing(face: MoodFace, headline: String, evidence: Stri
     setImageViewResource(R.id.mood_face, faceDrawable(face))
     setTextViewText(R.id.mood_headline, headline)
     setTextViewText(R.id.mood_evidence, evidence)
-    setContentDescription(R.id.mood_root, "Luna. $headline. $evidence. Tap to log.")
+    setContentDescription(R.id.mood_root, "Luna. $headline. $evidence. Tap to open the log.")
     return this
+}
+
+/** The four burden-scaled symptoms the face is read from (see [MoodReadings]). */
+private val BURDEN_SYMPTOMS = setOf(Symptom.LOW_MOOD, Symptom.IRRITABILITY, Symptom.ANXIETY, Symptom.STRESS)
+
+/**
+ * The three faces as one-tap answers, shown only until a mood is logged today; then the day's face
+ * takes their place. Settled, in between and heavy log low mood as None, Moderate and Strong, the
+ * levels [MoodReadings] reads back as those same faces.
+ */
+private fun RemoteViews.moodButtons(context: Context, logged: Boolean) {
+    setViewVisibility(R.id.mood_answers, if (logged) android.view.View.GONE else android.view.View.VISIBLE)
+    setViewVisibility(R.id.mood_face, if (logged) android.view.View.VISIBLE else android.view.View.GONE)
+    fun answer(code: Int, level: Int) = PendingIntent.getBroadcast(
+        context, code,
+        Intent(context, com.dheirav.cycletracker.reminder.LogActionReceiver::class.java)
+            .setAction(com.dheirav.cycletracker.reminder.ACTION_LOG_MOOD)
+            .putExtra(com.dheirav.cycletracker.reminder.EXTRA_MOOD_LEVEL, level),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+    setOnClickPendingIntent(R.id.mood_answer_settled, answer(30, 0))
+    setOnClickPendingIntent(R.id.mood_answer_steady, answer(31, 2))
+    setOnClickPendingIntent(R.id.mood_answer_heavy, answer(32, 3))
 }
 
 private fun faceDrawable(face: MoodFace): Int = when (face) {

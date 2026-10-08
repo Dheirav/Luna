@@ -27,6 +27,10 @@ const val EXTRA_LOG_DATE = "com.dheirav.cycletracker.LOG_DATE"
 
 /** Takes back an answer given from the notification. Carries the day as it was before. */
 const val ACTION_UNDO_ANSWER = "com.dheirav.cycletracker.UNDO_ANSWER"
+
+/** The mood widget's faces. Carries [EXTRA_MOOD_LEVEL], a low-mood level on the 0 to 4 burden scale. */
+const val ACTION_LOG_MOOD = "com.dheirav.cycletracker.LOG_MOOD"
+const val EXTRA_MOOD_LEVEL = "com.dheirav.cycletracker.MOOD_LEVEL"
 private const val EXTRA_PREV_EXISTED = "prev_existed"
 private const val EXTRA_PREV_BLEEDING = "prev_bleeding"
 private const val EXTRA_PREV_ANSWERED = "prev_answered"
@@ -63,6 +67,10 @@ class LogActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == ACTION_UNDO_ANSWER) {
             undo(context, intent)
+            return
+        }
+        if (intent.action == ACTION_LOG_MOOD) {
+            logMood(context, intent.getIntExtra(EXTRA_MOOD_LEVEL, -1))
             return
         }
         val bleeding = when (intent.action) {
@@ -163,6 +171,27 @@ class LogActionReceiver : BroadcastReceiver() {
                 )
                 .build(),
         )
+    }
+
+    /**
+     * A face tapped on the mood widget: today's low mood, written through the repository the log
+     * form uses, so everything else on the day is kept and the source rules are the same. The widget
+     * changing to the chosen face is the confirmation; the form, a tap away, is the way to change it.
+     */
+    private fun logMood(context: Context, level: Int) {
+        if (level !in 0..4) return
+        val pending = goAsync()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val repo = com.dheirav.cycletracker.data.LogRepository((context.applicationContext as CycleTrackerApp).database.logDao())
+                val today = LocalDate.now()
+                val entry = repo.load(today)
+                repo.save(entry.copy(symptoms = entry.symptoms + (com.dheirav.cycletracker.core.Symptom.LOW_MOOD to level)))
+                refreshWidgets(context)
+            } finally {
+                pending.finish()
+            }
+        }
     }
 
     /** Puts the day back exactly as it was before the answer: deleted if it did not exist. */

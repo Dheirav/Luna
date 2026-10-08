@@ -662,8 +662,10 @@ private fun WidgetCard(settings: Settings) {
         // The tile, in the swipe-down panel. It only ever says whether today is logged, because the
         // panel shows on the lock screen. The system asks before adding it; Android 13 and later.
         Text(
-            "\"Log today\" in Quick Settings: swipe down from anywhere to log. It shows only whether " +
-                "today is logged, never anything about your cycle.",
+            "On the widget, tap the filled dot if you bled today and the empty one if you didn't. The " +
+                "mood widget's faces log how you feel. Neither says what it logs, so the home screen " +
+                "gives nothing away. \"Log today\" in Quick Settings works the same way: swipe down " +
+                "from anywhere, and it only ever shows whether today is logged.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

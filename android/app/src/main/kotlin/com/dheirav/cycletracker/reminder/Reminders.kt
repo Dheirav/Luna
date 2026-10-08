@@ -414,7 +414,9 @@ class ReminderWorker(
             putExtra(EXTRA_OPEN_LOG, openLog)
         }
         return PendingIntent.getActivity(
-            context, if (openLog) 0 else 1, intent,
+            // 1 is the mood widget's: a plain "open the app" sharing its identity overwrote the
+            // widget's open-the-form extra whenever this was built last.
+            context, if (openLog) 0 else 3, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
     }

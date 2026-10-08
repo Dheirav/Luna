@@ -34,8 +34,9 @@
         android:importantForAccessibility="no" />
 
     <LinearLayout
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_weight="1"
         android:orientation="vertical">
 
         <TextView
@@ -64,5 +65,39 @@
             android:maxLines="1"
             android:ellipsize="end"
             android:text="Tap to log how you feel" />
+    </LinearLayout>
+
+    <!-- One-tap answers, shown only until a mood is logged today: the app's own three faces. Each
+         logs low mood (None, Moderate, Strong), the burden scale the face is read from. -->
+    <LinearLayout
+        android:id="@+id/mood_answers"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/mood_answer_settled"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:padding="2dp"
+            android:src="@drawable/ic_mood_settled"
+            android:contentDescription="Log mood: settled" />
+
+        <ImageView
+            android:id="@+id/mood_answer_steady"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:padding="2dp"
+            android:src="@drawable/ic_mood_steady"
+            android:contentDescription="Log mood: in between" />
+
+        <ImageView
+            android:id="@+id/mood_answer_heavy"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:padding="2dp"
+            android:src="@drawable/ic_mood_heavy"
+            android:contentDescription="Log mood: heavy" />
     </LinearLayout>
 </LinearLayout>

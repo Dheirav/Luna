@@ -126,12 +126,20 @@ private suspend fun buildViews(context: Context): RemoteViews {
      */
     val today = LocalDate.now()
 
+    // The one-tap answers, in every mode: the dots say nothing about the cycle.
+    val todayLog = dao.logFor(today)
+    views.answerButtons(context, answered = todayLog?.bleedingAnswered == true)
+
     if (!settings.widgetShowsDetails) {
         // Whether today is logged says nothing about the cycle, and it is the question this widget
         // exists to answer at a glance, so discreet mode keeps it.
-        val logged = dao.logFor(today) != null
+        val logged = todayLog != null
         views.setTextViewText(R.id.widget_headline, "Today")
         views.setTextViewText(R.id.widget_detail, if (logged) "Logged ✓" else "Tap to log")
+        // Set every time. A launcher reapplies new views over the old ones, so a label left unset
+        // here kept the detailed one from before, and a screen reader read "Nothing logged since
+        // 3 Mar" off a widget showing only "Today".
+        views.setContentDescription(R.id.widget_root, "Luna. " + if (logged) "Today is logged." else "Tap to log today.")
         return views
     }
 
@@ -220,6 +228,24 @@ private suspend fun buildViews(context: Context): RemoteViews {
             ". Tap to log today.",
     )
     return views
+}
+
+/**
+ * Shows the two dots while today's bleeding question is unanswered, and the cloud once it is.
+ * Progressive: the buttons are there only while there is something to answer. Each sends the same
+ * broadcast as the reminder's buttons, so the write, the Undo notification and the refresh are one
+ * path. No date is attached: a widget drawn yesterday must not log yesterday.
+ */
+private fun RemoteViews.answerButtons(context: Context, answered: Boolean) {
+    setViewVisibility(R.id.widget_answers, if (answered) android.view.View.GONE else android.view.View.VISIBLE)
+    setViewVisibility(R.id.widget_mascot, if (answered) android.view.View.VISIBLE else android.view.View.GONE)
+    fun answer(code: Int, action: String) = PendingIntent.getBroadcast(
+        context, code,
+        Intent(context, com.dheirav.cycletracker.reminder.LogActionReceiver::class.java).setAction(action),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+    setOnClickPendingIntent(R.id.widget_answer_bleeding, answer(20, com.dheirav.cycletracker.reminder.ACTION_LOG_BLEEDING))
+    setOnClickPendingIntent(R.id.widget_answer_none, answer(21, com.dheirav.cycletracker.reminder.ACTION_LOG_NO_BLEEDING))
 }
 
 /**

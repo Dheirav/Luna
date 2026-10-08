@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "Bleeding today" on the widget: a filled dot, the calendar's mark for a logged bleeding day.
+     Deliberately wordless, so the home screen does not say what the app tracks. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="40dp"
+    android:height="40dp"
+    android:viewportWidth="40"
+    android:viewportHeight="40">
+    <path
+        android:fillColor="@color/widget_text"
+        android:pathData="M10,20 a10,10 0 1,0 20,0 a10,10 0 1,0 -20,0 Z" />
+</vector>

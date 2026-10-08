@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "No bleeding today" on the widget: an empty ring beside the filled dot. Wordless, as above. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="40dp"
+    android:height="40dp"
+    android:viewportWidth="40"
+    android:viewportHeight="40">
+    <path
+        android:strokeColor="@color/widget_text"
+        android:strokeWidth="2.4"
+        android:pathData="M11.2,20 a8.8,8.8 0 1,0 17.6,0 a8.8,8.8 0 1,0 -17.6,0 Z" />
+</vector>
