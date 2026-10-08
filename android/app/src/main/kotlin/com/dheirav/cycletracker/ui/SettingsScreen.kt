@@ -633,9 +633,9 @@ private fun WidgetCard(settings: Settings) {
     var details by remember { mutableStateOf(settings.widgetShowsDetails) }
 
     SettingsCard(
-        "Home screen widget",
-        about = "Add it by long-pressing your home screen. Worth having: it needs no background " +
-            "permission, so it keeps working even when this phone kills the daily reminder.",
+        "Widget and quick tile",
+        about = "Add the widget by long-pressing your home screen. Both need no background " +
+            "permission, so they keep working even when this phone kills the daily reminder.",
     ) {
         SwitchRow(
             label = "Show cycle details",
@@ -658,6 +658,35 @@ private fun WidgetCard(settings: Settings) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        HorizontalDivider()
+        // The tile, in the swipe-down panel. It only ever says whether today is logged, because the
+        // panel shows on the lock screen. The system asks before adding it; Android 13 and later.
+        Text(
+            "\"Log today\" in Quick Settings: swipe down from anywhere to log. It shows only whether " +
+                "today is logged, never anything about your cycle.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            OutlinedButton(
+                onClick = {
+                    val bar = context.getSystemService(android.app.StatusBarManager::class.java)
+                    bar?.requestAddTileService(
+                        android.content.ComponentName(context, com.dheirav.cycletracker.tile.LogTileService::class.java),
+                        "Log today",
+                        android.graphics.drawable.Icon.createWithResource(context, com.dheirav.cycletracker.R.drawable.ic_notification),
+                        context.mainExecutor,
+                    ) { }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Add to Quick Settings") }
+        } else {
+            Text(
+                "To add it, open Quick Settings, tap the pencil, and drag \"Log today\" into place.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

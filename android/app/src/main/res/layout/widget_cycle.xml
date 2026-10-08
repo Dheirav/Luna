@@ -5,7 +5,8 @@
     never been proven to survive either test phone's ROM, and a widget needs no background
     execution to stay on screen.
 
-    **Only LinearLayout and TextView here, and that is a hard constraint, not a style choice.**
+    **Only allow-listed views here (LinearLayout, TextView, ImageView), and that is a hard
+    constraint, not a style choice.**
     RemoteViews inflates in the launcher's process and accepts only an allow-listed set of view
     classes — those annotated `@RemoteView`. An earlier version used `Space` to push the action
     line to the bottom and `android:theme` on the root; neither is permitted, and the launcher
@@ -33,32 +34,53 @@
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
+    android:orientation="horizontal"
     android:gravity="center_vertical"
     android:background="@drawable/widget_background"
-    android:padding="12dp">
+    android:paddingStart="14dp"
+    android:paddingEnd="10dp"
+    android:paddingTop="10dp"
+    android:paddingBottom="10dp">
 
-    <TextView
-        android:id="@+id/widget_headline"
-        android:layout_width="match_parent"
+    <LinearLayout
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:textSize="16sp"
-        android:textStyle="bold"
-        android:textColor="@color/widget_text"
-        android:maxLines="1"
-        android:ellipsize="end"
-        android:text="Day 16 · Luteal" />
+        android:layout_weight="1"
+        android:orientation="vertical">
 
-    <!-- The main text colour, not the muted one: this line sits on the phase tint, where the muted
-         grey measured 3.7:1 on the pinks and lilacs (council review A3). Size keeps it secondary. -->
-    <TextView
-        android:id="@+id/widget_detail"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:textSize="12sp"
-        android:textColor="@color/widget_text"
-        android:maxLines="1"
-        android:ellipsize="end"
-        android:text="Next 1–9 Jan" />
+        <TextView
+            android:id="@+id/widget_headline"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@color/widget_text"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:text="Day 16 · Luteal" />
+
+        <!-- The main text colour, not the muted one: this line sits on the phase tint, where the muted
+             grey measured 3.7:1 on the pinks and lilacs (council review A3). Size keeps it secondary. -->
+        <TextView
+            android:id="@+id/widget_detail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textSize="12sp"
+            android:textColor="@color/widget_text"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:text="Next 1–9 Jan" />
+    </LinearLayout>
+
+    <!-- The app's cloud, so the widget looks like Luna rather than a system tile (8 Oct 2026). It
+         carries nothing about the person: always the resting face, even in detail mode. ImageView
+         is on the RemoteViews allow-list. -->
+    <ImageView
+        android:id="@+id/widget_mascot"
+        android:layout_width="40dp"
+        android:layout_height="29dp"
+        android:layout_marginStart="8dp"
+        android:importantForAccessibility="no"
+        android:src="@drawable/widget_mascot" />
 </LinearLayout>

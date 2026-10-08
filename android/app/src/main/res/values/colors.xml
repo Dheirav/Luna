@@ -19,4 +19,8 @@
          values-night: the shade draws it over its own surface in both themes, and this rose holds
          enough contrast on each. Deliberately the same rose as the widget accent. -->
     <color name="notification_accent">#C2477E</color>
+    <!-- The widget's cloud: white with a violet face and a soft shadow, as in the app (Theme.kt). -->
+    <color name="widget_mascot_body">#FFFFFF</color>
+    <color name="widget_mascot_face">#5B47A8</color>
+    <color name="widget_mascot_shadow">#2E3B2C63</color>
 </resources>

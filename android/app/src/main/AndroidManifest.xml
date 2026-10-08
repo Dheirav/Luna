@@ -73,6 +73,18 @@
 
         <!-- Not exported: only this app's own notification actions target it, and an exported
              receiver here would let any app write to the cycle log. -->
+        <!-- "Log today" in Quick Settings. Says only whether today is logged; see LogTileService. -->
+        <service
+            android:name=".tile.LogTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_notification"
+            android:label="Log today"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
         <receiver
             android:name=".reminder.LogActionReceiver"
             android:exported="false" />

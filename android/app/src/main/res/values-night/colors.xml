@@ -9,4 +9,8 @@
     <color name="widget_text">#F2E4EC</color>
     <color name="widget_muted">#C7B2C0</color>
     <color name="widget_accent">#F3AFCB</color>
+    <!-- The widget's cloud, dark: cream with a plum face, no shadow (Theme.kt). -->
+    <color name="widget_mascot_body">#FDF2F7</color>
+    <color name="widget_mascot_face">#4A3573</color>
+    <color name="widget_mascot_shadow">#00000000</color>
 </resources>

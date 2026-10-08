@@ -261,6 +261,8 @@ private fun phaseTint(phase: Phase?): Int = when (phase) {
 fun refreshWidgets(context: Context) {
     refreshCycleWidgets(context)
     refreshMoodWidgets(context)
+    // The Quick Settings tile shows whether today is logged, so it is refreshed on the same writes.
+    com.dheirav.cycletracker.tile.LogTileService.refresh(context)
 }
 
 private fun refreshCycleWidgets(context: Context) {
