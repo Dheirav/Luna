@@ -25,6 +25,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SegmentedButton
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
@@ -97,8 +101,11 @@ fun HistoryScreen(
     viewModel: HistoryViewModel,
     /** Marks a run of days as a period, with Undo. */
     onMarkPeriod: (LocalDate, LocalDate) -> Unit = { _, _ -> },
+    /** The Patterns view's data. Lives here rather than on its own screen: patterns are history. */
+    insights: InsightsUiState = InsightsUiState(),
     onPickDate: (LocalDate) -> Unit,
 ) {
+    var showPatterns by rememberSaveable { mutableStateOf(false) }
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     // A range waiting for confirmation: from a drag across the calendar, or empty from the button.
     var marking by remember { mutableStateOf<Pair<LocalDate?, LocalDate?>?>(null) }
@@ -112,71 +119,90 @@ fun HistoryScreen(
     ) {
         BackBar(title = "History")
 
-        // The calendar sits on the hero's phase colours at a whisper, as the Why card does, so the
-        // screen reads as part of the same app rather than a grey form (device review p1). Blended
-        // towards the card colour so the day numbers keep their contrast.
-        val scheme = MaterialTheme.colorScheme
-        val (phaseTop, phaseBottom) = MaterialTheme.currentPhaseColors
-            ?: (scheme.secondaryContainer to scheme.primaryContainer)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(MaterialTheme.shapes.large)
-                .background(
-                    Brush.linearGradient(
-                        listOf(lerp(scheme.surfaceVariant, phaseTop, 0.45f), lerp(scheme.surfaceVariant, phaseBottom, 0.45f)),
-                    ),
+        // Calendar and patterns are two views of the same history, so they share the screen rather
+        // than Today gaining another way out.
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            listOf("Calendar", "Patterns").forEachIndexed { index, label ->
+                SegmentedButton(
+                    selected = showPatterns == (index == 1),
+                    onClick = { showPatterns = index == 1 },
+                    shape = SegmentedButtonDefaults.itemShape(index, 2),
+                    icon = {},
+                    label = { Text(label) },
                 )
-                .padding(horizontal = 8.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            MonthHeader(
-                month = ui.month,
-                canGoForward = ui.canGoForward,
-                onShift = viewModel::shiftMonth,
-            )
+            }
+        }
 
-            WeekdayLabels()
+        if (showPatterns) {
+            InsightsContent(insights)
+        } else {
 
-            Box(Modifier.tourTarget(TourTarget.CALENDAR)) {
-                MonthGrid(
+            // The calendar sits on the hero's phase colours at a whisper, as the Why card does, so the
+            // screen reads as part of the same app rather than a grey form (device review p1). Blended
+            // towards the card colour so the day numbers keep their contrast.
+            val scheme = MaterialTheme.colorScheme
+            val (phaseTop, phaseBottom) = MaterialTheme.currentPhaseColors
+                ?: (scheme.secondaryContainer to scheme.primaryContainer)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(MaterialTheme.shapes.large)
+                    .background(
+                        Brush.linearGradient(
+                            listOf(lerp(scheme.surfaceVariant, phaseTop, 0.45f), lerp(scheme.surfaceVariant, phaseBottom, 0.45f)),
+                        ),
+                    )
+                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                MonthHeader(
                     month = ui.month,
-                    days = ui.days,
-                    window = ui.window,
+                    canGoForward = ui.canGoForward,
+                    onShift = viewModel::shiftMonth,
+                )
+
+                WeekdayLabels()
+
+                Box(Modifier.tourTarget(TourTarget.CALENDAR)) {
+                    MonthGrid(
+                        month = ui.month,
+                        days = ui.days,
+                        window = ui.window,
+                        today = ui.today,
+                        onPickDate = onPickDate,
+                        onDragRange = { start, end -> marking = start to end },
+                    )
+                }
+
+                Legend(window = ui.window, today = ui.today)
+            }
+
+            Text(
+                "Tap a day to log or correct it, or press and drag across days to mark a period. Days " +
+                    "you never logged stay blank: blank means unknown, not zero.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            // The same thing without a drag, for a screen reader, a switch, or a period across months.
+            OutlinedButton(onClick = { marking = null to null }, modifier = Modifier.fillMaxWidth()) {
+                Text("Mark a period")
+            }
+
+            marking?.let { (start, end) ->
+                MarkPeriodDialog(
                     today = ui.today,
-                    onPickDate = onPickDate,
-                    onDragRange = { start, end -> marking = start to end },
+                    initialStart = start,
+                    initialEnd = end,
+                    onDismiss = { marking = null },
+                    onMark = { s, e ->
+                        marking = null
+                        onMarkPeriod(s, e)
+                    },
                 )
             }
 
-            Legend(window = ui.window, today = ui.today)
+            MonthLog(month = ui.month, days = ui.days, onPickDate = onPickDate)
         }
-
-        Text(
-            "Tap a day to log or correct it, or press and drag across days to mark a period. Days " +
-                "you never logged stay blank: blank means unknown, not zero.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        // The same thing without a drag, for a screen reader, a switch, or a period across months.
-        OutlinedButton(onClick = { marking = null to null }, modifier = Modifier.fillMaxWidth()) {
-            Text("Mark a period")
-        }
-
-        marking?.let { (start, end) ->
-            MarkPeriodDialog(
-                today = ui.today,
-                initialStart = start,
-                initialEnd = end,
-                onDismiss = { marking = null },
-                onMark = { s, e ->
-                    marking = null
-                    onMarkPeriod(s, e)
-                },
-            )
-        }
-
-        MonthLog(month = ui.month, days = ui.days, onPickDate = onPickDate)
     }
 }
 

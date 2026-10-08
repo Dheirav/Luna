@@ -202,6 +202,14 @@ data class CycleColors(
      * dark mode.
      */
     val phaseAccent: Map<Phase, Color>,
+    /**
+     * The two Insights charts: cycle lengths and period lengths. Fixed rather than following the
+     * phase, so a chart's colour always means the same measure. Run through the dataviz palette
+     * validator against each scheme's card surface (lightness band, chroma floor, colour-blind and
+     * normal-vision separation, 3:1 against the card); dark mode needed its own, deeper pair.
+     */
+    val chartCycle: Color,
+    val chartPeriod: Color,
 )
 
 private val LightCycleColors = CycleColors(
@@ -225,6 +233,8 @@ private val LightCycleColors = CycleColors(
     mascotBody = Color.White,
     mascotFace = Color(0xFF5B47A8),
     mascotShadow = Color(0x2E3B2C63),
+    chartCycle = Color(0xFF9B85DE),
+    chartPeriod = Color(0xFFE86A93),
     // Graphics, not text, so the bar is WCAG's 3:1 for non-text contrast. Measured against both ends
     // of each card's gradient: 3.88:1 at worst (menstruation, darker end), 4.5 to 5.5:1 for the rest.
     phaseAccent = mapOf(
@@ -273,6 +283,8 @@ private val DarkCycleColors = CycleColors(
     // A stated deep plum works inside a pale body on all four.
     mascotFace = Color(0xFF4A3573),
     mascotShadow = Color.Transparent,
+    chartCycle = Color(0xFF8F7BE6),
+    chartPeriod = Color(0xFFDB6592),
     // A pale tint of each phase's own hue. All four were onPhase's near-white until the accent
     // started colouring other screens too, where a near-white heading lost the phase entirely.
     // On their own cards: 4.2:1 at worst (above 3:1 for graphics); 8:1 or better on the page.

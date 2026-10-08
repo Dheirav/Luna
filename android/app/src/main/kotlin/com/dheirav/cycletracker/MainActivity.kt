@@ -160,6 +160,8 @@ class MainActivity : ComponentActivity() {
         CompositionLocalProvider(LocalTour provides tour) {
         Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { padding ->
             val todayVm: TodayViewModel = viewModel()
+            val insightsVm: com.dheirav.cycletracker.ui.InsightsViewModel = viewModel()
+            val insightsUi by insightsVm.ui.collectAsStateWithLifecycle()
             val logVm: LogViewModel = viewModel()
 
             // Latest only: a second save replaces the first snackbar rather than queueing behind it.
@@ -277,6 +279,7 @@ class MainActivity : ComponentActivity() {
                     Screen.HISTORY -> HistoryScreen(
                         historyVm,
                         onMarkPeriod = { start, end -> logVm.markPeriod(start, end) },
+                        insights = insightsUi,
                     ) { date ->
                         if (logVm.open(date)) {
                             logOrigin = Screen.HISTORY
