@@ -159,6 +159,9 @@ class LogViewModel(app: Application) : AndroidViewModel(app) {
     /** True, false, or null to clear the answer. Tapping the selected chip again clears it. */
     fun setBleeding(answer: Boolean?) = edit { it.answeringBleeding(answer) }
 
+    /** Tapping Spotting again clears the answer, as every answer on the form does. */
+    fun toggleSpotting() = edit { if (it.spotting) it.answeringBleeding(null) else it.answeringSpotting() }
+
     fun setFlow(flow: FlowLevel) = edit {
         // A flow is a "yes". Tapping the selected level again clears the flow, not the yes: flow is
         // optional even while bleeding.

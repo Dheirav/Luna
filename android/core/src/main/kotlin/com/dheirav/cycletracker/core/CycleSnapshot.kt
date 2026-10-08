@@ -83,10 +83,12 @@ class CycleSnapshot private constructor(
             loggedDays: Set<LocalDate> = bleedingDays.toSet() + noBleedingDays,
             /** Logged pain per day, for the severe-period-pain flag. */
             painByDate: Map<LocalDate, Int> = emptyMap(),
+            /** Days answered "Spotting" (§2.5). Also in [noBleedingDays]: spotting ends a period. */
+            spottingDays: Set<LocalDate> = emptySet(),
         ): CycleSnapshot {
             val engine = CycleEngine(config)
             val bleeding = bleedingDays.toSet()
-            val projection = CycleProjector.project(bleeding, config, assumedDays)
+            val projection = CycleProjector.project(bleeding, config, assumedDays, spottingDays)
             val state = engine.stateFor(
                 today,
                 projection,

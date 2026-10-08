@@ -305,7 +305,7 @@ private fun LogRow(date: LocalDate, summary: DaySummary, onPickDate: (LocalDate)
                 // as no bleeding looked the same as one where the question was skipped.
                 if (summary.bleedingAnswered && !summary.isBleeding) {
                     Text(
-                        "No bleeding",
+                        if (summary.spotting) "Spotting" else "No bleeding",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -572,6 +572,7 @@ private fun DayCell(
         when {
             observedBleed -> append(", bleeding logged")
             bleeding -> append(", bleeding estimated, not logged by you")
+            summary?.spotting == true -> append(", spotting logged")
             summary != null -> append(", logged")
             else -> append(", nothing logged")
         }
@@ -619,13 +620,14 @@ private fun DayCell(
                 )
             }
             // A dot for a day that holds symptoms or notes but no bleeding — otherwise a
-            // fully-logged non-bleeding day looks identical to one never opened.
+            // fully-logged non-bleeding day looks identical to one never opened. A spotting day's
+            // dot is in the bleeding colour and a little larger: bleeding, but not a period day.
             if (summary != null && !bleeding) {
                 Box(
                     modifier = Modifier
-                        .size(4.dp)
+                        .size(if (summary.spotting) 6.dp else 4.dp)
                         .clip(CircleShape)
-                        .background(cycle.logged),
+                        .background(if (summary.spotting) cycle.bleeding else cycle.logged),
                 )
             }
         }
@@ -695,7 +697,7 @@ private fun Modifier.dashedOutline(color: Color, shape: androidx.compose.ui.grap
 }
 
 /** What a cell can be marked with. Five now, which is why this is not four booleans. */
-private enum class Marker { FILL, DASHED, WASH, DOT, RING }
+private enum class Marker { FILL, DASHED, WASH, DOT, SPOT, RING }
 
 // `FlowRow` is still `ExperimentalLayoutApi` on Compose BOM 2024.12.01 — stable from 1.8, which this
 // project is not on yet. Opted in for the same reason as `TimePicker` in SettingsScreen: the
@@ -722,6 +724,7 @@ private fun Legend(window: PeriodWindow?, today: LocalDate) {
             },
             Marker.WASH,
         )
+        LegendItem("Spotting", Marker.SPOT)
         LegendItem("Logged", Marker.DOT)
         // Today was drawn on the calendar and missing from the legend, so the legend's only ring
         // entry was "Estimated" — teaching the wrong reading of the ring around today's date.
@@ -740,12 +743,13 @@ private fun LegendItem(label: String, marker: Marker) {
         Box(
             modifier = Modifier
                 .clearAndSetSemantics { }
-                .size(if (marker == Marker.DOT) 6.dp else 12.dp)
+                .size(if (marker == Marker.DOT || marker == Marker.SPOT) 6.dp else 12.dp)
                 .clip(CircleShape)
                 .background(
                     when (marker) {
                         Marker.FILL -> cycle.bleeding
                         Marker.DOT -> cycle.logged
+                        Marker.SPOT -> cycle.bleeding
                         Marker.WASH -> cycle.predicted.copy(alpha = 0.12f)
                         Marker.DASHED, Marker.RING -> Color.Transparent
                     },

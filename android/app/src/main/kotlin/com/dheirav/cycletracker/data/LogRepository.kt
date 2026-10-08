@@ -21,6 +21,11 @@ data class DayEntry(
      */
     val bleedingAnswered: Boolean = false,
     val flow: FlowLevel? = null,
+    /**
+     * Answered "Spotting" (CYCLE_RULES §2.5): an answered, non-bleeding day. Kept apart from [flow]
+     * because spotting is not a level of a period's bleeding; it is not a period day at all.
+     */
+    val spotting: Boolean = false,
     val symptoms: Map<Symptom, Int> = emptyMap(),
     val tags: Set<DayTag> = emptySet(),
     val notes: String = "",
@@ -44,8 +49,15 @@ data class DayEntry(
         isBleeding = answer == true,
         bleedingAnswered = answer != null,
         flow = if (answer == true) flow else null,
+        spotting = false,
     )
+
+    /** Answers "Spotting": not bleeding, but not nothing either (§2.5). */
+    fun answeringSpotting(): DayEntry = copy(isBleeding = false, bleedingAnswered = true, flow = null, spotting = true)
 }
+
+/** How spotting is stored: in the flow column of a non-bleeding day, so no schema change is needed. */
+const val SPOTTING_FLOW = "SPOTTING"
 
 /**
  * One logged day, as the history screen needs it.
@@ -67,6 +79,8 @@ data class DaySummary(
     val tags: Set<DayTag> = emptySet(),
     /** See [DayEntry.bleedingAnswered]. A bleeding day is always an answer. */
     val bleedingAnswered: Boolean = isBleeding,
+    /** See [DayEntry.spotting]. */
+    val spotting: Boolean = false,
 ) {
     /** Whether there is anything to show beyond the bleeding state. */
     val hasDetail: Boolean get() = symptoms.isNotEmpty() || tags.isNotEmpty() || notes.isNotBlank()
@@ -87,6 +101,7 @@ class LogRepository(private val dao: LogDao) {
             isBleeding = log?.isBleeding ?: false,
             bleedingAnswered = log?.let { it.bleedingAnswered || it.isBleeding } ?: false,
             flow = log?.flow?.let { runCatching { FlowLevel.valueOf(it) }.getOrNull() },
+            spotting = log?.flow == SPOTTING_FLOW && !log.isBleeding,
             symptoms = symptoms,
             tags = tags,
             notes = log?.notes.orEmpty(),
@@ -113,6 +128,7 @@ class LogRepository(private val dao: LogDao) {
                     bleedingAnswered = log.bleedingAnswered || log.isBleeding,
                     isAssumed = log.source == "ASSUMED",
                     flow = log.flow?.let { runCatching { FlowLevel.valueOf(it) }.getOrNull() },
+                    spotting = log.flow == SPOTTING_FLOW && !log.isBleeding,
                     hasNotes = log.notes.isNotBlank(),
                     notes = log.notes,
                     symptoms = symptomsByDate[log.date].orEmpty()
@@ -166,7 +182,7 @@ class LogRepository(private val dao: LogDao) {
                 date = entry.date,
                 isBleeding = entry.isBleeding,
                 bleedingAnswered = entry.bleeding != null,
-                flow = entry.flow?.name,
+                flow = if (entry.spotting) SPOTTING_FLOW else entry.flow?.name,
                 notes = entry.notes,
                 source = source.name,
             ),

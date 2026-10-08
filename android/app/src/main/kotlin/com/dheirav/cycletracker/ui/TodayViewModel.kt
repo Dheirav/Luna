@@ -93,6 +93,7 @@ fun loggedSummary(day: DaySummary): String {
         add(
             when {
                 !day.bleedingAnswered -> "Bleeding not recorded"
+                day.spotting -> "Spotting"
                 !day.isBleeding -> "No bleeding"
                 day.flow != null -> "Bleeding, ${day.flow.name.lowercase()}"
                 else -> "Bleeding"

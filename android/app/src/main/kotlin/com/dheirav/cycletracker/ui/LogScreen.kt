@@ -182,13 +182,25 @@ fun LogScreen(viewModel: LogViewModel, onDone: () -> Unit) {
                 // finger and a screen reader alike. Material's segmented buttons showed a tick the
                 // other rows did not, and as radio buttons a selected one could not be cleared by
                 // TalkBack (device review m8).
+                // Spotting in the middle, between none and a period day, which is where it sits: an
+                // answered day that is not bleeding, and not nothing either (CYCLE_RULES §2.5).
                 ChoiceRow(
                     label = "Bleeding",
-                    options = listOf("No bleeding", "Bleeding"),
-                    selected = when (entry.bleeding) { false -> 0; true -> 1; null -> null },
+                    options = listOf("No bleeding", "Spotting", "Bleeding"),
+                    selected = when {
+                        entry.spotting -> 1
+                        entry.bleeding == false -> 0
+                        entry.bleeding == true -> 2
+                        else -> null
+                    },
                     onSelect = { i ->
-                        val answer = i == 1
-                        viewModel.setBleeding(if (entry.bleeding == answer) null else answer)
+                        when (i) {
+                            1 -> viewModel.toggleSpotting()
+                            else -> {
+                                val answer = i == 2
+                                viewModel.setBleeding(if (entry.bleeding == answer && !entry.spotting) null else answer)
+                            }
+                        }
                     },
                 )
                 AnimatedVisibility(visible = entry.bleeding == true) {

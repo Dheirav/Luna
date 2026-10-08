@@ -36,6 +36,8 @@ fun List<DailyLogEntity>.snapshot(
         noBleedingDays = filter { it.bleedingAnswered && !it.isBleeding }.map { it.date }.toSet(),
         loggedDays = map { it.date }.toSet(),
         painByDate = painByDate,
+        // Also in noBleedingDays above, as it should be: spotting ends a period (§2.5).
+        spottingDays = filter { !it.isBleeding && it.flow == SPOTTING_FLOW }.map { it.date }.toSet(),
     )
 
 /** Logged pain by day, the one symptom a flag reads. */

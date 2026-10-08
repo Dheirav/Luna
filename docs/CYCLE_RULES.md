@@ -108,6 +108,19 @@ Cycle[i].length = daysBetween(Cycle[i].start, Cycle[i].end) + 1
 The final cycle is open: `end = null`, `length = null`. **An open cycle has no length and must
 never be counted in length statistics.**
 
+### 2.5 Spotting as an answer (added 2026-10-08)
+
+A day can be answered "Spotting" as well as "Bleeding" or "No bleeding". Spotting is light bleeding
+that is not counted as a period day, the distinction clinicians draw between bleeding and spotting.
+
+- **A spotting day is not a bleeding day.** It never starts a period, never extends one, and never
+  joins two spans under §2.1.
+- **It ends a running period, as a "no bleeding" answer does (§5.1).**
+- **Each run of consecutive spotting days is a spotting event** (§2.2), alongside the ones inferred
+  from short spans, so it reaches the between-periods flag and the doctor summary.
+- Stored as an answered, non-bleeding day whose flow is `SPOTTING`. No schema change, and backups
+  from before this rule restore unchanged.
+
 ---
 
 ## 3. Expected cycle length

@@ -27,6 +27,29 @@ object CycleProjector {
         bleedingDays: Collection<LocalDate>,
         config: CycleConfig = CycleConfig.Default,
         assumedDays: Set<LocalDate> = emptySet(),
+        /**
+         * Days answered "Spotting" (§2.5). Never bleeding days: they cannot start or extend a period,
+         * and each run of them becomes a spotting event alongside those inferred from short spans.
+         */
+        spottingDays: Set<LocalDate> = emptySet(),
+    ): Projection {
+        val projected = projectBleeding(bleedingDays, config, assumedDays)
+        if (spottingDays.isEmpty()) return projected
+        val inPeriods = projected.periods.flatMap { p -> generateSequence(p.start) { it.plusDays(1) }.takeWhile { !it.isAfter(p.end) }.toList() }.toSet()
+        val explicit = spottingDays.filter { it !in inPeriods }.sorted()
+            .fold(mutableListOf<MutableList<LocalDate>>()) { runs, day ->
+                val last = runs.lastOrNull()
+                if (last != null && daysBetween(last.last(), day) == 1) last += day else runs += mutableListOf(day)
+                runs
+            }
+            .map { SpottingEvent(it.first(), it.last(), it.size) }
+        return projected.copy(spotting = (projected.spotting + explicit).sortedBy { it.start })
+    }
+
+    private fun projectBleeding(
+        bleedingDays: Collection<LocalDate>,
+        config: CycleConfig,
+        assumedDays: Set<LocalDate>,
     ): Projection {
         val days = bleedingDays.distinct().sorted()
         if (days.isEmpty()) return Projection.Empty
