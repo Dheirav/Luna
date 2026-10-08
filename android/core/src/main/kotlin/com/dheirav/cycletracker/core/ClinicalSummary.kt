@@ -152,6 +152,8 @@ object ClinicalSummary {
         painByDate: Map<LocalDate, Int> = emptyMap(),
         /** Where [expectedCycleLength] came from, so the working estimate is not read as measured. */
         lengthSource: LengthSource? = null,
+        /** See [CycleSnapshot.silentSince]: when set, the current cycle's length is not known. */
+        silentSince: LocalDate? = null,
     ): SummaryDocument {
         val sections = mutableListOf<SummarySection>()
 
@@ -192,9 +194,21 @@ object ClinicalSummary {
                             tags = if (it.source == Source.ASSUMED) listOf(ESTIMATED) else emptyList(),
                         ),
                     )
-                    // As a cycle day, the way the cycle list below and Today count it. "Days since 43"
-                    // beside "44 days so far" were both right and read as a contradiction.
-                    add(SummaryItem.Figure("Cycle day today", "${daysBetween(it.start, today) + 1}"))
+                    if (silentSince != null) {
+                        // A cycle day counted across weeks with nothing logged would tell a doctor
+                        // the cycle had run that long, which nobody observed.
+                        add(SummaryItem.Figure("Last day anything was logged", silentSince.format(short)))
+                        add(
+                            SummaryItem.Note(
+                                "Nothing has been logged since, so whether a period has started " +
+                                    "since then is not known.",
+                            ),
+                        )
+                    } else {
+                        // As a cycle day, the way the cycle list below and Today count it. "Days since 43"
+                        // beside "44 days so far" were both right and read as a contradiction.
+                        add(SummaryItem.Figure("Cycle day today", "${daysBetween(it.start, today) + 1}"))
+                    }
                 }
             },
         )
@@ -223,7 +237,8 @@ object ClinicalSummary {
                     add(
                         SummaryItem.Row(
                             "${it.start.format(short)} to present",
-                            "${daysBetween(it.start, today) + 1} days so far",
+                            silentSince?.let { last -> "nothing logged since ${last.format(short)}" }
+                                ?: "${daysBetween(it.start, today) + 1} days so far",
                             tags = listOf(IN_PROGRESS) + if (it.source == Source.ASSUMED) listOf(ESTIMATED) else emptyList(),
                         ),
                     )

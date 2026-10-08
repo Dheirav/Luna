@@ -140,6 +140,12 @@ object HealthFlags {
          * date. The summary said "Expected around 14 Mar" beside a Today card reading 13 to 15 Mar.
          */
         window: PeriodWindow? = null,
+        /**
+         * Set when nothing has been logged since before the passed window opened. Lateness and
+         * absence are then unknown rather than measured, so neither flag is raised: they reach the
+         * doctor summary, and "no period for 120 days" about a phone nobody opened is not a finding.
+         */
+        silentSince: LocalDate? = null,
     ): List<HealthFlag> {
         val flags = mutableListOf<HealthFlag>()
 
@@ -155,7 +161,7 @@ object HealthFlags {
         // Only from a period that was observed. These two flags used to skip the check every other
         // flag makes, so an estimated period could anchor "the last one you logged", which it was
         // not, and assumed cycles must never raise a flag (§3.2).
-        if (lastPeriod != null && lastPeriod.source == Source.OBSERVED) {
+        if (silentSince == null && lastPeriod != null && lastPeriod.source == Source.OBSERVED) {
             val since = daysBetween(lastPeriod.start, today)
             if (since >= config.absentPeriodDays) {
                 flags += HealthFlag(
@@ -168,7 +174,7 @@ object HealthFlags {
                 )
             } else {
                 // Lateness only makes sense while a cycle is open and not yet absent.
-                val open = projection.currentCycle?.takeIf { it.isOpen }
+                val open = projection.currentCycle?.takeIf { it.isOpen && silentSince == null }
                 if (open != null) {
                     val dayOfCycle = daysBetween(open.start, today) + 1
                     // Counted from the expected start date, as clinicians count it (see LateGuidance).

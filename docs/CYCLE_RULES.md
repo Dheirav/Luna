@@ -213,6 +213,14 @@ has passed, and suggests seeing a doctor at the secondary amenorrhea threshold: 
 last period began, or six when observed cycles spread more than nine days (FIGO, AAFP, ASRM). See
 `core/LateGuidance.kt`.
 
+**Added 2026-10-08: lateness has to be earned by logging.** If the predicted window has passed and
+nothing at all has been logged on or after the day it opened, the app does not know whether a period
+came; it only knows nobody said. In that state (`PeriodPrompt.silentSince`) nothing may claim the
+period is late or absent: no days-late count, no doctor point, no late or absent health flag, and the
+doctor summary gives the last logged day instead of a cycle day. Today asks "Did your period come?"
+instead. One answer on or after the window opened, even a single "no bleeding", ends the silence,
+because from then on the person is logging and the lateness is measured.
+
 If `targetDate` precedes the current cycle's start, resolve it against whichever cycle contains it.
 
 ---

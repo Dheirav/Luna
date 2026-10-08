@@ -45,6 +45,13 @@ class CycleSnapshot private constructor(
     val flags: List<HealthFlag>,
     /** Never-logged stretches that split a period, oldest first; see [UnloggedGaps]. */
     val unloggedGaps: List<UnloggedGap>,
+    /**
+     * The last logged day, when nothing has been logged since before the passed window opened; see
+     * [PeriodPrompt.silentSince]. While set, nothing may claim the period is late or absent.
+     */
+    val silentSince: LocalDate?,
+    /** The period question Today should ask, if any. */
+    val periodPrompt: PeriodPrompt,
     private val engine: CycleEngine,
 ) {
 
@@ -98,6 +105,7 @@ class CycleSnapshot private constructor(
                 config = config,
                 forecastConfig = ForecastConfig(spreadMultiplier = settings.windowSpread),
             )
+            val silentSince = PeriodPrompt.silentSince(window, loggedDays, today)
 
             return CycleSnapshot(
                 today = today,
@@ -117,8 +125,11 @@ class CycleSnapshot private constructor(
                     heldSpotting = gaps.map { it.resumesOn }.toSet(),
                     painByDate = painByDate,
                     window = window,
+                    silentSince = silentSince,
                 ),
                 unloggedGaps = gaps,
+                silentSince = silentSince,
+                periodPrompt = PeriodPrompt.forToday(today, bleeding, noBleedingDays, window, silentSince),
                 engine = engine,
             )
         }
