@@ -10,7 +10,7 @@ These are about not losing data, and not being unable to update.
 
 | # | Item | Status | Why it matters |
 |---|---|---|---|
-| 1 | **An off-laptop copy of the signing key** (`luna-release.jks` plus its properties) | Two copies exist, both on the laptop's C: disk | Android only installs an update signed with the same key. Lose it and the only way to update is to uninstall, which deletes every log on the phone. A USB stick or a password manager's file attachment is enough. |
+| 1 | **An off-laptop copy of the signing key** (`luna-release.jks` plus its properties) | **Done 8 Oct 2026:** the owner keeps a copy on an external hard disk. Expected SHA-256 of the key: `d0b7cd3b…ad60a72` | Android only installs an update signed with the same key. Lose it and the only way to update is to uninstall, which deletes every log on the phone. A USB stick or a password manager's file attachment is enough. |
 | 2 | **Move the phone from the debug build to the signed release build** | Not done. Release APK is built and signed, 3.1 MB | The debug build never blocks screenshots, is 14 times larger, and is a different app ID, so its data does not carry over by itself. |
 | 3 | **Restore a backup into the release build, and check it matches** | Backup and restore verified on the debug build in August; never into a release build | This is step 2's safety net, and the first real test of moving between builds. |
 | 4 | **Backups that happen without remembering** | Manual export only; last one 5 Oct | The phone is the only copy. An encrypted weekly backup to a folder the person chooses needs no internet permission. |
@@ -48,4 +48,4 @@ A second device review pass on the release build covers all of these in one sitt
 - **Built: Spotting as its own answer** (spec §2.5) and **a CSV export** of every logged day.
 - **Not wanted: pausing predictions, and pill or contraception tracking.**
 - **Not now: moving to the release build.** The phone stays on the debug build for the time being,
-  so items 2 and 3 above wait until that changes. Item 1, the off-laptop key copy, does not.
+  so items 2 and 3 above wait until that changes. Item 1, the off-laptop key copy, is done.
