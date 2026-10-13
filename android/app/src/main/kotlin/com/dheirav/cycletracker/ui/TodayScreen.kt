@@ -220,8 +220,13 @@ fun TodayScreen(
     ) {
         Header(today = ui.today, onSettings = onSettings, attention = ui.reminderBroken)
 
+        // Before the empty-state return, so the tour knows which captions to use either way.
+        LocalTour.current?.let { tour ->
+            val hasData = state?.hasData == true
+            LaunchedEffect(hasData) { tour.hasData = hasData }
+        }
         if (state == null || !state.hasData) {
-            EmptyState(onLog = onLog, onHistory = onHistory)
+            EmptyState(onLog = onLog, onHistory = onHistory, today = ui.today, onMarkPeriod = onMarkPeriod)
             return@Column
         }
 
@@ -1069,8 +1074,16 @@ private fun WhyTile(tile: Tile, modifier: Modifier) {
 }
 
 @Composable
-private fun EmptyState(onLog: () -> Unit, onHistory: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+private fun EmptyState(
+    onLog: () -> Unit,
+    onHistory: () -> Unit,
+    today: java.time.LocalDate,
+    onMarkPeriod: (java.time.LocalDate, java.time.LocalDate) -> Unit,
+) {
+    var marking by remember { mutableStateOf(false) }
+    // Tagged as the hero, so the tour's first stop has something to point at on an empty Today; it
+    // skipped straight past when the hero was the only thing tagged.
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.tourTarget(TourTarget.HERO)) {
         // §6 — no periods logged means no cycle day. Never invent day 14.
         Text("No periods logged yet", style = MaterialTheme.typography.headlineSmall)
         Text(
@@ -1079,10 +1092,19 @@ private fun EmptyState(onLog: () -> Unit, onHistory: () -> Unit) {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        // The first-run setup page's question, asked where it is answered. A period already over
+        // is the fastest way to a first prediction, so it leads; today's log follows.
         Button(
+            onClick = { marking = true },
+            shape = MaterialTheme.shapes.large,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 58.dp),
+        ) {
+            Text("Mark your last period", style = MaterialTheme.typography.titleMedium)
+        }
+        OutlinedButton(
             onClick = onLog,
             shape = MaterialTheme.shapes.large,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 58.dp).tourTarget(TourTarget.LOG_BUTTON),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).tourTarget(TourTarget.LOG_BUTTON),
         ) {
             Text("Log today", style = MaterialTheme.typography.titleMedium)
         }
@@ -1091,6 +1113,16 @@ private fun EmptyState(onLog: () -> Unit, onHistory: () -> Unit) {
         TextButton(onClick = onHistory, modifier = Modifier.fillMaxWidth().tourTarget(TourTarget.HISTORY_BUTTON)) {
             Text("Add past periods")
         }
+    }
+    if (marking) {
+        MarkPeriodDialog(
+            today = today,
+            onDismiss = { marking = false },
+            onMark = { start, end ->
+                marking = false
+                onMarkPeriod(start, end)
+            },
+        )
     }
 }
 

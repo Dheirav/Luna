@@ -27,7 +27,7 @@ class TourScriptTest {
     /** Show, not tell: a caption is a line next to the thing, not a paragraph. */
     @Test
     fun `every caption is short`() {
-        steps.flatMap { listOfNotNull(it.caption, it.captionWhenWindowPassed) }
+        steps.flatMap { listOfNotNull(it.caption, it.captionWhenWindowPassed, it.captionWhenEmpty) }
             .forEach { assertTrue("too long: $it", it.length <= 90) }
     }
 
@@ -63,5 +63,12 @@ class TourScriptTest {
     fun `a next-step does not advance on a screen change`() {
         val hero = steps.indexOfFirst { it.target == TourTarget.HERO }
         assertEquals(hero, advanceOnScreen(steps, hero, TourScreen.LOG))
+    }
+
+    /** With nothing logged, the first three stops used to be skipped because their cards were absent. */
+    @Test
+    fun `with no data the opening stops have something to say`() {
+        steps.take(3).forEach { assertTrue("no empty caption: ${it.caption}", it.captionWhenEmpty != null) }
+        assertTrue(steps.first().captionFor(windowPassed = false, hasData = false).startsWith("Nothing here yet"))
     }
 }

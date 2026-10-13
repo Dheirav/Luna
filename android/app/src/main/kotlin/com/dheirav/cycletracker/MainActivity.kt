@@ -302,7 +302,6 @@ class MainActivity : ComponentActivity() {
 
                     Screen.ONBOARDING -> OnboardingScreen(
                         hasPeriods = todayUi.state?.hasData == true,
-                        onLogPeriod = logVm::logPeriod,
                         onFinish = { startTour ->
                             settings.onboardingDone = true
                             screen = Screen.TODAY

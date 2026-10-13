@@ -47,16 +47,19 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 /** The pages before the tour, in order. */
-enum class OnboardingPage { PRIVATE, SETUP }
+enum class OnboardingPage { PRIVATE }
 
 /**
- * Which pages to show before the tour.
+ * Which pages to show before the tour: one, the privacy promise, the one thing that cannot be pointed
+ * at on a screen.
  *
- * [OnboardingPage.SETUP] writes data, so it appears only when no periods are logged. On a phone that
- * already has history (an update, a restore) it would invite entering a period twice.
+ * There was a second, setup page asking for the last period and a usual cycle length. It stood
+ * between installing and the tour, so the walkthrough did not start right away (8 Oct 2026). The
+ * last period is now a button on the empty Today screen, which the tour points at, and the cycle
+ * length lives in Settings, where it always did.
  */
-fun onboardingPages(hasPeriods: Boolean): List<OnboardingPage> =
-    OnboardingPage.entries.filter { it != OnboardingPage.SETUP || !hasPeriods }
+@Suppress("UNUSED_PARAMETER")
+fun onboardingPages(hasPeriods: Boolean): List<OnboardingPage> = listOf(OnboardingPage.PRIVATE)
 
 private val rangeLabel = DateTimeFormatter.ofPattern("d MMM")
 
@@ -73,7 +76,6 @@ private val rangeLabel = DateTimeFormatter.ofPattern("d MMM")
 @Composable
 fun OnboardingScreen(
     hasPeriods: Boolean,
-    onLogPeriod: (LocalDate, LocalDate) -> Unit,
     /** True to go on into the tour, false to skip it. */
     onFinish: (startTour: Boolean) -> Unit,
 ) {
@@ -82,15 +84,7 @@ fun OnboardingScreen(
     val page = pages[index.coerceIn(0, pages.lastIndex)]
     val last = index >= pages.lastIndex
 
-    // The setup page's answers, held until the walkthrough ends.
-    var range by rememberSaveable { mutableStateOf<Pair<Long, Long>?>(null) }
-
-    // A period chosen on the setup page is kept whether or not the tour follows: skipping a tour is
-    // not a reason to lose an answer.
-    fun finish(startTour: Boolean) {
-        range?.let { (from, to) -> onLogPeriod(fromUtc(from), fromUtc(to)) }
-        onFinish(startTour)
-    }
+    fun finish(startTour: Boolean) = onFinish(startTour)
 
     // Back steps through the pages, and from the first page leaves without the tour.
     BackHandler { if (index > 0) index-- else onFinish(false) }
@@ -114,10 +108,6 @@ fun OnboardingScreen(
                     "No account and no internet. Everything you log stays on this phone unless you " +
                         "export it yourself.",
                     "Next, a short tour shows you where everything is, on the real screens.",
-                )
-                OnboardingPage.SETUP -> SetupPage(
-                    range = range,
-                    onRange = { range = it },
                 )
             }
         }
@@ -169,77 +159,6 @@ private fun Page(title: String, vararg paragraphs: String) {
     paragraphs.forEach { Text(it, style = MaterialTheme.typography.bodyLarge) }
 }
 
-/**
- * The optional first-run setup: the last period as a range, and a usual cycle length.
- *
- * Both are optional and both say what they are for. The cycle length is written straight to
- * Settings, which is where it lives and where it can be changed later; the period is held until
- * the walkthrough's Start, so Skip writes nothing.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SetupPage(range: Pair<Long, Long>?, onRange: (Pair<Long, Long>?) -> Unit) {
-    val context = LocalContext.current
-    val settings = remember { Settings(context) }
-    var cycle by remember { mutableStateOf(settings.typicalCycleLength) }
-    var picking by remember { mutableStateOf(false) }
-
-    Page(
-        "Get started",
-        "Both of these are optional. Your own logged cycles replace them once three have been " +
-            "observed.",
-    )
-
-    Text("When did your last period start?", style = MaterialTheme.typography.titleSmall)
-    OutlinedButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth()) {
-        Text(
-            range?.let { (from, to) ->
-                "${fromUtc(from).format(rangeLabel)} – ${fromUtc(to).format(rangeLabel)}"
-            } ?: "Choose the days",
-        )
-    }
-
-    Stepper(
-        label = "Usual cycle length",
-        value = cycle,
-        unset = "not set",
-        range = 15..60,
-        default = 28,
-        onChange = {
-            cycle = it
-            settings.typicalCycleLength = it
-        },
-    )
-
-    if (picking) {
-        val today = LocalDate.now()
-        val state = rememberDateRangePickerState(
-            // No logging the future: there is nothing to observe yet.
-            selectableDates = object : SelectableDates {
-                override fun isSelectableDate(utcTimeMillis: Long) = !fromUtc(utcTimeMillis).isAfter(today)
-
-                override fun isSelectableYear(year: Int) = year <= today.year
-            },
-        )
-        DatePickerDialog(
-            onDismissRequest = { picking = false },
-            confirmButton = {
-                TextButton(
-                    enabled = state.selectedStartDateMillis != null,
-                    onClick = {
-                        picking = false
-                        val start = state.selectedStartDateMillis ?: return@TextButton
-                        // A start with no end is one day, not a guessed length: only what was said.
-                        onRange(start to (state.selectedEndDateMillis ?: start))
-                    },
-                ) { Text("Use these days") }
-            },
-            dismissButton = { TextButton(onClick = { picking = false }) { Text("Cancel") } },
-        ) {
-            DateRangePicker(state = state, modifier = Modifier.weight(1f))
-        }
-    }
-}
 
 /** Material's pickers work in UTC midnights; this turns one back into the calendar date picked. */
 private fun fromUtc(millis: Long): LocalDate = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()

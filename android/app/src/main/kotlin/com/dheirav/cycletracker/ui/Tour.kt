@@ -86,11 +86,21 @@ data class TourStep(
     val leadsTo: TourScreen? = null,
     /** Said instead of [caption] once the forecast window has passed and the card reads WAS EXPECTED. */
     val captionWhenWindowPassed: String? = null,
+    /**
+     * Said instead of [caption] when nothing is logged yet. A step with one is shown even if its
+     * target is not on screen, centred, saying what will appear there; a step without one is skipped
+     * as before. With no data the first three stops pointed at cards that did not exist, and the tour
+     * silently skipped all three (8 Oct 2026).
+     */
+    val captionWhenEmpty: String? = null,
 ) {
     val tapToContinue: Boolean get() = leadsTo != null
 
-    fun captionFor(windowPassed: Boolean): String =
-        if (windowPassed) captionWhenWindowPassed ?: caption else caption
+    fun captionFor(windowPassed: Boolean, hasData: Boolean = true): String = when {
+        !hasData && captionWhenEmpty != null -> captionWhenEmpty
+        windowPassed -> captionWhenWindowPassed ?: caption
+        else -> caption
+    }
 }
 
 /**
@@ -105,20 +115,28 @@ fun tourSteps(): List<TourStep> = listOf(
     TourStep(
         TourScreen.TODAY, TourTarget.HERO,
         "Tap for the phase. The dotted inner lap counts days past your usual length.",
+        captionWhenEmpty = "Nothing here yet. Start with your last period, or log today.",
     ),
     TourStep(
         TourScreen.TODAY, TourTarget.WINDOW_CARD, "Your next period, as a range of days. It narrows as you log.",
         // It pointed at a card headed WAS EXPECTED and called it the next period (device review m5).
         captionWhenWindowPassed = "When your period was expected. A new range appears once you log the next one.",
+        captionWhenEmpty = "Once a period is logged, your next one shows here as a range of days.",
     ),
-    TourStep(TourScreen.TODAY, TourTarget.WHY_CARD, "Open this to see what every number here is based on."),
+    TourStep(
+        TourScreen.TODAY, TourTarget.WHY_CARD, "Open this to see what every number here is based on.",
+        captionWhenEmpty = "Every number will come with what it is based on, one tap away.",
+    ),
     TourStep(TourScreen.TODAY, TourTarget.LOG_BUTTON, "Tap Log today.", leadsTo = TourScreen.LOG),
     TourStep(TourScreen.LOG, TourTarget.LOG_BLEEDING, "Answer what you know. Anything you skip stays unknown, never zero."),
     // Described, not instructed. "Save." read as an order on a step where the button cannot be
     // pressed, and the next step then said nothing had been saved (device review M7).
     TourStep(TourScreen.LOG, TourTarget.LOG_SAVE, "This saves the day. An Undo appears straight after, in case."),
     TourStep(TourScreen.LOG, TourTarget.BACK, "Tap the arrow at the top left. Nothing was saved on the tour.", leadsTo = TourScreen.TODAY),
-    TourStep(TourScreen.TODAY, TourTarget.HISTORY_BUTTON, "Tap History.", leadsTo = TourScreen.HISTORY),
+    TourStep(
+        TourScreen.TODAY, TourTarget.HISTORY_BUTTON, "Tap History.", leadsTo = TourScreen.HISTORY,
+        captionWhenEmpty = "Tap Add past periods.",
+    ),
     TourStep(TourScreen.HISTORY, TourTarget.CALENDAR, "Tap any day to add or fix it. Filled was logged, dashed was estimated."),
     TourStep(TourScreen.HISTORY, TourTarget.BACK, "Tap the arrow at the top left.", leadsTo = TourScreen.TODAY),
     TourStep(TourScreen.TODAY, TourTarget.SETTINGS_BUTTON, "Tap Settings.", leadsTo = TourScreen.SETTINGS),
@@ -143,6 +161,8 @@ class TourController {
     val steps = tourSteps()
     /** Set by Today as it draws, so the window step can say what the card actually shows. */
     var windowPassed by mutableStateOf(false)
+    /** Set by Today too: with nothing logged, steps use their empty-state captions. */
+    var hasData by mutableStateOf(true)
     val active: Boolean get() = index in steps.indices
     val step: TourStep? get() = steps.getOrNull(index)
     val activeTarget: TourTarget? get() = step?.target
@@ -204,7 +224,12 @@ fun TourOverlay(
         if (hole == null) {
             delay(900)
             if (tour.bounds[step.target] == null) {
-                if (step.tapToContinue) onMissing(step) else tour.next()
+                when {
+                    step.tapToContinue -> onMissing(step)
+                    // Shown centred, saying what will be there, rather than skipped.
+                    !tour.hasData && step.captionWhenEmpty != null -> Unit
+                    else -> tour.next()
+                }
             }
         }
     }
@@ -264,7 +289,7 @@ fun TourOverlay(
             content = {
                 TourCaption(
                     step = step,
-                    caption = step.captionFor(tour.windowPassed),
+                    caption = step.captionFor(tour.windowPassed, tour.hasData),
                     position = "${tour.index + 1} of ${tour.steps.size}",
                     // Not on a tap-through step, whose caption asks for the screen's own back arrow:
                     // a second "Back" in the bubble meant something else (device review M7).
