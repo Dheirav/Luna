@@ -8,6 +8,10 @@
     The real updates are pushed: after any log edit, from the daily reminder worker, and on
     ACTION_DATE_CHANGED so the cycle day rolls over at midnight.
 -->
+<!--
+    previewImage as well as previewLayout: Xiaomi's picker ignores previewLayout and showed the app
+    icon instead. The images are drawn by tools/widget_previews.py; re-run it after changing the look.
+-->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="110dp"
     android:minHeight="40dp"
@@ -16,6 +20,7 @@
     android:updatePeriodMillis="21600000"
     android:initialLayout="@layout/widget_cycle"
     android:previewLayout="@layout/widget_cycle"
+    android:previewImage="@drawable/widget_preview_log"
     android:description="@string/widget_description"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen" />

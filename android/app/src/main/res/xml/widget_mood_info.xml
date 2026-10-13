@@ -21,6 +21,7 @@
     android:updatePeriodMillis="21600000"
     android:initialLayout="@layout/widget_mood"
     android:previewLayout="@layout/widget_mood"
+    android:previewImage="@drawable/widget_preview_mood"
     android:description="@string/mood_widget_description"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen" />

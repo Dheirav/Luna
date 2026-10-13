@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    When the next period is expected, as a range of days, never one date.
+
+    Allow-listed RemoteViews only (LinearLayout, TextView). The defaults are the honest state before
+    the first update, and the picker's preview: no sample dates, because a preview showing a window
+    nobody's data produced is the mismatch the other two widgets had (8 Oct 2026).
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/next_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_vertical"
+    android:background="@drawable/widget_background"
+    android:paddingStart="14dp"
+    android:paddingEnd="12dp"
+    android:paddingTop="8dp"
+    android:paddingBottom="8dp">
+
+    <TextView
+        android:id="@+id/next_label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.06"
+        android:textColor="@color/widget_text"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:text="NEXT" />
+
+    <TextView
+        android:id="@+id/next_range"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="17sp"
+        android:textStyle="bold"
+        android:textColor="@color/widget_text"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:text="—" />
+
+    <TextView
+        android:id="@+id/next_detail"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="12sp"
+        android:textColor="@color/widget_text"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:text="Open Luna to update" />
+</LinearLayout>

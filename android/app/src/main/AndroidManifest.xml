@@ -43,7 +43,8 @@
         -->
         <receiver
             android:name=".widget.CycleWidget"
-            android:exported="true">
+            android:exported="true"
+            android:label="@string/widget_label_log">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="android.intent.action.DATE_CHANGED" />
@@ -59,7 +60,8 @@
              and so its tendency can refresh at midnight without touching the other one. -->
         <receiver
             android:name=".widget.MoodWidget"
-            android:exported="true">
+            android:exported="true"
+            android:label="@string/widget_label_mood">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="android.intent.action.DATE_CHANGED" />
@@ -69,6 +71,21 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_mood_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.NextPeriodWidget"
+            android:exported="true"
+            android:label="@string/widget_label_next">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.DATE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_next_info" />
         </receiver>
 
         <!-- Not exported: only this app's own notification actions target it, and an exported

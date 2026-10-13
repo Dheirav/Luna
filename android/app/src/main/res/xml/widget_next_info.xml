@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The next-period widget. 2x1: a label, a date range and a countdown fit in two cells, and it sits
+    beside the 3x1 log widget on one row. updatePeriodMillis is the same six-hour backstop as the
+    others; real updates are pushed by refreshWidgets and at midnight, which is when "in 5 to 9 days"
+    has to change.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="110dp"
+    android:minHeight="40dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="21600000"
+    android:initialLayout="@layout/widget_next"
+    android:previewLayout="@layout/widget_next"
+    android:previewImage="@drawable/widget_preview_next"
+    android:description="@string/next_widget_description"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen" />

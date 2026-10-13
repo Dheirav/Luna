@@ -7,4 +7,9 @@
     <!-- Same discretion as above: says nothing about cycles, and says "logged" rather than "feel",
          because that is what it shows. -->
     <string name="mood_widget_description">A face for what you have logged, and a tap to log more.</string>
+    <string name="next_widget_description">When your next period is expected, as a range of days.</string>
+    <!-- Widget names in the picker. All three read "Luna" before, so none could be told apart. -->
+    <string name="widget_label_log">Log today</string>
+    <string name="widget_label_mood">How are you</string>
+    <string name="widget_label_next">Next period</string>
 </resources>

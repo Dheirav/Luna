@@ -31,7 +31,9 @@
         android:layout_height="32dp"
         android:layout_marginEnd="10dp"
         android:src="@drawable/ic_mood_unknown"
-        android:importantForAccessibility="no" />
+        android:importantForAccessibility="no"
+        android:visibility="gone"
+        />
 
     <LinearLayout
         android:layout_width="0dp"
@@ -48,7 +50,7 @@
             android:textColor="@color/widget_text"
             android:maxLines="2"
             android:ellipsize="end"
-            android:text="Not enough logged yet" />
+            android:text="How are you?" />
 
         <!-- The sample size. Small, and never omitted when there is one: "usually" resting on six
              days and on sixty are different claims, and the difference belongs on screen.
@@ -64,7 +66,7 @@
             android:textColor="@color/widget_muted"
             android:maxLines="1"
             android:ellipsize="end"
-            android:text="Tap to log how you feel" />
+            android:text="Tap a face" />
     </LinearLayout>
 
     <!-- One-tap answers, shown only until a mood is logged today: the app's own three faces. Each
@@ -74,7 +76,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:visibility="gone">
+        android:visibility="visible">
 
         <ImageView
             android:id="@+id/mood_answer_settled"
